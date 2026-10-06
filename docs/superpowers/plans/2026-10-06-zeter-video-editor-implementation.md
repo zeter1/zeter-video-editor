@@ -135,13 +135,13 @@
   - `EditRequest { request_id, expected_revision, command }`
   - `CommandResult { request_id, revision, changed_entities }`
 
-- [ ] **Step 1: Write failing tests proving one successful command increments revision exactly once; rejected commands do not; undo and redo each increment revision once.**
-- [ ] **Step 2: Write failing behavioral tests for split, trim, move, duplicate, ripple delete, copy-equivalent duplicate semantics, snapping-independent core operations, track lock protection, and source media immutability.**
-- [ ] **Step 3: Write failing stale-revision test that returns a typed `DomainError::StaleRevision { expected, actual }`.**
-- [ ] **Step 4: Run `cargo test -p editor-core command history editor`; verify failure.**
-- [ ] **Step 5: Implement command application with inverse history entries and explicit changed-entity sets; do not add event sourcing.**
-- [ ] **Step 6: Run `cargo test -p editor-core`; all tests pass.**
-- [ ] **Step 7: Commit: `feat(core): add revisioned edit command engine`.**
+- [x] **Step 1: Write failing tests proving one successful command increments revision exactly once; rejected commands do not; undo and redo each increment revision once.**
+- [x] **Step 2: Write failing behavioral tests for split, trim, move, duplicate, ripple delete, copy-equivalent duplicate semantics, snapping-independent core operations, track lock protection, and source media immutability.**
+- [x] **Step 3: Write failing stale-revision test that returns a typed `DomainError::StaleRevision { expected, actual }`.**
+- [x] **Step 4: Run `cargo test -p editor-core command history editor`; verify failure.**
+- [x] **Step 5: Implement command application with inverse history entries and explicit changed-entity sets; do not add event sourcing.**
+- [x] **Step 6: Run `cargo test -p editor-core`; all tests pass.**
+- [x] **Step 7: Commit: `feat(core): add revisioned edit command engine`.**
 
 ### Task 4: Immutable RenderSnapshot and Shared Render Semantics
 

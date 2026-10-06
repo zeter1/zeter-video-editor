@@ -53,11 +53,9 @@ Known non-blocking setup observations:
 
 ## Current work
 
-**Task 3 — Edit Command Engine, Revisioning, Undo/Redo, and Core Timeline Operations**
+**Task 4 — Immutable RenderSnapshot and Shared Render Semantics**
 
-Task 2 is verified and complete.
-
-Task 3 will add the revisioned authoritative edit-command engine, inverse undo/redo history, stale-revision rejection, changed-entity results, and the approved core timeline mutation set.
+Tasks 1–3 are verified and complete. Task 4 will normalize one sequence at one project revision into immutable render-oriented state shared later by preview and export.
 
 ## Next step
 
@@ -66,6 +64,7 @@ Continue Task 2 from its first failing tests. Do not redesign the project or rep
 ## Verification status
 
 - Task 1: GitHub Actions run `37447178764` — PASS.
-- Task 2: GitHub Actions run `37448149039` — PASS; `editor-core` 11 tests passed, 0 failed, including proptest invariant coverage; full Rust workspace and frontend regression passed.
-- Task 2 ruling: source ranges must be ordered/non-empty per clip; multiple clips may legitimately reuse overlapping source spans.
-- No Task 3 behavior is claimed complete yet.
+- Task 2: GitHub Actions run `37448149039` — PASS; `editor-core` 11/11.
+- Task 3: GitHub Actions run `37449717759` — PASS; `editor-core` 26/26; full Rust workspace and frontend regression passed.
+- Task 3 history is bounded to the affected sequence per command; no event-sourcing architecture was introduced.
+- No Task 4 behavior is claimed complete yet.
