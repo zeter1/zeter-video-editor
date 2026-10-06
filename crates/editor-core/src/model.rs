@@ -19,9 +19,7 @@ pub struct ProjectSettings {
 
 impl Default for ProjectSettings {
     fn default() -> Self {
-        Self {
-            autosave_enabled: true,
-        }
+        Self { autosave_enabled: true }
     }
 }
 
@@ -33,6 +31,8 @@ pub struct Sequence {
     pub height: u32,
     pub fps: f64,
     pub tracks: Vec<Track>,
+    #[serde(default)]
+    pub markers: Vec<Marker>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,6 +84,8 @@ pub struct Clip {
     pub opacity: f32,
     pub transition: Option<Transition>,
     pub text: Option<String>,
+    #[serde(default)]
+    pub text_style: Option<TextStyle>,
     pub subtitles: Vec<SubtitleSegment>,
 }
 
@@ -183,6 +185,32 @@ pub struct SubtitleSegment {
     pub text: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TextAlignment {
+    Left,
+    Center,
+    Right,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TextStyle {
+    pub font_family: String,
+    pub font_size: f32,
+    pub font_weight: u16,
+    pub alignment: TextAlignment,
+    pub color: String,
+    pub stroke_color: Option<String>,
+    pub shadow: bool,
+    pub background_color: Option<String>,
+    pub opacity: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Marker {
+    pub at: TimeUs,
+    pub label: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,9 +219,7 @@ mod tests {
     use crate::time::TimeUs;
     use std::path::PathBuf;
 
-    fn t(value: i64) -> TimeUs {
-        TimeUs::new(value).unwrap()
-    }
+    fn t(value: i64) -> TimeUs { TimeUs::new(value).unwrap() }
 
     fn media(id: MediaId) -> MediaRef {
         MediaRef {
@@ -223,6 +249,7 @@ mod tests {
             opacity: 1.0,
             transition: None,
             text: None,
+            text_style: None,
             subtitles: vec![],
         }
     }
@@ -242,6 +269,7 @@ mod tests {
                 hidden: false,
                 clips: vec![video_clip(ClipId::new(), media_id)],
             }],
+            markers: vec![],
         }
     }
 

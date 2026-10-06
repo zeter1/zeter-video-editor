@@ -1,3 +1,15 @@
+use crate::command::ChangedEntity;
+use crate::ids::SequenceId;
+use crate::model::Sequence;
+
+#[derive(Debug, Clone)]
+pub(crate) struct HistoryEntry {
+    pub sequence_id: SequenceId,
+    pub before: Sequence,
+    pub after: Sequence,
+    pub changed_entities: Vec<ChangedEntity>,
+}
+
 #[cfg(test)]
 mod tests {
     use crate::command::{EditCommand, EditRequest, ProjectRevision};
@@ -54,9 +66,11 @@ mod tests {
                             opacity: 1.0,
                             transition: None,
                             text: None,
+                            text_style: None,
                             subtitles: vec![],
                         }],
                     }],
+                    markers: vec![],
                 }],
             },
             clip_id,

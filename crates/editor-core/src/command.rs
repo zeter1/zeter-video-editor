@@ -1,3 +1,156 @@
+use crate::ids::{ClipId, RequestId, SequenceId, TrackId};
+use crate::model::{
+    Clip, ColorAdjustments, Marker, SubtitleSegment, TextStyle, Track, Transform, Transition,
+};
+use crate::time::TimeUs;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ProjectRevision(u64);
+
+impl ProjectRevision {
+    pub const ZERO: Self = Self(0);
+
+    pub const fn new(value: u64) -> Self {
+        Self(value)
+    }
+
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+
+    pub(crate) fn next(self) -> Self {
+        Self(self.0.checked_add(1).expect("project revision overflow"))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ChangedEntity {
+    Sequence(SequenceId),
+    Track(TrackId),
+    Clip(ClipId),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum EditCommand {
+    AddClip {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        clip: Clip,
+    },
+    DeleteClip {
+        clip_id: ClipId,
+    },
+    MoveClip {
+        clip_id: ClipId,
+        timeline_start: TimeUs,
+    },
+    TrimClip {
+        clip_id: ClipId,
+        source_in: TimeUs,
+        source_out: TimeUs,
+        timeline_start: TimeUs,
+        timeline_end: TimeUs,
+    },
+    SplitClip {
+        clip_id: ClipId,
+        at: TimeUs,
+        right_clip_id: ClipId,
+    },
+    DuplicateClip {
+        clip_id: ClipId,
+        new_clip_id: ClipId,
+        timeline_start: TimeUs,
+    },
+    RippleDelete {
+        clip_id: ClipId,
+    },
+    AddTrack {
+        sequence_id: SequenceId,
+        track: Track,
+    },
+    RemoveTrack {
+        track_id: TrackId,
+    },
+    ReorderTrack {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        new_index: usize,
+    },
+    SetTrackMute {
+        track_id: TrackId,
+        muted: bool,
+    },
+    SetTrackLock {
+        track_id: TrackId,
+        locked: bool,
+    },
+    SetTrackHidden {
+        track_id: TrackId,
+        hidden: bool,
+    },
+    SetVolume {
+        clip_id: ClipId,
+        gain_db: f32,
+    },
+    NormalizeAudio {
+        clip_id: ClipId,
+        normalize: bool,
+    },
+    SetTransform {
+        clip_id: ClipId,
+        transform: Transform,
+    },
+    SetColor {
+        clip_id: ClipId,
+        color: ColorAdjustments,
+    },
+    SetSpeed {
+        clip_id: ClipId,
+        speed: f64,
+    },
+    AddTransition {
+        clip_id: ClipId,
+        transition: Option<Transition>,
+    },
+    AddText {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        clip: Clip,
+    },
+    SetTextStyle {
+        clip_id: ClipId,
+        style: TextStyle,
+    },
+    AddSubtitleSegments {
+        clip_id: ClipId,
+        segments: Vec<SubtitleSegment>,
+    },
+    AddMarker {
+        sequence_id: SequenceId,
+        marker: Marker,
+    },
+    RemoveMarker {
+        sequence_id: SequenceId,
+        at: TimeUs,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EditRequest {
+    pub request_id: RequestId,
+    pub expected_revision: ProjectRevision,
+    pub command: EditCommand,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommandResult {
+    pub request_id: RequestId,
+    pub revision: ProjectRevision,
+    pub changed_entities: Vec<ChangedEntity>,
+}
+
 #[cfg(test)]
 mod tests {
     use crate::command::{EditCommand, EditRequest, ProjectRevision};
@@ -59,9 +212,11 @@ mod tests {
                             opacity: 1.0,
                             transition: None,
                             text: None,
+                            text_style: None,
                             subtitles: vec![],
                         }],
                     }],
+                    markers: vec![],
                 }],
             },
             sequence_id,
@@ -151,6 +306,7 @@ mod tests {
             opacity: 1.0,
             transition: None,
             text: Some("Title".into()),
+            text_style: None,
             subtitles: vec![],
         };
         let style = TextStyle {
@@ -207,6 +363,7 @@ mod tests {
             opacity: 1.0,
             transition: None,
             text: None,
+            text_style: None,
             subtitles: vec![],
         };
 
