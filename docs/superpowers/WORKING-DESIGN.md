@@ -352,15 +352,213 @@ Explicitly deferred:
 
 A real content creator should be able to take 30–60 minutes of source material, create a finished YouTube video or Short, use the local AI tools, and export the final result without needing another video editor.
 
-## 22. Design progress
+## 22. Technical module boundaries and source-code architecture
+
+The Rust side will use a Cargo workspace with a small number of large, clearly bounded crates rather than one monolithic Tauri crate or many premature micro-crates.
+
+Planned repository shape:
+
+```text
+zeter-video-editor/
+├─ apps/
+│  └─ desktop/
+│     ├─ src/                  # React + TypeScript UI
+│     └─ src-tauri/            # thin Tauri shell
+├─ crates/
+│  ├─ editor-core/             # authoritative domain/timeline model
+│  ├─ media-engine/            # FFmpeg / FFprobe adapter
+│  ├─ ai-engine/               # local AI analysis
+│  ├─ project-io/              # .vcut persistence and recovery
+│  └─ job-system/              # background job lifecycle
+├─ docs/
+│  └─ superpowers/
+└─ tests/                      # cross-component tests only where justified
+```
+
+### React / TypeScript UI
+
+`apps/desktop/src` owns presentation and interaction:
+- workspace layout
+- Timeline presentation
+- Preview UI
+- Inspector
+- Media panel
+- AI panels
+- background-job presentation
+
+React is not authoritative project state. It may own transient UI state such as:
+- open panels
+- timeline zoom
+- current selection
+- hover/drag state
+- temporary form values
+
+Project mutations go through explicit Rust application APIs.
+
+### Tauri shell
+
+`apps/desktop/src-tauri` is intentionally thin. It owns:
+- application/window lifecycle
+- IPC command exposure
+- native dialogs
+- OS integration and filesystem permissions
+- composition/wiring of Rust crates
+
+Timeline and editing business logic must not accumulate in the Tauri shell.
+
+### editor-core
+
+`editor-core` is the architectural center of the application. It owns:
+- `Project`
+- `Sequence`
+- `Track`
+- `Clip`
+- timeline invariants
+- editing commands
+- undo/redo
+- domain validation
+
+It must not depend on React, Tauri, FFmpeg executables, or a particular AI model.
+
+Editing operations such as `SplitClip`, `MoveClip`, `RippleDelete`, and `SetTransform` should be testable as fast Rust tests without launching the desktop application.
+
+### media-engine
+
+`media-engine` encapsulates FFmpeg and FFprobe integration, including:
+- media probing
+- subprocess argument construction
+- encoder capability detection
+- NVENC / QSV / AMF selection where supported
+- CPU fallback
+- thumbnail generation
+- waveform generation
+- proxy generation
+- rendering/export primitives
+- FFmpeg/FFprobe error translation
+
+Direct scattered `ffmpeg` or `ffprobe` subprocess calls outside the media adapter are not allowed.
+
+### ai-engine
+
+`ai-engine` owns local AI analysis for the MVP:
+- transcription
+- silence detection
+- highlight detection
+
+AI analysis does not mutate a project directly. It returns structured results such as:
+- transcript segments
+- silence ranges
+- highlight candidates
+
+After user confirmation where appropriate, the application layer converts AI results into ordinary `editor-core` commands. This keeps AI edits under the same validation, non-destructive editing, and undo/redo rules as manual edits.
+
+### project-io
+
+`project-io` owns durable project persistence concerns:
+- `.vcut` serialization/deserialization
+- schema versioning
+- migrations
+- atomic save
+- autosave
+- recovery snapshots
+- missing-media metadata needed for relinking
+
+The domain model is defined by `editor-core`; disk-format mechanics stay outside it.
+
+Rebuildable cache is never required for project integrity.
+
+### job-system
+
+`job-system` provides one lifecycle model for expensive work:
+
+```text
+Queued -> Running -> Completed
+                  -> Failed
+                  -> Cancelled
+```
+
+Jobs expose:
+- stable job ID
+- job type
+- progress
+- cancellation capability where supported
+- structured failure information
+
+Thumbnail generation, waveform generation, proxy creation, transcription, highlight analysis, and export use this common job model rather than each subsystem inventing its own progress mechanism.
+
+### Dependency direction
+
+The intended dependency flow is:
+
+```text
+React UI
+   ↓ IPC
+Tauri shell
+   ↓
+application/core APIs
+   ↓
+editor-core
+```
+
+Infrastructure modules participate through application orchestration without making `editor-core` infrastructure-dependent:
+
+```text
+media-engine ─┐
+ai-engine    ─┼─> application orchestration -> editor-core
+project-io   ─┤
+job-system   ─┘
+```
+
+### IPC surface
+
+Prefer a small, stable, typed IPC surface over hundreds of tiny Tauri commands. Representative operations include:
+- `project_open`
+- `project_save`
+- `project_snapshot`
+- `execute_edit_command`
+- `undo`
+- `redo`
+- `import_media`
+- `start_job`
+- `cancel_job`
+- `get_job_state`
+
+Payloads should be versionable and typed. The implementation should provide generated shared contracts or contract tests so Rust DTOs and TypeScript types cannot silently drift.
+
+### AI/Codex navigation rule
+
+Ownership should be obvious from the requested change:
+- timeline/domain behavior -> `editor-core`
+- FFmpeg/media behavior -> `media-engine`
+- local AI analysis -> `ai-engine`
+- persistence/recovery -> `project-io`
+- background task lifecycle -> `job-system`
+- UI-only behavior -> `apps/desktop/src`
+- native shell/IPC plumbing -> `apps/desktop/src-tauri`
+
+This is a deliberate design constraint to reduce the amount of code an AI coding agent needs to read before making a safe change.
+
+### Testing boundaries
+
+Testing should follow module ownership:
+- `editor-core`: fast domain/timeline unit and property/invariant tests
+- `media-engine`: unit tests for command construction/parsing plus limited real-FFmpeg integration tests
+- `project-io`: round-trip, migration, corruption, atomic-save and recovery tests
+- `ai-engine`: structured-output tests plus tests that translate approved AI results into ordinary core commands
+- Tauri/React: contract tests and a small number of end-to-end smoke tests rather than duplicating business-logic coverage through the UI
+
+Do not split `editor-core` into many crates pre-emptively. Extract a new crate later only when a subsystem has a stable independent responsibility and the extraction measurably improves isolation, testing, or maintainability.
+
+## 23. Design progress
 
 Approved:
 - Section 1: editor/interface concept
 - Section 2: internal architecture
 - Section 3: MVP scope
 - Section 4: UI states and workflows
+- Section 5: technical module boundaries/source-code architecture
 
 Next:
-- Section 5: technical module boundaries/source-code architecture
+- Section 6: data flow, IPC contracts, mutation ownership and synchronization
 
 Once remaining design work is approved, this working record will be converted into the final Superpowers design spec.
