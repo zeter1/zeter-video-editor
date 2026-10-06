@@ -18,3 +18,5 @@ pub use runtime::ManagedRuntime;
 mod task7_tests;
 #[cfg(test)]
 mod task8_tests;
+#[cfg(test)]
+mod task9_tests;

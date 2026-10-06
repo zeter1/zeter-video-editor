@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–7 are implemented in the active implementation branch. Task 7 passed the full Windows CI regression gate. Task 8 TDD has started with failing cache/proxy/thumbnail/waveform/preview-cache contracts.
+Tasks 1–8 are implemented in the active implementation branch and passed the full Windows CI regression gate. Task 9 TDD has started with render-parity, revision-isolation, encoder-fallback, and cancellation contracts.
 
 ## Approved decisions
 
@@ -131,6 +131,7 @@ Completed:
 - **Task 5: Background Job System and Stale-Result Safety**
 - **Task 6: .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary**
 - **Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection**
+- **Task 8: Thumbnails, Waveforms, Proxies, Preview Cache, and Regeneration**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -147,14 +148,15 @@ Active implementation branch:
 
 ## Next step
 
-**Task 8: Thumbnails, Waveforms, Proxies, Preview Cache, and Regeneration**
+**Task 9: Render Planner and Revision-Isolated Export with CPU Fallback**
 
-Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. prove cache keys change with source identity, revision/range, preview quality, and render-settings hash;
-2. prove missing/corrupt disposable artifacts are cache misses and do not affect project data;
-3. prove proxy generation never replaces authoritative source media;
-4. implement managed FFmpeg command builders and disposable artifact validation;
-5. run focused media-engine tests and full regression verification.
+Current TDD focus:
+1. restore the approved RenderSnapshot source-media contract required by export compilation;
+2. preserve parity-critical clip/transform/transition/subtitle/audio semantics in the compiled immutable plan;
+3. prove captured-revision isolation;
+4. prove one explicit hardware-init → software fallback with no retry loop;
+5. prove cancellation never reports success or leaves temporary output;
+6. verify a real synthetic export when an explicit managed FFmpeg directory is available.
 
 ## Verification status
 
@@ -208,4 +210,17 @@ Task 7 TDD/verification on Windows x64:
 - local `git diff --check` — PASS
 - synthetic fixture PowerShell parser — PASS
 
-Task 8 RED tests are being introduced next; implementation is not yet claimed complete.
+Task 8 TDD/verification on Windows x64:
+- RED: GitHub Actions CI run #52 failed on intentionally missing Task 8 modules/dependencies
+- GREEN: GitHub Actions CI run #53 — SUCCESS
+- `cargo test --workspace` — PASS
+- `npm --prefix apps/desktop test -- --run` — PASS
+- `npm --prefix apps/desktop run build` — PASS
+- local `git diff --check` on the exact branch head — PASS
+
+Task 9 rulings:
+- Spec-conformance fix required: `RenderSnapshot` currently lacks source media references even though the approved design requires them and Task 9 compiles export from the snapshot alone.
+- The plan's root `tests/render_parity.rs` is not a Cargo test target for this virtual workspace; use `crates/media-engine/tests/render_parity.rs`.
+- The plan's multi-filter `cargo test -p media-engine export encoder render_plan` syntax is invalid Cargo CLI usage; run focused filters separately plus the full media-engine suite.
+
+Task 9 RED tests are being introduced; implementation is not yet claimed complete.
