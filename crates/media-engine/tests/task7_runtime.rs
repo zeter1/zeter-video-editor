@@ -1,7 +1,9 @@
 use media_engine::{
-    build_ffprobe_args, detect_capabilities, parse_encoder_list, parse_ffprobe_json, run_process,
-    CodecSupport, ManagedRuntime, MediaError,
+    build_ffprobe_args, parse_encoder_list, parse_ffprobe_json, run_process, CodecSupport,
+    ManagedRuntime, MediaError,
 };
+#[cfg(windows)]
+use media_engine::detect_capabilities;
 use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
