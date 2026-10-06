@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClipId, ClipKind, ColorAdjustments, DomainError, MediaId, Project, ProjectId, ProjectRevision,
+    ClipId, ClipKind, ColorAdjustments, DomainError, MediaId, MediaRef, Project, ProjectId,
+    ProjectRevision,
     SequenceId, TextStyle, TimeUs, TrackId, Transform, TransitionKind,
 };
 
@@ -13,6 +14,7 @@ pub struct RenderSnapshot {
     pub width: u32,
     pub height: u32,
     pub fps: f64,
+    pub media: Vec<MediaRef>,
     pub clips: Vec<RenderClip>,
     pub texts: Vec<RenderText>,
     pub subtitles: Vec<RenderSubtitle>,
@@ -85,6 +87,19 @@ impl RenderSnapshot {
             .find(|sequence| sequence.id == sequence_id)
             .ok_or(DomainError::EntityNotFound { entity: "sequence" })?;
 
+        let media = project
+            .media
+            .iter()
+            .filter(|media| {
+                sequence
+                    .tracks
+                    .iter()
+                    .flat_map(|track| track.clips.iter())
+                    .any(|clip| clip.media_id == Some(media.id))
+            })
+            .cloned()
+            .collect();
+
         let mut clips = Vec::new();
         let mut texts = Vec::new();
         let mut audio = Vec::new();
@@ -156,6 +171,7 @@ impl RenderSnapshot {
             width: sequence.width,
             height: sequence.height,
             fps: sequence.fps,
+            media,
             clips,
             texts,
             subtitles,

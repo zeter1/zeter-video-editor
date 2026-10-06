@@ -1,5 +1,6 @@
 use std::{io, path::PathBuf};
 
+use editor_core::MediaId;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -33,6 +34,36 @@ pub enum MediaError {
         #[source]
         source: io::Error,
     },
+
+    #[error("managed media process {program:?} {operation} failed: {source}")]
+    ProcessIo {
+        program: PathBuf,
+        operation: &'static str,
+        #[source]
+        source: io::Error,
+    },
+
+    #[error("invalid export settings: {reason}")]
+    InvalidExportSettings { reason: &'static str },
+
+    #[error("render snapshot references missing media {media_id:?}")]
+    MissingRenderSource { media_id: MediaId },
+
+    #[error("no usable {codec} encoder is available")]
+    NoEncoder { codec: &'static str },
+
+    #[error("export was cancelled")]
+    Cancelled,
+
+    #[error("export I/O error at {path:?}: {source}")]
+    ExportIo {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+
+    #[error("export produced no usable output at {path:?}")]
+    InvalidExportOutput { path: PathBuf },
 
     #[error("generated {artifact} cache artifact is missing or invalid at {path:?}")]
     InvalidCacheArtifact {

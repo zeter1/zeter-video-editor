@@ -14,4 +14,4 @@
 - Реализован Task 6: versioned `.vcut` JSON codec, Windows-safe atomic replace, bounded recovery snapshots, safe newer-schema handling, media relinking/mismatch detection и disposable cache boundary.
 - Реализован Task 7: application-managed FFmpeg/FFprobe runtime без PATH fallback, typed subprocess errors, FFprobe metadata parsing и capability detection для software/NVENC/QSV/AMF.
 - Реализован Task 8: deterministic SHA-256 cache keys, managed FFmpeg command/job functions для thumbnails/waveforms/proxies и fail-safe validation disposable preview/proxy/media artifacts без изменения authoritative source media.
-- Начат TDD Task 9: добавляются RED-контракты render parity, revision-isolated export, single hardware→software fallback и cancellation cleanup.
+- Добавлена реализация Task 9: self-contained `RenderSnapshot` с source media, immutable `RenderPlan`, H.264/H.265 encoder selection, single hardware→software fallback, cancellable managed FFmpeg export и publish-through-temporary-file semantics.
