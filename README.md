@@ -53,6 +53,7 @@ The editor combines a conventional multi-track timeline with local AI-assisted e
 - `PROJECT_STATUS.md` — current state and next step
 - `AGENTS.md` — rules and architectural invariants for AI-assisted development
 - `docs/superpowers/WORKING-DESIGN.md` — chronological working record of approved brainstorming decisions
-- `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md` — consolidated final design specification, awaiting explicit written approval
+- `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md` — approved consolidated final design specification
+- `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` — detailed Superpowers MVP implementation plan, awaiting explicit plan review/approval
 
-The implementation plan does not exist yet and must not be created until the final written design specification is explicitly approved.
+The final design specification is approved. The implementation plan exists, but product implementation must not begin until the plan is explicitly reviewed/approved and a Superpowers execution method is selected.
