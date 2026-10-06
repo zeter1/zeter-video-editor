@@ -20,9 +20,6 @@ impl ProjectRevision {
         self.0
     }
 
-    pub(crate) fn next(self) -> Self {
-        Self(self.0.checked_add(1).expect("project revision overflow"))
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
