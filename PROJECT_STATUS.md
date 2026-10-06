@@ -53,13 +53,20 @@ Known non-blocking setup observations:
 
 ## Current work
 
-**Task 5 — Background Job System and Stale-Result Safety**
+**Task 6 — .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary**
 
-Tasks 1–4 are verified and complete. Task 5 adds the shared queued/running/completed/failed/cancelled lifecycle, stable IDs, progress/cancellation and source-revision correlation.
+Tasks 1–5 are verified and complete. Task 6 is the next implementation task.
 
 ## Next step
 
-Continue Task 2 from its first failing tests. Do not redesign the project or repeat Task 1.
+Continue Task 6 from its RED tests:
+- versioned .vcut round-trip/corruption/newer-schema safety
+- atomic save fault preservation
+- autosave/recovery retention with injected clock
+- media relinking/mismatch detection
+- disposable cache invariants
+
+Do not redesign the project or repeat Tasks 1–5.
 
 ## Verification status
 
@@ -67,4 +74,5 @@ Continue Task 2 from its first failing tests. Do not redesign the project or rep
 - Task 2: run `37448149039` — PASS.
 - Task 3: run `37449717759` — PASS; `editor-core` 26/26.
 - Task 4: run `37450155773` — PASS; `editor-core` 28/28 including both RenderSnapshot tests; workspace/frontend regression passed.
-- No Task 5 behavior is claimed complete yet.
+- Task 5: run `37450827037` — PASS; `job-system` 8/8 tests passed, workspace/frontend regression passed.
+- Task 6: not started at this checkpoint.
