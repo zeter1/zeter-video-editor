@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Task 1 is implemented and verified in the active implementation branch. The next planned task is Task 2: Project/Sequence/Track/Clip Domain Model and Invariants.
+Tasks 1 and 2 are implemented and verified in the active implementation branch. The next planned task is Task 3: Edit Command Engine, Revisioning, Undo/Redo, and Core Timeline Operations.
 
 ## Approved decisions
 
@@ -125,6 +125,7 @@ Completed:
 - implementation-plan self-review
 - explicit approval of the implementation plan and selection of Native execution
 - **Task 1: Workspace, Toolchain, and First Authoritative Domain Slice**
+- **Task 2: Project/Sequence/Track/Clip Domain Model and Invariants**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -141,13 +142,13 @@ Active implementation branch:
 
 ## Next step
 
-**Task 2: Project/Sequence/Track/Clip Domain Model and Invariants**
+**Task 3: Edit Command Engine, Revisioning, Undo/Redo, and Core Timeline Operations**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` exactly:
-1. write failing domain/invariant tests first;
-2. add property/invariant coverage;
-3. implement only the approved domain model;
-4. keep `editor-core` independent of Tauri, FFmpeg and AI;
+1. write failing revision/history/command behavior tests first;
+2. implement typed stale-revision handling;
+3. add command application plus inverse undo/redo history;
+4. keep all mutation semantics inside `editor-core`;
 5. run focused and workspace regression verification before committing.
 
 ## Verification status
@@ -161,4 +162,12 @@ Task 1 verification on Windows x64:
 - `cargo fmt --all -- --check` — PASS after applying rustfmt
 - `git diff --check` — PASS
 
-No Task 2 implementation has started yet.
+Task 2 verification on Windows x64:
+- `cargo test -p editor-core` — PASS, 14 tests including property/invariant coverage
+- `cargo test --workspace` — PASS
+- `npm --prefix apps/desktop test -- --run` — PASS, 1 test
+- `npm --prefix apps/desktop run build` — PASS
+- `cargo fmt --all -- --check` — PASS
+- `git diff --check` — PASS
+
+Task 3 has not started yet.
