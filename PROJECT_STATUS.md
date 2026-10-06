@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–8 are implemented in the active implementation branch and passed the full Windows CI regression gate. Task 9 TDD has started with render-parity, revision-isolation, encoder-fallback, and cancellation contracts.
+Tasks 1–9 are implemented in the active implementation branch. Task 9 passed its Windows CI and real managed-FFmpeg export verification gates. The next planned task is Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization.
 
 ## Approved decisions
 
@@ -132,6 +132,7 @@ Completed:
 - **Task 6: .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary**
 - **Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection**
 - **Task 8: Thumbnails, Waveforms, Proxies, Preview Cache, and Regeneration**
+- **Task 9: Render Planner and Revision-Isolated Export with CPU Fallback**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -148,15 +149,16 @@ Active implementation branch:
 
 ## Next step
 
-**Task 9: Render Planner and Revision-Isolated Export with CPU Fallback**
+**Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization**
 
-Current TDD focus:
-1. restore the approved RenderSnapshot source-media contract required by export compilation;
-2. preserve parity-critical clip/transform/transition/subtitle/audio semantics in the compiled immutable plan;
-3. prove captured-revision isolation;
-4. prove one explicit hardware-init → software fallback with no retry loop;
-5. prove cancellation never reports success or leaves temporary output;
-6. verify a real synthetic export when an explicit managed FFmpeg directory is available.
+Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
+1. write failing application-service tests proving authoritative mutations pass through `Editor`;
+2. prove stale expected revisions map to a distinct typed application error;
+3. prove background job completion alone never mutates timeline state;
+4. prove stale async AI results cannot bypass current-revision validation;
+5. add a contract-drift test for generated TypeScript IPC types;
+6. implement thin Tauri orchestration/commands with no duplicated timeline business logic;
+7. verify `cargo test -p zeter-desktop-tauri`, then full regression CI.
 
 ## Verification status
 
@@ -218,9 +220,21 @@ Task 8 TDD/verification on Windows x64:
 - `npm --prefix apps/desktop run build` — PASS
 - local `git diff --check` on the exact branch head — PASS
 
-Task 9 rulings:
-- Spec-conformance fix required: `RenderSnapshot` currently lacks source media references even though the approved design requires them and Task 9 compiles export from the snapshot alone.
-- The plan's root `tests/render_parity.rs` is not a Cargo test target for this virtual workspace; use `crates/media-engine/tests/render_parity.rs`.
-- The plan's multi-filter `cargo test -p media-engine export encoder render_plan` syntax is invalid Cargo CLI usage; run focused filters separately plus the full media-engine suite.
+Task 9 TDD/verification on Windows x64:
+- RED: GitHub Actions CI run #54 failed on the intentionally missing `render_plan` module and missing `RenderSnapshot.media` source-media contract.
+- GREEN: GitHub Actions CI run #55 — SUCCESS; full Rust workspace, frontend tests, and frontend build passed.
+- `cargo test -p media-engine --test render_parity` — PASS, 1/1.
+- `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test -p media-engine --test export_integration -- --nocapture` — PASS, 1/1; real managed FFmpeg produced and re-probed a 2-second 640×360 H.264/AAC MP4.
+- `cargo test -p media-engine` with the explicit managed runtime — PASS: 14 unit tests plus managed-FFmpeg, render-parity, and export integration tests.
+- hardware initialization failure → one software fallback contract — PASS.
+- pre-cancelled export leaves no temporary/final output and never invokes the encoder — PASS.
+- `git diff --check` on the exact future diff — PASS.
+- hygiene: removed the only Task 9 compiler warning (unused `Path` import).
 
-Task 9 RED tests are being introduced; implementation is not yet claimed complete.
+Task 9 execution notes:
+- `RenderSnapshot` now carries source media references required by the approved self-contained export contract.
+- The plan's root `tests/render_parity.rs` location was adapted to `crates/media-engine/tests/render_parity.rs` because the repository is a virtual Cargo workspace.
+- The plan's multi-filter Cargo example was executed as separate focused filters because Cargo accepts one test filter per invocation.
+
+Known verification debt:
+- repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.
