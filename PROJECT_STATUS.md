@@ -76,6 +76,11 @@ AI tools are accelerators for the same timeline editing engine. AI must generate
 - React keeps presentation/transient UI state only; authoritative project mutations go through Rust application APIs.
 - FFmpeg/FFprobe subprocess integration is isolated in `media-engine`.
 - Local AI returns structured analysis; application orchestration translates approved results into ordinary `editor-core` commands.
+- Project/timeline state uses a revisioned hybrid model: Rust is authoritative, React keeps a read-model plus transient preview state.
+- Successful authoritative mutations advance a monotonic project revision; undo/redo also advance revision.
+- Full snapshots are reserved for open/recovery/resynchronization; ordinary edits return incremental changed state.
+- Long-running jobs are correlated by stable IDs and cannot silently apply stale results over newer project state.
+- Autosave persists confirmed Rust state only, never uncommitted React preview state.
 
 ## Current checkpoint
 
@@ -85,12 +90,13 @@ Approved design sections:
 3. MVP scope
 4. UI states and workflows
 5. Technical module boundaries and source-code architecture
+6. Data flow, IPC contracts, mutation ownership and synchronization
 
 ## Next step
 
 Continue Superpowers brainstorming with:
 
-**Section 6 — data flow, IPC contracts, mutation ownership and synchronization**, including how UI intents become authoritative Rust changes, how Rust state reaches React, and how long-running job events avoid stale or conflicting UI state.
+**Section 7 — preview, playback, render and export pipeline boundaries**, including how timeline state becomes responsive preview output while final export remains deterministic and source-quality.
 
 After all design sections are approved:
 1. Write final design spec to `docs/superpowers/specs/...`.
