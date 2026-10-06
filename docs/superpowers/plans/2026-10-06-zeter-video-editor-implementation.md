@@ -32,6 +32,7 @@
 - Installer is signed NSIS, `currentUser` by default, with Evergreen WebView2 bootstrap behavior.
 - Updates are signed, soft/deferable, and must pass a safe-shutdown gate before installation.
 - Use TDD for feature/bugfix work; no task is complete until its stated verification is run successfully.
+- Every code/build/behavior-affecting task updates root `CHANGELOG.md` in the same logical change-set; Task 1 creates it before the first code commit.
 - Keep `PROJECT_STATUS.md` current after each completed implementation task.
 
 ## Implementation Parameters Chosen By This Plan
@@ -67,6 +68,7 @@
 - Create: `apps/desktop/vite.config.ts`
 - Create: `apps/desktop/src/main.tsx`
 - Create: `apps/desktop/src/App.tsx`
+- Create: `apps/desktop/src/App.test.tsx`
 - Create: `apps/desktop/src-tauri/Cargo.toml`
 - Create: `apps/desktop/src-tauri/src/main.rs`
 - Create: `apps/ai-worker/Cargo.toml`
@@ -84,6 +86,7 @@
 - Create: `crates/job-system/Cargo.toml`
 - Create: `crates/job-system/src/lib.rs`
 - Create: `.github/workflows/ci.yml`
+- Create: `CHANGELOG.md`
 
 **Interfaces:**
 - Produces: `ProjectId`, `SequenceId`, `TrackId`, `ClipId`, `MediaId`, `JobId`, `RequestId` UUID newtypes; `TimeUs(i64)`; workspace crates and desktop/worker binaries.
@@ -91,9 +94,9 @@
 
 - [ ] **Step 1: Scaffold only the manifests/build entry points required for tests to compile.**
 - [ ] **Step 2: Write failing Rust tests `ids_round_trip_through_serde` and `time_rejects_negative_duration` in `crates/editor-core/src/ids.rs` and `time.rs`.**
-- [ ] **Step 3: Run `cargo test -p editor-core ids_round_trip_through_serde time_rejects_negative_duration` and verify failure because the types/validation are missing.**
+- [ ] **Step 3: Run `cargo test -p editor-core ids_round_trip_through_serde` and `cargo test -p editor-core time_rejects_negative_duration`; verify both fail because the types/validation are missing.**
 - [ ] **Step 4: Implement the ID newtypes plus `TimeUs::new(value: i64) -> Result<TimeUs, DomainError>`, `TimeUs::get(self) -> i64`, and checked add/sub helpers.**
-- [ ] **Step 5: Add a minimal React smoke test setup and verify `App` renders “Zeter Video Editor” without owning project state.**
+- [ ] **Step 5: Create `apps/desktop/src/App.test.tsx` with a minimal React smoke test and verify `App` renders “Zeter Video Editor” without owning project state.**
 - [ ] **Step 6: Run `cargo test --workspace`, `npm --prefix apps/desktop test -- --run`, and `npm --prefix apps/desktop run build`; all must pass.**
 - [ ] **Step 7: Commit: `chore: scaffold desktop editor workspace`.**
 
@@ -111,7 +114,7 @@
 
 - [ ] **Step 1: Write failing tests for multiple sequences, legal media references, non-overlapping source ranges, unique IDs, valid sequence dimensions/FPS, and non-destructive clip source references.**
 - [ ] **Step 2: Add a proptest that generates valid clip timing and asserts `source_in < source_out`, `timeline_start <= timeline_end`, and validation never panics.**
-- [ ] **Step 3: Run `cargo test -p editor-core model validation`; verify failures.**
+- [ ] **Step 3: Run `cargo test -p editor-core`; verify the newly added model/validation tests fail.**
 - [ ] **Step 4: Implement the domain structs/enums and `Project::validate` with no Tauri/FFmpeg/AI dependencies.**
 - [ ] **Step 5: Run `cargo test -p editor-core`; all domain/property tests pass.**
 - [ ] **Step 6: Commit: `feat(core): add project timeline domain model`.**
@@ -138,7 +141,7 @@
 - [ ] **Step 1: Write failing tests proving one successful command increments revision exactly once; rejected commands do not; undo and redo each increment revision once.**
 - [ ] **Step 2: Write failing behavioral tests for split, trim, move, duplicate, ripple delete, copy-equivalent duplicate semantics, snapping-independent core operations, track lock protection, and source media immutability.**
 - [ ] **Step 3: Write failing stale-revision test that returns a typed `DomainError::StaleRevision { expected, actual }`.**
-- [ ] **Step 4: Run `cargo test -p editor-core command history editor`; verify failure.**
+- [ ] **Step 4: Run `cargo test -p editor-core`; verify the newly added command/history/editor tests fail.**
 - [ ] **Step 5: Implement command application with inverse history entries and explicit changed-entity sets; do not add event sourcing.**
 - [ ] **Step 6: Run `cargo test -p editor-core`; all tests pass.**
 - [ ] **Step 7: Commit: `feat(core): add revisioned edit command engine`.**
@@ -241,7 +244,7 @@
 - [ ] **Step 1: Write failing command-construction/parsing tests using captured ffprobe JSON fixtures.**
 - [ ] **Step 2: Write failing test proving a fake `PATH` ffmpeg is ignored when managed paths exist.**
 - [ ] **Step 3: Write capability parser tests covering software-only and representative NVENC/QSV/AMF outputs.**
-- [ ] **Step 4: Run `cargo test -p media-engine probe capabilities runtime`; verify failure.**
+- [ ] **Step 4: Run `cargo test -p media-engine`; verify the newly added probe/capabilities/runtime tests fail.**
 - [ ] **Step 5: Implement managed process invocation and typed translation of exit/status/stderr into `MediaError`.**
 - [ ] **Step 6: Add a Windows-only real-FFmpeg integration test gated by `ZETER_TEST_FFMPEG_DIR`; CI may skip it until sidecars are provisioned.**
 - [ ] **Step 7: Run `cargo test -p media-engine`; unit tests pass and integration test either passes with sidecar or reports explicit skip.**
@@ -264,7 +267,7 @@
 - [ ] **Step 1: Write failing cache-key tests for source identity, revision/range, preview quality, and render-settings hash.**
 - [ ] **Step 2: Write failing Review Focus tests: missing or corrupt thumbnail/waveform/proxy/preview files return cache miss and can be regenerated without changing project data.**
 - [ ] **Step 3: Write proxy test proving original media identity remains authoritative and proxy path is never written back as source media.**
-- [ ] **Step 4: Run `cargo test -p media-engine cache proxy thumbnail waveform preview_cache`; verify failure.**
+- [ ] **Step 4: Run `cargo test -p media-engine`; verify the newly added cache/proxy/thumbnail/waveform/preview-cache tests fail.**
 - [ ] **Step 5: Implement FFmpeg command builders and disposable artifact validation.**
 - [ ] **Step 6: Run `cargo test -p media-engine`; pass.**
 - [ ] **Step 7: Commit: `feat(media): add rebuildable editing caches`.**
@@ -290,7 +293,7 @@
 - [ ] **Step 2: Write failing test proving export holds the captured revision even if the editor later advances.**
 - [ ] **Step 3: Write failing Review Focus test: simulated NVENC/QSV/AMF initialization failure yields one explicit software fallback using the same immutable plan; no fallback loop.**
 - [ ] **Step 4: Write cancellation test that removes/marks incomplete temporary output and never reports success.**
-- [ ] **Step 5: Run `cargo test -p media-engine export encoder render_plan && cargo test --test render_parity`; verify failure.**
+- [ ] **Step 5: Run `cargo test -p media-engine` and `cargo test --test render_parity`; verify the newly added export/encoder/render-plan/parity tests fail.**
 - [ ] **Step 6: Implement FFmpeg filtergraph/export argument compilation and typed fallback.**
 - [ ] **Step 7: Run the same tests and a synthetic 2-second export integration fixture; pass.**
 - [ ] **Step 8: Commit: `feat(export): add revision-isolated ffmpeg export`.**
@@ -558,9 +561,10 @@ Tasks are sequential unless a later execution session explicitly proves two task
 After each task:
 1. run that task’s focused test command;
 2. run any directly affected regression suite;
-3. commit only after verification;
-4. request task-level review when using subagent-driven development;
-5. update `PROJECT_STATUS.md` with completed task, current branch/commit, verification, and the next task.
+3. update root `CHANGELOG.md` for any code/build/behavior-affecting change in the same logical change-set;
+4. commit only after verification;
+5. request task-level review when using subagent-driven development;
+6. update `PROJECT_STATUS.md` with completed task, current branch/commit, verification, and the next task.
 
 Before implementation begins, the human partner must review and approve this plan and select the Superpowers execution method.
 
@@ -571,3 +575,4 @@ Before implementation begins, the human partner must review and approve this pla
 - **Type consistency:** ID/time/revision types originate in Tasks 1/3; `RenderSnapshot` in Task 4; jobs in Task 5; application DTOs in Task 10; later tasks consume those names rather than redefine them.
 - **Review Focus:** All five high-risk failure classes have owning tests in the named tasks.
 - **Proportion:** The plan records interfaces, exact behavior, test intent, and commands without embedding full implementation bodies.
+- **Execution correctness re-review (2026-10-06):** invalid multi-filter Cargo test commands were replaced with valid invocations; Task 1 now names the React smoke-test file explicitly; the repository-wide changelog gate from the GitHub operations runbook is included without changing product or architecture scope.
