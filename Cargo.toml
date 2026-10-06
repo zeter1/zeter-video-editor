@@ -19,3 +19,5 @@ license = "UNLICENSED"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
+tokio = { version = "1", features = ["macros", "rt", "sync"] }
+tokio-util = { version = "0.7", features = ["rt"] }
