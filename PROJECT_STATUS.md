@@ -4,17 +4,17 @@ Last updated: 2026-10-06
 
 ## Current phase
 
-Superpowers — **implementation-plan review gate**.
+Superpowers — **Native implementation execution**.
 
-The consolidated final design specification was explicitly approved by the user on 2026-10-06:
+The consolidated final design specification and detailed MVP implementation plan were explicitly approved by the user on 2026-10-06:
 
 `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md`
 
-The detailed MVP implementation plan now exists:
-
 `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`
 
-No product implementation has started yet. The plan must be explicitly reviewed/approved and a Superpowers execution method must be selected before implementation begins.
+Execution method: **Native**.
+
+Task 1 is implemented and verified in the active implementation branch. The next planned task is Task 2: Project/Sequence/Track/Clip Domain Model and Invariants.
 
 ## Approved decisions
 
@@ -122,37 +122,43 @@ Completed:
 - final consolidated design specification
 - explicit user approval of the final written specification
 - detailed Superpowers MVP implementation plan
-- implementation-plan self-review for spec coverage, step granularity, type consistency, review-focus failures, and proportionality
+- implementation-plan self-review
+- explicit approval of the implementation plan and selection of Native execution
+- **Task 1: Workspace, Toolchain, and First Authoritative Domain Slice**
 
-Implementation plan commit:
-- `d4616a81a0ec310063031c9f8809edf11ef86521` — `docs: add Superpowers MVP implementation plan`
+Task 1 established:
+- Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
+- thin desktop and AI-worker Rust binaries
+- React 19 / TypeScript 5 / Vite / Vitest frontend scaffold
+- Rust 2024 edition pinned to Rust 1.99.0 for the current Windows target
+- UUID v4 newtypes: `ProjectId`, `SequenceId`, `TrackId`, `ClipId`, `MediaId`, `JobId`, `RequestId`
+- non-negative `TimeUs(i64)` with checked arithmetic
+- read-only Windows CI for `main` pushes and pull requests
+- root `.gitignore` and `CHANGELOG.md`
 
-Implementation remains intentionally unstarted.
+Active implementation branch:
+- `ai/native-mvp-20261006`
 
 ## Next step
 
-**User review/approval of the committed implementation plan:**
+**Task 2: Project/Sequence/Track/Clip Domain Model and Invariants**
 
-`docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`
-
-The user must:
-1. confirm that the implementation plan captures the approved product/design;
-2. choose the Superpowers execution method:
-   - **Subagent-driven** — fresh implementer/reviewer context per task; more thorough and higher cost;
-   - **Native** — execute the plan task-by-task in the current harness/session, followed by whole-branch review; faster/cheaper.
-
-After those gates:
-1. use the selected Superpowers execution skill;
-2. establish an isolated worktree if the execution workflow requires/permits it;
-3. run baseline verification;
-4. start Task 1 of the implementation plan;
-5. use TDD for product code, systematic debugging for failures, and verification-before-completion before claims/commits.
+Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` exactly:
+1. write failing domain/invariant tests first;
+2. add property/invariant coverage;
+3. implement only the approved domain model;
+4. keep `editor-core` independent of Tauri, FFmpeg and AI;
+5. run focused and workspace regression verification before committing.
 
 ## Verification status
 
-- Repository still contains no product implementation code.
-- No product test suite exists yet because implementation has not started.
-- Final design specification is explicitly approved.
-- Implementation plan exists and has completed its Superpowers self-review.
-- No implementation task is being claimed complete.
-- Next verification occurs when execution starts with workspace/baseline checks defined by the selected Superpowers workflow.
+Task 1 verification on Windows x64:
+- `cargo test -p editor-core` — PASS, 4 tests
+- `npm --prefix apps/desktop test -- --run src/App.test.tsx` — PASS, 1 test
+- `cargo test --workspace` — PASS
+- `npm --prefix apps/desktop test -- --run` — PASS, 1 test
+- `npm --prefix apps/desktop run build` — PASS
+- `cargo fmt --all -- --check` — PASS after applying rustfmt
+- `git diff --check` — PASS
+
+No Task 2 implementation has started yet.

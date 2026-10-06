@@ -1,0 +1,8 @@
+[package]
+name = "zeter-desktop-tauri"
+version = "0.0.1"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tauri = { version = "2.12.1", default-features = false }
