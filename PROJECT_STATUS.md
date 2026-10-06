@@ -81,6 +81,11 @@ AI tools are accelerators for the same timeline editing engine. AI must generate
 - Full snapshots are reserved for open/recovery/resynchronization; ordinary edits return incremental changed state.
 - Long-running jobs are correlated by stable IDs and cannot silently apply stale results over newer project state.
 - Autosave persists confirmed Rust state only, never uncommitted React preview state.
+- Preview/export use one normalized immutable `RenderSnapshot` so editing semantics are shared between both paths.
+- Preview uses direct/proxy playback for simple regions and cached preview renders for complex composition.
+- Final export is revision-isolated and normally renders from original source media, never degrading output quality because proxies exist.
+- Hardware acceleration is selected by `media-engine` at runtime with CPU fallback; project files are not tied to NVIDIA/Intel/AMD encoders.
+- Render/proxy/thumbnail/waveform caches are disposable and cannot be required for `.vcut` project integrity.
 
 ## Current checkpoint
 
@@ -91,12 +96,13 @@ Approved design sections:
 4. UI states and workflows
 5. Technical module boundaries and source-code architecture
 6. Data flow, IPC contracts, mutation ownership and synchronization
+7. Preview, playback, render and export pipeline boundaries
 
 ## Next step
 
 Continue Superpowers brainstorming with:
 
-**Section 7 — preview, playback, render and export pipeline boundaries**, including how timeline state becomes responsive preview output while final export remains deterministic and source-quality.
+**Section 8 — project persistence, autosave, recovery and cache lifecycle**, including atomic saves, recovery snapshots, schema migrations, crash recovery and cache ownership.
 
 After all design sections are approved:
 1. Write final design spec to `docs/superpowers/specs/...`.
