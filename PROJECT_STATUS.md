@@ -71,6 +71,11 @@ AI tools are accelerators for the same timeline editing engine. AI must generate
 - Cache is rebuildable and can contain thumbnails, waveforms, proxies, AI outputs and previews.
 - Timeline changes use command-style operations so user actions and AI actions share the same undo/redo model.
 - Multiple sequences may exist inside one project, e.g. one full YouTube edit and several Shorts.
+- Rust uses a Cargo workspace with a thin Tauri shell and bounded crates: `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`.
+- `editor-core` is infrastructure-independent and owns authoritative domain/timeline rules.
+- React keeps presentation/transient UI state only; authoritative project mutations go through Rust application APIs.
+- FFmpeg/FFprobe subprocess integration is isolated in `media-engine`.
+- Local AI returns structured analysis; application orchestration translates approved results into ordinary `editor-core` commands.
 
 ## Current checkpoint
 
@@ -79,12 +84,13 @@ Approved design sections:
 2. Internal architecture
 3. MVP scope
 4. UI states and workflows
+5. Technical module boundaries and source-code architecture
 
 ## Next step
 
 Continue Superpowers brainstorming with:
 
-**Section 5 — technical module boundaries and source-code architecture**, including how React, Rust, FFmpeg and local AI are separated so the project stays maintainable and works well with Codex.
+**Section 6 — data flow, IPC contracts, mutation ownership and synchronization**, including how UI intents become authoritative Rust changes, how Rust state reaches React, and how long-running job events avoid stale or conflicting UI state.
 
 After all design sections are approved:
 1. Write final design spec to `docs/superpowers/specs/...`.
