@@ -52,6 +52,7 @@ The editor combines a conventional multi-track timeline with local AI-assisted e
 
 - `PROJECT_STATUS.md` — current state and next step
 - `AGENTS.md` — rules and architectural invariants for AI-assisted development
-- `docs/superpowers/WORKING-DESIGN.md` — approved design decisions while brainstorming is still in progress
+- `docs/superpowers/WORKING-DESIGN.md` — chronological working record of approved brainstorming decisions
+- `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md` — consolidated final design specification, awaiting explicit written approval
 
-The final Superpowers design spec and implementation plan will be added after the remaining design sections are approved.
+The implementation plan does not exist yet and must not be created until the final written design specification is explicitly approved.

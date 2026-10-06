@@ -1,8 +1,8 @@
-# Zeter Video Editor — Working Design Record
+# Zeter Video Editor — Final Design Specification
 
-Status: **IN PROGRESS**
+Status: **WRITTEN SPEC — AWAITING EXPLICIT USER APPROVAL**
 
-This file preserves design decisions already approved during Superpowers brainstorming. It is not yet the final implementation spec.
+This document consolidates the product and architecture decisions approved during Superpowers brainstorming. It is the written design gate before implementation planning; no implementation work is authorized until this specification receives explicit user approval.
 
 ## 1. Product goal
 
@@ -1802,21 +1802,16 @@ USER DATA
 
 Application delivery must be reproducible and supportable without turning the updater into a project-integrity mechanism.
 
-## 29. Design progress
+## 29. Written-spec review status
 
-Approved:
-- Section 1: editor/interface concept
-- Section 2: internal architecture
-- Section 3: MVP scope
-- Section 4: UI states and workflows
-- Section 5: technical module boundaries/source-code architecture
-- Section 6: data flow, IPC contracts, mutation ownership and synchronization
-- Section 7: preview, playback, render and export pipeline boundaries
-- Section 8: project persistence, autosave, recovery and cache lifecycle
-- Section 9: local AI runtime, model packaging and analysis boundaries
-- Section 10: diagnostics, logging, error taxonomy and failure recovery
-- Section 11: Windows packaging, runtime dependencies and update boundaries
+All design sections in this document were approved conversationally during architectural brainstorming.
 
-All architectural brainstorming sections required for the MVP design are approved in conversation.
+This consolidated written specification itself is **not yet approved**. Per the Superpowers architectural workflow, the next gate is explicit user review of this file.
 
-The final written design specification is now generated under `docs/superpowers/specs/` and must receive explicit written-spec approval before an implementation plan is created.
+Until that approval is received:
+- do not create the implementation plan;
+- do not scaffold product code;
+- do not install product dependencies;
+- do not begin implementation.
+
+After explicit written-spec approval, invoke the Superpowers writing-plans workflow and create the detailed implementation plan under `docs/superpowers/plans/`.

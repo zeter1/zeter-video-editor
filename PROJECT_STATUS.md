@@ -4,7 +4,13 @@ Last updated: 2026-10-06
 
 ## Current phase
 
-Superpowers architectural brainstorming.
+Superpowers architectural design — **written-spec review gate**.
+
+All required MVP architectural brainstorming sections are complete. The consolidated final design specification exists at:
+
+`docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md`
+
+It is awaiting explicit user approval before an implementation plan may be created.
 
 No product implementation has started yet.
 
@@ -101,6 +107,11 @@ AI tools are accelerators for the same timeline editing engine. AI must generate
 - Optional/rebuildable subsystem failures degrade gracefully where safe; project-integrity failures stop the unsafe operation.
 - Background job failures preserve stage/error metadata instead of collapsing to generic messages.
 - Users can explicitly export a sanitized local diagnostics bundle; external telemetry/crash SaaS is not required for MVP.
+- Windows target for MVP is Windows 10 22H2 / Windows 11 x64; Windows 11 is recommended.
+- Distribution uses a signed NSIS current-user installer with Evergreen WebView2 bootstrap behavior.
+- FFmpeg/FFprobe and the native AI worker are version-matched application-managed sidecars and update with the application.
+- Large AI models retain a separate verified Model Manager lifecycle.
+- Application updates are soft, signed, user-deferable, and gated by safe shutdown; the updater never owns project-data migration.
 
 ## Current checkpoint
 
@@ -115,18 +126,35 @@ Approved design sections:
 8. Project persistence, autosave, recovery and cache lifecycle
 9. Local AI runtime, model packaging and analysis boundaries
 10. Diagnostics, logging, error taxonomy and failure recovery
+11. Windows packaging, runtime dependencies and update boundaries
+
+Final design spec written:
+- `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md`
+
+Self-review performed before commit:
+- no TBD/TODO placeholders found by the spec review check
+- packaging/update decisions reconciled with the existing persistence, AI and diagnostics boundaries
+- spec status explicitly remains awaiting written approval
 
 ## Next step
 
-Continue Superpowers brainstorming with:
+**User review of the committed final design specification.**
 
-**Section 11 — Windows packaging, runtime dependencies and update boundaries**, including how FFmpeg, the AI worker and optional models are delivered without requiring manual system setup or turning updates into a project-integrity risk.
+The user must explicitly approve:
 
-After Section 11 is approved, consolidate the working record into the final Superpowers design spec, self-review it, commit it, and request explicit written-spec approval before creating an implementation plan.
+`docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md`
 
-After all design sections are approved:
-1. Write final design spec to `docs/superpowers/specs/...`.
-2. Self-review the spec.
-3. Ask for user review of the committed spec.
-4. Only after approval, create the detailed implementation plan.
-5. Then start implementation using the Superpowers development workflow.
+Only after that written-spec approval:
+1. Invoke the Superpowers `writing-plans` skill.
+2. Create the detailed implementation plan under `docs/superpowers/plans/`.
+3. Ask the user to review/approve the implementation plan and select the execution method required by Superpowers.
+4. Only then start implementation using TDD, verification and the applicable execution workflow.
+
+Do not scaffold or implement product code before these gates are complete.
+
+## Verification status
+
+- Repository still contains no product implementation code.
+- No product test suite exists yet because implementation has not started.
+- Documentation/spec self-review completed for the current design gate.
+- Final written spec is committed but not yet user-approved.
