@@ -1,3 +1,158 @@
+use crate::command::ProjectRevision;
+use crate::ids::{ClipId, MediaId, ProjectId, SequenceId, TrackId};
+use crate::media::MediaRef;
+use crate::model::{
+    ClipKind, ColorAdjustments, Project, TextStyle, TrackKind, Transform, TransitionKind,
+};
+use crate::time::TimeUs;
+use crate::DomainError;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenderSnapshot {
+    pub project_id: ProjectId,
+    pub sequence_id: SequenceId,
+    pub revision: ProjectRevision,
+    pub media: Vec<MediaRef>,
+    pub width: u32,
+    pub height: u32,
+    pub fps: f64,
+    pub tracks: Vec<RenderTrack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenderTrack {
+    pub id: TrackId,
+    pub kind: TrackKind,
+    pub muted: bool,
+    pub hidden: bool,
+    pub clips: Vec<RenderClip>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenderClip {
+    pub id: ClipId,
+    pub kind: ClipKind,
+    pub media_id: Option<MediaId>,
+    pub source_in: TimeUs,
+    pub source_out: TimeUs,
+    pub timeline_start: TimeUs,
+    pub timeline_end: TimeUs,
+    pub transform: Transform,
+    pub color: ColorAdjustments,
+    pub speed: f64,
+    pub opacity: f32,
+    pub audio: RenderAudio,
+    pub transition: Option<RenderTransition>,
+    pub text: Option<RenderText>,
+    pub subtitles: Vec<RenderSubtitle>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct RenderAudio {
+    pub gain_db: f32,
+    pub muted: bool,
+    pub fade_in: TimeUs,
+    pub fade_out: TimeUs,
+    pub normalize: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenderTransition {
+    pub kind: TransitionKind,
+    pub duration: TimeUs,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RenderText {
+    pub content: String,
+    pub style: Option<TextStyle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenderSubtitle {
+    pub start: TimeUs,
+    pub end: TimeUs,
+    pub text: String,
+}
+
+impl RenderSnapshot {
+    pub fn from_sequence(
+        project: &Project,
+        sequence_id: SequenceId,
+        revision: ProjectRevision,
+    ) -> Result<Self, DomainError> {
+        let sequence = project
+            .sequences
+            .iter()
+            .find(|sequence| sequence.id == sequence_id)
+            .ok_or(DomainError::SequenceNotFound(sequence_id))?;
+
+        let tracks = sequence
+            .tracks
+            .iter()
+            .map(|track| RenderTrack {
+                id: track.id,
+                kind: track.kind,
+                muted: track.muted,
+                hidden: track.hidden,
+                clips: track
+                    .clips
+                    .iter()
+                    .map(|clip| RenderClip {
+                        id: clip.id,
+                        kind: clip.kind,
+                        media_id: clip.media_id,
+                        source_in: clip.source_in,
+                        source_out: clip.source_out,
+                        timeline_start: clip.timeline_start,
+                        timeline_end: clip.timeline_end,
+                        transform: clip.transform,
+                        color: clip.color,
+                        speed: clip.speed,
+                        opacity: clip.opacity,
+                        audio: RenderAudio {
+                            gain_db: clip.audio.gain_db,
+                            muted: clip.audio.muted,
+                            fade_in: clip.audio.fade_in,
+                            fade_out: clip.audio.fade_out,
+                            normalize: clip.audio.normalize,
+                        },
+                        transition: clip.transition.map(|transition| RenderTransition {
+                            kind: transition.kind,
+                            duration: transition.duration,
+                        }),
+                        text: clip.text.as_ref().map(|content| RenderText {
+                            content: content.clone(),
+                            style: clip.text_style.clone(),
+                        }),
+                        subtitles: clip
+                            .subtitles
+                            .iter()
+                            .map(|segment| RenderSubtitle {
+                                start: segment.start,
+                                end: segment.end,
+                                text: segment.text.clone(),
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        Ok(Self {
+            project_id: project.id,
+            sequence_id,
+            revision,
+            media: project.media.clone(),
+            width: sequence.width,
+            height: sequence.height,
+            fps: sequence.fps,
+            tracks,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
