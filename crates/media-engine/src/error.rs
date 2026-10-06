@@ -22,4 +22,9 @@ pub enum MediaError {
     InvalidProbeJson(String),
     #[error("invalid ffprobe data: {0}")]
     InvalidProbeData(String),
+    #[error("cache I/O failed for {path:?}: {message}")]
+    CacheIo {
+        path: PathBuf,
+        message: String,
+    },
 }
