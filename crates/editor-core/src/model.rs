@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{ClipId, MediaId, MediaRef, ProjectId, SequenceId, TimeUs, TrackId};
 
@@ -37,6 +38,7 @@ pub struct Sequence {
     pub fps: f64,
     pub tracks: Vec<Track>,
     pub subtitle_segments: Vec<SubtitleSegment>,
+    pub markers: Vec<Marker>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -71,7 +73,9 @@ pub struct Clip {
     pub transform: Transform,
     pub color: ColorAdjustments,
     pub audio: AudioState,
+    pub speed: f64,
     pub transition: Option<Transition>,
+    pub text: Option<TextState>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -178,6 +182,57 @@ pub struct SubtitleSegment {
     pub text: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TextState {
+    pub text: String,
+    pub style: TextStyle,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TextStyle {
+    pub font_family: String,
+    pub font_size: f32,
+    pub weight: u16,
+    pub alignment: TextAlignment,
+    pub color: String,
+    pub stroke_color: String,
+    pub stroke_width: f32,
+    pub shadow: bool,
+    pub background: Option<String>,
+    pub opacity: f32,
+}
+
+impl Default for TextStyle {
+    fn default() -> Self {
+        Self {
+            font_family: "Arial".into(),
+            font_size: 48.0,
+            weight: 400,
+            alignment: TextAlignment::Center,
+            color: "#FFFFFF".into(),
+            stroke_color: "#000000".into(),
+            stroke_width: 0.0,
+            shadow: false,
+            background: None,
+            opacity: 1.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TextAlignment {
+    Left,
+    Center,
+    Right,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Marker {
+    pub id: Uuid,
+    pub time: TimeUs,
+    pub label: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,7 +265,9 @@ mod tests {
             transform: Transform::default(),
             color: ColorAdjustments::default(),
             audio: AudioState::default(),
+            speed: 1.0,
             transition: None,
+            text: None,
         }
     }
 
@@ -231,6 +288,7 @@ mod tests {
                 clips: vec![video_clip(ClipId::new(), media_id)],
             }],
             subtitle_segments: Vec::new(),
+            markers: Vec::new(),
         }
     }
 

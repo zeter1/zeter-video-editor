@@ -48,6 +48,12 @@ impl Project {
                     if clip.timeline_start > clip.timeline_end {
                         return Err(DomainError::InvalidTimelineRange { clip_id: clip.id });
                     }
+                    if !clip.speed.is_finite() || clip.speed <= 0.0 {
+                        return Err(DomainError::InvalidClipSpeed {
+                            clip_id: clip.id,
+                            speed: clip.speed,
+                        });
+                    }
 
                     if clip.kind.requires_media() {
                         let media_id = clip
@@ -112,7 +118,9 @@ mod tests {
             transform: Transform::default(),
             color: ColorAdjustments::default(),
             audio: AudioState::default(),
+            speed: 1.0,
             transition: None,
+            text: None,
         }
     }
 
@@ -139,6 +147,7 @@ mod tests {
                     clips: vec![clip(ClipId::new(), media_id)],
                 }],
                 subtitle_segments: Vec::new(),
+                markers: Vec::new(),
             }],
         }
     }
