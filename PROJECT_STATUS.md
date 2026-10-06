@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–10 are implemented in the active implementation branch. Task 10 passed focused application-service tests plus full Windows Rust/frontend regression verification. The next planned task is Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI.
+Tasks 1–11 are implemented in the active implementation branch. Task 11 passed frontend synchronization, workspace-layout, TypeScript, and production-build verification. The next planned task is Task 12: Timeline Interaction UI, Snapping, Markers, and Commit-on-Release Editing.
 
 ## Approved decisions
 
@@ -134,6 +134,7 @@ Completed:
 - **Task 8: Thumbnails, Waveforms, Proxies, Preview Cache, and Regeneration**
 - **Task 9: Render Planner and Revision-Isolated Export with CPU Fallback**
 - **Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization**
+- **Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -150,14 +151,14 @@ Active implementation branch:
 
 ## Next step
 
-**Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI**
+**Task 12: Timeline Interaction UI, Snapping, Markers, and Commit-on-Release Editing**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write failing store/component tests proving transient drag/selection state is separate from committed project revision;
-2. prove revision gaps request a fresh `project_snapshot` instead of guessing;
-3. prove the approved dark workspace layout regions are present;
-4. implement the authoritative frontend read model, transient UI store, typed IPC client, and workspace shell;
-5. run frontend unit tests and production build, then full regression verification.
+1. write failing pure tests for time↔pixel conversion and snapping precedence;
+2. prove pointer-move drag updates transient preview only and pointer-up sends exactly one authoritative `MoveClip`;
+3. prove stale/invalid command rejection restores the last confirmed position and surfaces the typed error;
+4. keep MVP rendering simple unless fixture performance proves virtualization is necessary;
+5. run focused timeline tests, frontend production build, and full regression verification.
 
 ## Verification status
 
@@ -247,6 +248,22 @@ Task 10 TDD/verification on Windows x64:
 - `npm.cmd --prefix apps/desktop run build` — PASS.
 - `git diff --check` — PASS.
 - Tauri runtime manifest/configuration and bundle wiring remain intentionally deferred to Task 18; Task 10 provides the typed command handlers and application orchestration boundary.
+
+Task 11 TDD/verification on Windows x64:
+- RED: frontend tests failed on intentionally missing `projectStore`, `transientStore`, IPC client reconciliation, and `AppShell` workspace modules.
+- GREEN: `npm.cmd --prefix apps/desktop test -- --run` — PASS, 5 test files / 9 tests.
+- authoritative read-model rule — PASS: `CommandResultDto` invalidates by IDs only; the frontend never guesses changed entity values and refreshes from Rust `project_snapshot`.
+- revision-gap rule — PASS: non-contiguous incremental revisions are marked `resync-required` and the last confirmed snapshot is not advanced.
+- transient UI rule — PASS: selection, hover, zoom, and drag preview remain separate from committed project revision.
+- approved dark workspace regions — PASS: toolbar, media/tools, preview, timeline, inspector, and background-job status area.
+- official `@tauri-apps/api` 2.12.1 matches Rust `tauri` 2.12.1; IPC arguments use Tauri v2 camelCase command parameters.
+- `npm.cmd --prefix apps/desktop run build` — PASS; TypeScript no-emit check plus Vite production bundle.
+- `git diff --check` — PASS.
+- Vitest now uses explicit Testing Library cleanup to keep component tests isolated.
+
+Task 11 execution notes:
+- project lifecycle actions are wired through the typed IPC client; native file-dialog UX remains outside this task boundary.
+- contiguous command results currently trigger an authoritative snapshot refresh because Task 10 exposes changed entity IDs but not changed entity payloads; this preserves synchronization correctness without inventing state.
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.

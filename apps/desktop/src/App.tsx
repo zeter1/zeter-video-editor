@@ -1,3 +1,5 @@
+import { AppShell } from "./app/AppShell";
+
 export function App() {
-  return <main>Zeter Video Editor</main>;
+  return <AppShell />;
 }

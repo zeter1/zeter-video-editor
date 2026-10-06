@@ -16,3 +16,4 @@
 - Реализован Task 8: deterministic SHA-256 cache keys, managed FFmpeg command/job functions для thumbnails/waveforms/proxies и fail-safe validation disposable preview/proxy/media artifacts без изменения authoritative source media.
 - Добавлена реализация Task 9: self-contained `RenderSnapshot` с source media, immutable `RenderPlan`, H.264/H.265 encoder selection, single hardware→software fallback, cancellable managed FFmpeg export и publish-through-temporary-file semantics.
 - Реализован Task 10: revision-preserving Tauri application services, typed IPC DTO/errors, undoable media import через `Editor`, stale async revalidation через captured revision, job lifecycle API и generated TypeScript contract drift protection.
+- Реализован Task 11: тёмный React workspace shell, revision-aware authoritative read model, отдельный transient UI state, typed Tauri IPC client, безопасный snapshot refresh/resync и project lifecycle toolbar.
