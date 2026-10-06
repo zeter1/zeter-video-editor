@@ -1,6 +1,7 @@
 use editor_core::{JobId, ProjectId, ProjectRevision, RequestId, SequenceId};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JobKind {
     Thumbnail,
     Waveform,
@@ -13,7 +14,7 @@ pub enum JobKind {
     ModelDownload,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JobState {
     Queued,
     Running,
@@ -28,7 +29,7 @@ impl JobState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JobContext {
     pub job_id: JobId,
     pub request_id: RequestId,
@@ -37,7 +38,7 @@ pub struct JobContext {
     pub source_revision: ProjectRevision,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JobFailure {
     pub code: String,
     pub stage: String,
@@ -59,7 +60,7 @@ impl JobFailure {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobSpec {
     pub kind: JobKind,
     pub request_id: RequestId,
@@ -69,7 +70,7 @@ pub struct JobSpec {
     pub cancellable: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct JobSnapshot {
     pub context: JobContext,
     pub kind: JobKind,
@@ -85,7 +86,7 @@ impl JobSnapshot {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct JobEvent {
     pub job_id: JobId,
     pub kind: JobKind,

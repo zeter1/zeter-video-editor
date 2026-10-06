@@ -1,9 +1,13 @@
 use crate::{
-    ChangedEntity, Clip, DomainError, Marker, Project, SequenceId, SubtitleSegment, Track, TrackId,
+    ChangedEntity, Clip, DomainError, Marker, MediaRef, Project, SequenceId, SubtitleSegment,
+    Track, TrackId,
 };
 
 #[derive(Debug, Clone)]
 pub(crate) enum HistoryAction {
+    ProjectMedia {
+        media: Vec<MediaRef>,
+    },
     TrackClips {
         sequence_id: SequenceId,
         track_id: TrackId,
@@ -26,6 +30,9 @@ pub(crate) enum HistoryAction {
 impl HistoryAction {
     pub(crate) fn apply(&self, project: &mut Project) -> Result<(), DomainError> {
         match self {
+            Self::ProjectMedia { media } => {
+                project.media = media.clone();
+            }
             Self::TrackClips {
                 sequence_id,
                 track_id,

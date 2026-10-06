@@ -1,8 +1,8 @@
 use crate::history::{History, HistoryAction, HistoryEntry, find_track_mut};
 use crate::{
     AudioState, ChangedEntity, Clip, ClipKind, ColorAdjustments, CommandResult, DomainError,
-    EditCommand, EditRequest, Project, ProjectRevision, RequestId, SequenceId, TextState, TimeUs,
-    TrackId, Transform,
+    EditCommand, EditRequest, MediaRef, Project, ProjectRevision, RequestId, SequenceId, TextState,
+    TimeUs, TrackId, Transform,
 };
 
 pub struct Editor {
@@ -13,10 +13,14 @@ pub struct Editor {
 
 impl Editor {
     pub fn new(project: Project) -> Result<Self, DomainError> {
+        Self::from_revision(project, ProjectRevision::new(0))
+    }
+
+    pub fn from_revision(project: Project, revision: ProjectRevision) -> Result<Self, DomainError> {
         project.validate()?;
         Ok(Self {
             project,
-            revision: ProjectRevision::new(0),
+            revision,
             history: History::default(),
         })
     }
@@ -111,6 +115,10 @@ impl Editor {
 
     fn apply_command(&mut self, command: &EditCommand) -> Result<HistoryEntry, DomainError> {
         match command {
+            EditCommand::ImportMedia { media } => self.mutate_project_media(|items| {
+                items.push(media.clone());
+                Ok(vec![ChangedEntity::Media(media.id)])
+            }),
             EditCommand::AddClip {
                 sequence_id,
                 track_id,
@@ -436,6 +444,21 @@ impl Editor {
                 Ok(vec![ChangedEntity::Sequence(*sequence_id)])
             }),
         }
+    }
+
+    fn mutate_project_media<F>(&mut self, mutate: F) -> Result<HistoryEntry, DomainError>
+    where
+        F: FnOnce(&mut Vec<MediaRef>) -> Result<Vec<ChangedEntity>, DomainError>,
+    {
+        let before = self.project.media.clone();
+        let changed_entities = mutate(&mut self.project.media)?;
+        let after = self.project.media.clone();
+
+        Ok(HistoryEntry {
+            undo: HistoryAction::ProjectMedia { media: before },
+            redo: HistoryAction::ProjectMedia { media: after },
+            changed_entities,
+        })
     }
 
     fn mutate_track_clips<F>(

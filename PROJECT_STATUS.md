@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–9 are implemented in the active implementation branch. Task 9 passed its Windows CI and real managed-FFmpeg export verification gates. The next planned task is Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization.
+Tasks 1–10 are implemented in the active implementation branch. Task 10 passed focused application-service tests plus full Windows Rust/frontend regression verification. The next planned task is Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI.
 
 ## Approved decisions
 
@@ -133,6 +133,7 @@ Completed:
 - **Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection**
 - **Task 8: Thumbnails, Waveforms, Proxies, Preview Cache, and Regeneration**
 - **Task 9: Render Planner and Revision-Isolated Export with CPU Fallback**
+- **Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -149,16 +150,14 @@ Active implementation branch:
 
 ## Next step
 
-**Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization**
+**Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write failing application-service tests proving authoritative mutations pass through `Editor`;
-2. prove stale expected revisions map to a distinct typed application error;
-3. prove background job completion alone never mutates timeline state;
-4. prove stale async AI results cannot bypass current-revision validation;
-5. add a contract-drift test for generated TypeScript IPC types;
-6. implement thin Tauri orchestration/commands with no duplicated timeline business logic;
-7. verify `cargo test -p zeter-desktop-tauri`, then full regression CI.
+1. write failing store/component tests proving transient drag/selection state is separate from committed project revision;
+2. prove revision gaps request a fresh `project_snapshot` instead of guessing;
+3. prove the approved dark workspace layout regions are present;
+4. implement the authoritative frontend read model, transient UI store, typed IPC client, and workspace shell;
+5. run frontend unit tests and production build, then full regression verification.
 
 ## Verification status
 
@@ -235,6 +234,19 @@ Task 9 execution notes:
 - `RenderSnapshot` now carries source media references required by the approved self-contained export contract.
 - The plan's root `tests/render_parity.rs` location was adapted to `crates/media-engine/tests/render_parity.rs` because the repository is a virtual Cargo workspace.
 - The plan's multi-filter Cargo example was executed as separate focused filters because Cargo accepts one test filter per invocation.
+
+Task 10 TDD/verification on Windows x64:
+- RED: `cargo test -p zeter-desktop-tauri` failed on the intentionally missing application/contracts modules.
+- GREEN: `cargo test -p zeter-desktop-tauri` — PASS, 4/4 application-service and contract tests.
+- authoritative `.vcut` open preserves the saved `ProjectRevision`; stale edits map to the distinct `stale_revision` application error — PASS.
+- media import is an ordinary undoable `Editor` command and advances revision — PASS.
+- completed background jobs do not mutate timeline state; stale job results are reapplied only through `Editor` using the captured source revision and are rejected after newer edits — PASS.
+- generated `apps/desktop/src/generated/ipc.ts` contract drift test — PASS byte-for-byte.
+- `cargo test --workspace` with explicit `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin` — PASS, including real managed-FFmpeg export/probe integration.
+- `npm.cmd --prefix apps/desktop test -- --run` — PASS, 1/1.
+- `npm.cmd --prefix apps/desktop run build` — PASS.
+- `git diff --check` — PASS.
+- Tauri runtime manifest/configuration and bundle wiring remain intentionally deferred to Task 18; Task 10 provides the typed command handlers and application orchestration boundary.
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.

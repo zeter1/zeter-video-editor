@@ -286,14 +286,14 @@
   - `ExportJob::run(plan: RenderPlan, output: &Path, cancel: CancellationToken) -> Result<ExportReceipt, JobFailure>`
   - encoder selection order with explicit software fallback.
 
-- [ ] **Step 1: Write failing parity tests for clip ranges, transforms, opacity, transitions, subtitles, audio gain/fades, dimensions, and FPS in the compiled plan.**
-- [ ] **Step 2: Write failing test proving export holds the captured revision even if the editor later advances.**
-- [ ] **Step 3: Write failing Review Focus test: simulated NVENC/QSV/AMF initialization failure yields one explicit software fallback using the same immutable plan; no fallback loop.**
-- [ ] **Step 4: Write cancellation test that removes/marks incomplete temporary output and never reports success.**
-- [ ] **Step 5: Run `cargo test -p media-engine export encoder render_plan && cargo test --test render_parity`; verify failure.**
-- [ ] **Step 6: Implement FFmpeg filtergraph/export argument compilation and typed fallback.**
-- [ ] **Step 7: Run the same tests and a synthetic 2-second export integration fixture; pass.**
-- [ ] **Step 8: Commit: `feat(export): add revision-isolated ffmpeg export`.**
+- [x] **Step 1: Write failing parity tests for clip ranges, transforms, opacity, transitions, subtitles, audio gain/fades, dimensions, and FPS in the compiled plan.**
+- [x] **Step 2: Write failing test proving export holds the captured revision even if the editor later advances.**
+- [x] **Step 3: Write failing Review Focus test: simulated NVENC/QSV/AMF initialization failure yields one explicit software fallback using the same immutable plan; no fallback loop.**
+- [x] **Step 4: Write cancellation test that removes/marks incomplete temporary output and never reports success.**
+- [x] **Step 5: Run `cargo test -p media-engine export encoder render_plan && cargo test --test render_parity`; verify failure.**
+- [x] **Step 6: Implement FFmpeg filtergraph/export argument compilation and typed fallback.**
+- [x] **Step 7: Run the same tests and a synthetic 2-second export integration fixture; pass.**
+- [x] **Step 8: Commit: `feat(export): add revision-isolated ffmpeg export`.**
 
 ### Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization
 
@@ -312,13 +312,13 @@
 - Produces typed Tauri commands: `project_open`, `project_save`, `project_snapshot`, `execute_edit_command`, `undo`, `redo`, `import_media`, `start_job`, `cancel_job`, `get_job_state`.
 - DTOs: `ProjectSnapshotDto { revision, project }`, `CommandResultDto`, `AppErrorDto`, `JobEventDto`.
 
-- [ ] **Step 1: Write failing Rust application-service tests showing authoritative mutations pass through `Editor`, stale expected revision is typed distinctly, and job completion alone never mutates the timeline.**
-- [ ] **Step 2: Write failing stale-async Review Focus test: highlight/transcription result captured at revision N cannot be applied directly at N+k; application must revalidate through an edit command.**
-- [ ] **Step 3: Add failing contract drift test that regenerates `apps/desktop/src/generated/ipc.ts` to a temp location and compares bytes.**
-- [ ] **Step 4: Run `cargo test -p zeter-desktop-tauri`; verify failure.**
-- [ ] **Step 5: Implement thin command handlers and orchestration; no timeline business logic in Tauri command functions.**
-- [ ] **Step 6: Generate/commit TypeScript contracts and run `cargo test -p zeter-desktop-tauri`; pass.**
-- [ ] **Step 7: Commit: `feat(ipc): add typed authoritative application API`.**
+- [x] **Step 1: Write failing Rust application-service tests showing authoritative mutations pass through `Editor`, stale expected revision is typed distinctly, and job completion alone never mutates the timeline.**
+- [x] **Step 2: Write failing stale-async Review Focus test: highlight/transcription result captured at revision N cannot be applied directly at N+k; application must revalidate through an edit command.**
+- [x] **Step 3: Add failing contract drift test that regenerates `apps/desktop/src/generated/ipc.ts` to a temp location and compares bytes.**
+- [x] **Step 4: Run `cargo test -p zeter-desktop-tauri`; verify failure.**
+- [x] **Step 5: Implement thin command handlers and orchestration; no timeline business logic in Tauri command functions.**
+- [x] **Step 6: Generate/commit TypeScript contracts and run `cargo test -p zeter-desktop-tauri`; pass.**
+- [x] **Step 7: Commit: `feat(ipc): add typed authoritative application API`.**
 
 ### Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI
 

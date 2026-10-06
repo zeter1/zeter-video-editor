@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    Clip, ClipId, ColorAdjustments, Marker, RequestId, SequenceId, SubtitleSegment, TextStyle,
-    TimeUs, Track, TrackId, Transform, Transition,
+    Clip, ClipId, ColorAdjustments, Marker, MediaId, MediaRef, RequestId, SequenceId,
+    SubtitleSegment, TextStyle, TimeUs, Track, TrackId, Transform, Transition,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -26,6 +26,9 @@ impl ProjectRevision {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EditCommand {
+    ImportMedia {
+        media: MediaRef,
+    },
     AddClip {
         sequence_id: SequenceId,
         track_id: TrackId,
@@ -173,6 +176,7 @@ pub struct EditRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChangedEntity {
+    Media(MediaId),
     Sequence(SequenceId),
     Track(TrackId),
     Clip(ClipId),

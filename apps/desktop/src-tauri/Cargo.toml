@@ -5,4 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+editor-core = { path = "../../../crates/editor-core" }
+job-system = { path = "../../../crates/job-system" }
+project-io = { path = "../../../crates/project-io" }
+serde.workspace = true
 tauri = { version = "2.12.1", default-features = false }
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3.27"
