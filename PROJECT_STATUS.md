@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–6 are implemented in the active implementation branch. Task 6 focused persistence tests pass locally; full branch CI is pending. The next planned task is Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection.
+Tasks 1–7 are implemented in the active implementation branch. Task 7 passed the full Windows CI regression gate. Task 8 TDD has started with failing cache/proxy/thumbnail/waveform/preview-cache contracts.
 
 ## Approved decisions
 
@@ -130,6 +130,7 @@ Completed:
 - **Task 4: Immutable RenderSnapshot and Shared Render Semantics**
 - **Task 5: Background Job System and Stale-Result Safety**
 - **Task 6: .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary**
+- **Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -146,14 +147,14 @@ Active implementation branch:
 
 ## Next step
 
-**Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection**
+**Task 8: Thumbnails, Waveforms, Proxies, Preview Cache, and Regeneration**
 
-Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` exactly:
-1. write failing ffprobe parsing and managed-runtime selection tests first;
-2. prove arbitrary PATH FFmpeg is ignored when managed paths are configured;
-3. add software/NVENC/QSV/AMF capability parser coverage;
-4. implement managed subprocess invocation with typed errors;
-5. gate real-FFmpeg Windows integration behind `ZETER_TEST_FFMPEG_DIR`.
+Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
+1. prove cache keys change with source identity, revision/range, preview quality, and render-settings hash;
+2. prove missing/corrupt disposable artifacts are cache misses and do not affect project data;
+3. prove proxy generation never replaces authoritative source media;
+4. implement managed FFmpeg command builders and disposable artifact validation;
+5. run focused media-engine tests and full regression verification.
 
 ## Verification status
 
@@ -196,7 +197,15 @@ Task 5 verification on Windows x64:
 
 Task 6 focused verification on Windows x64:
 - `cargo test -p project-io` — PASS, 9 tests
-- full workspace/frontend regression — PENDING GitHub Actions after this commit
-- GitHub Actions CI run #48 for Task 5 — SUCCESS
+- GitHub Actions CI run #49 — SUCCESS; full Rust workspace, frontend tests, and frontend build passed
 
-Task 7 has not started yet.
+Task 7 TDD/verification on Windows x64:
+- RED: GitHub Actions CI run #50 failed in Rust tests on the intentionally missing Task 7 modules
+- GREEN: GitHub Actions CI run #51 — SUCCESS
+- `cargo test --workspace` — PASS; media-engine unit contract set: 5/5, gated managed-FFmpeg integration test: 1/1 (explicitly skips real sidecar execution when `ZETER_TEST_FFMPEG_DIR` is absent)
+- `npm --prefix apps/desktop test -- --run` — PASS
+- `npm --prefix apps/desktop run build` — PASS
+- local `git diff --check` — PASS
+- synthetic fixture PowerShell parser — PASS
+
+Task 8 RED tests are being introduced next; implementation is not yet claimed complete.
