@@ -1312,7 +1312,230 @@ Media, extracted audio, frames, and transcripts are not sent to cloud inference 
 
 Network access used by the model manager to download model files is a separate capability from inference and must not make cloud inference an implicit dependency.
 
-## 27. Design progress
+## 27. Diagnostics, logging, error taxonomy and failure recovery
+
+The MVP uses structured local diagnostics, a shared typed error contract, bounded log retention, privacy-by-default logging, and an explicit diagnostics export flow. External telemetry/crash SaaS is not required for the MVP.
+
+### Shared error contract
+
+Subsystems return structured errors rather than arbitrary user-facing strings.
+
+A representative application error contains:
+- machine-readable error code
+- category
+- safe user-facing message
+- technical diagnostic message
+- component
+- operation
+- request ID where applicable
+- job ID where applicable
+- recoverability/retry information
+- sanitized cause chain where useful
+
+Representative categories include:
+- domain/validation
+- project/persistence
+- media/FFmpeg
+- AI/model
+- job/cancellation
+- filesystem
+- capability/hardware
+- internal
+
+UI behavior must branch on typed semantics rather than parsing human-readable error text.
+
+### Structured local logging
+
+Logs remain local by default and should carry structured context such as:
+- timestamp
+- severity
+- component
+- operation/event
+- request ID
+- job ID
+- project/sequence revision where relevant
+- outcome
+- duration
+- error code
+- sanitized capability/backend metadata
+
+Representative events include:
+- project open/save/recovery
+- media probe/import
+- proxy/preview render
+- export start/fallback/completion/failure
+- model installation/verification
+- AI worker start/failure/restart
+- background job lifecycle
+- schema migration
+
+Logs should help a future developer or coding agent reconstruct which component failed and at which stage without needing source media or private project contents.
+
+### Correlation IDs
+
+Long or multi-layer operations preserve correlation across UI, IPC, application services, jobs, and infrastructure adapters.
+
+Conceptually:
+
+```text
+UI request_id
+      ↓
+Tauri/application
+      ↓
+job_id
+      ↓
+media-engine / ai-engine / project-io
+      ↓
+result or typed failure
+```
+
+A single export, transcription, import, save, or recovery attempt should be traceable end-to-end.
+
+### Privacy and redaction
+
+Logs must not capture private user content merely because it is convenient for debugging.
+
+By default do not log:
+- transcript/subtitle contents
+- source video frames
+- raw audio
+- full project JSON
+- secrets/tokens
+- environment credentials
+- model prompts/content if later introduced
+- unsanitized FFmpeg command lines
+
+Filesystem paths and process arguments are sanitized/redacted according to diagnostic need. Technical detail may be retained locally when necessary, but user-facing errors must remain safe and concise.
+
+### Bounded retention
+
+Logs and crash metadata use bounded retention by count/age/size policy.
+
+The architecture must not allow an unbounded `app.log` to grow indefinitely.
+
+Exact rotation sizes/counts are implementation parameters to be chosen during the implementation plan and verified against expected workload.
+
+### Failure policy
+
+Failures are handled according to project-integrity risk.
+
+General rule:
+
+```text
+project-integrity failure
+        -> stop the unsafe operation
+
+optional/rebuildable subsystem failure
+        -> degrade gracefully when safe
+```
+
+Examples:
+- corrupted `.vcut` -> do not partially admit it as authoritative state
+- AI worker crash -> fail that AI job; keep editor alive
+- missing proxy/cache -> regenerate
+- hardware encoder failure -> retry with an explicitly safe CPU fallback when applicable
+- model unavailable -> disable/offer install for the AI feature; project remains valid
+- autosave failure -> preserve current in-memory state and surface that recovery protection is degraded
+
+### Retry policy
+
+There is no blanket "catch and retry" behavior.
+
+Automatic retry is allowed only when:
+- the operation is safe to repeat/idempotent enough for its boundary;
+- the failure is plausibly transient;
+- retry count/backoff is bounded;
+- retry does not conceal a persistent configuration/capability problem.
+
+Project mutations are never blindly replayed after unknown failure.
+
+Downloads and selected filesystem/network operations may use bounded retry where safe.
+
+### Job failures
+
+A failed background job preserves structured stage information.
+
+A representative `JobFailure` contains:
+- error code
+- failed stage
+- retryability
+- safe user message
+- technical diagnostic detail
+- relevant capability/backend information
+
+The UI should distinguish, for example, encoder initialization failure from source decode failure instead of presenting only "Export failed."
+
+### Crash handling
+
+Main-process crash recovery relies on the previously approved recovery snapshot model.
+
+On the next launch:
+- abnormal shutdown can be detected;
+- newer valid recovery state can be offered;
+- canonical `.vcut` is not silently overwritten.
+
+An AI worker crash is an isolated job failure and should not be treated as an editor crash.
+
+### User-facing errors
+
+User-facing errors are concise and actionable.
+
+Where the application can safely offer a recovery action, the UI should expose it directly, such as:
+- retry with CPU encoding
+- relink missing media
+- reinstall/download model
+- retry save to another location
+- open technical details
+
+Technical details may show safe fields such as:
+- error code
+- component
+- operation
+- job/request ID
+- sanitized backend/capability details
+
+Raw traces are not the default user experience.
+
+### Diagnostics export
+
+The application provides an explicit local command such as `Help -> Export Diagnostics`.
+
+A generated support bundle may contain:
+- application/build information
+- OS/runtime information
+- detected media/AI capabilities
+- sanitized recent logs
+- recent job metadata
+- crash metadata
+- error codes and correlation IDs
+
+By default it must not contain:
+- source media
+- the user's `.vcut`
+- transcripts/subtitle text
+- extracted audio
+- arbitrary screenshots/frames
+- credentials/secrets
+
+Attaching a project or user content for support would require a separate explicit user action.
+
+### Diagnostics invariant
+
+The architecture treats diagnostics as a first-class subsystem:
+
+```text
+typed errors
++ structured local logs
++ correlation IDs
++ bounded retention
++ privacy-by-default redaction
++ graceful degradation
++ explicit diagnostics export
+```
+
+Diagnostics must improve supportability without becoming a hidden cloud telemetry dependency or a new source of sensitive-data leakage.
+
+## 28. Design progress
 
 Approved:
 - Section 1: editor/interface concept
@@ -1324,8 +1547,9 @@ Approved:
 - Section 7: preview, playback, render and export pipeline boundaries
 - Section 8: project persistence, autosave, recovery and cache lifecycle
 - Section 9: local AI runtime, model packaging and analysis boundaries
-
-Next:
 - Section 10: diagnostics, logging, error taxonomy and failure recovery
 
-Once remaining design work is approved, this working record will be converted into the final Superpowers design spec.
+Next:
+- Section 11: Windows packaging, runtime dependencies and update boundaries
+
+After Section 11 is approved, consolidate the working record into the final Superpowers design spec, self-review it, commit it, and request explicit written-spec approval before creating an implementation plan.
