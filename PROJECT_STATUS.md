@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–5 are implemented and verified locally in the active implementation branch. The next planned task is Task 6: .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary.
+Tasks 1–6 are implemented in the active implementation branch. Task 6 focused persistence tests pass locally; full branch CI is pending. The next planned task is Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection.
 
 ## Approved decisions
 
@@ -129,6 +129,7 @@ Completed:
 - **Task 3: Edit Command Engine, Revisioning, Undo/Redo, and Core Timeline Operations**
 - **Task 4: Immutable RenderSnapshot and Shared Render Semantics**
 - **Task 5: Background Job System and Stale-Result Safety**
+- **Task 6: .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -145,14 +146,14 @@ Active implementation branch:
 
 ## Next step
 
-**Task 6: .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary**
+**Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` exactly:
-1. write failing round-trip/corruption/newer-schema tests first;
-2. prove atomic-save failure preserves the prior canonical `.vcut`;
-3. implement bounded recovery snapshots using injected time for policy tests;
-4. implement media relinking/mismatch detection and disposable cache behavior;
-5. run focused and workspace regression verification before committing.
+1. write failing ffprobe parsing and managed-runtime selection tests first;
+2. prove arbitrary PATH FFmpeg is ignored when managed paths are configured;
+3. add software/NVENC/QSV/AMF capability parser coverage;
+4. implement managed subprocess invocation with typed errors;
+5. gate real-FFmpeg Windows integration behind `ZETER_TEST_FFMPEG_DIR`.
 
 ## Verification status
 
@@ -193,4 +194,9 @@ Task 5 verification on Windows x64:
 - `npm --prefix apps/desktop run build` — PASS
 - GitHub Actions CI run #47 for Task 4 — SUCCESS
 
-Task 6 has not started yet.
+Task 6 focused verification on Windows x64:
+- `cargo test -p project-io` — PASS, 9 tests
+- full workspace/frontend regression — PENDING GitHub Actions after this commit
+- GitHub Actions CI run #48 for Task 5 — SUCCESS
+
+Task 7 has not started yet.

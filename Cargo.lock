@@ -2000,6 +2000,14 @@ dependencies = [
 [[package]]
 name = "project-io"
 version = "0.0.1"
+dependencies = [
+ "editor-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "proptest"

@@ -208,16 +208,16 @@
   - `resolve_media(entry: &MediaRef, project_dir: &Path) -> MediaResolution`
   - `CacheKey` including project/source/revision/settings identity.
 
-- [ ] **Step 1: Write failing round-trip and corruption tests; unsupported newer schema must fail without rewriting the file.**
-- [ ] **Step 2: Write failing atomic-save fault-injection test: failure before replace preserves the previous canonical `.vcut`.**
-- [ ] **Step 3: Write failing autosave policy tests for 2s debounce, 30s safety interval, newest-20/7-day/1-GiB retention. Use an injected clock; do not sleep in tests.**
-- [ ] **Step 4: Write failing recovery test: newer valid recovery is discovered but never silently overwrites canonical save.**
-- [ ] **Step 5: Write failing Review Focus test for moved/missing media and same-path materially different media; resolver returns `Missing` or `IdentityMismatch`, never silently `Resolved`.**
-- [ ] **Step 6: Write failing cache test: deleting `cache/<project-id>/` cannot prevent project load and applied AI edits remain in project data.**
-- [ ] **Step 7: Run `cargo test -p project-io`; verify failure.**
-- [ ] **Step 8: Implement versioned JSON codec, atomic temp+flush+replace flow, explicit migration chain, recovery retention, relative/absolute media resolution, inexpensive identity checks, and disposable cache helpers.**
-- [ ] **Step 9: Run `cargo test -p project-io`; pass.**
-- [ ] **Step 10: Commit: `feat(project): add safe vcut persistence and recovery`.**
+- [x] **Step 1: Write failing round-trip and corruption tests; unsupported newer schema must fail without rewriting the file.**
+- [x] **Step 2: Write failing atomic-save fault-injection test: failure before replace preserves the previous canonical `.vcut`.**
+- [x] **Step 3: Write failing autosave policy tests for 2s debounce, 30s safety interval, newest-20/7-day/1-GiB retention. Use an injected clock; do not sleep in tests.**
+- [x] **Step 4: Write failing recovery test: newer valid recovery is discovered but never silently overwrites canonical save.**
+- [x] **Step 5: Write failing Review Focus test for moved/missing media and same-path materially different media; resolver returns `Missing` or `IdentityMismatch`, never silently `Resolved`.**
+- [x] **Step 6: Write failing cache test: deleting `cache/<project-id>/` cannot prevent project load and applied AI edits remain in project data.**
+- [x] **Step 7: Run `cargo test -p project-io`; verify failure.**
+- [x] **Step 8: Implement versioned JSON codec, atomic temp+flush+replace flow, explicit migration chain, recovery retention, relative/absolute media resolution, inexpensive identity checks, and disposable cache helpers.**
+- [x] **Step 9: Run `cargo test -p project-io`; pass.**
+- [x] **Step 10: Commit: `feat(project): add safe vcut persistence and recovery`.**
 
 ### Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection
 
