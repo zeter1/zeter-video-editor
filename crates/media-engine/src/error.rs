@@ -26,4 +26,17 @@ pub enum MediaError {
         field: &'static str,
         value: String,
     },
+
+    #[error("cache I/O error at {path:?}: {source}")]
+    CacheIo {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+
+    #[error("generated {artifact} cache artifact is missing or invalid at {path:?}")]
+    InvalidCacheArtifact {
+        artifact: &'static str,
+        path: PathBuf,
+    },
 }

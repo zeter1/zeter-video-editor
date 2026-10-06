@@ -1,8 +1,13 @@
+pub mod cache_key;
 pub mod capabilities;
 pub mod error;
+pub mod preview_cache;
 pub mod probe;
 pub mod process;
+pub mod proxy;
 pub mod runtime;
+pub mod thumbnail;
+pub mod waveform;
 
 pub use capabilities::{detect_capabilities, EncoderCapabilities, MediaCapabilities};
 pub use error::MediaError;
