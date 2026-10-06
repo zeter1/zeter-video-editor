@@ -1,12 +1,15 @@
 #![forbid(unsafe_code)]
 
+pub mod command;
+pub mod editor;
+pub mod history;
 pub mod ids;
 pub mod media;
 pub mod model;
 pub mod time;
 pub mod validation;
 
-use ids::{ClipId, MediaId, SequenceId};
+use ids::{ClipId, MediaId, SequenceId, TrackId};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DomainError {
