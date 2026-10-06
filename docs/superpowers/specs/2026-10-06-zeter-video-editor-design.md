@@ -1,6 +1,6 @@
 # Zeter Video Editor — Final Design Specification
 
-Status: **WRITTEN SPEC — AWAITING EXPLICIT USER APPROVAL**
+Status: **APPROVED — IMPLEMENTATION PLAN WRITTEN**
 
 This document consolidates the product and architecture decisions approved during Superpowers brainstorming. It is the written design gate before implementation planning; no implementation work is authorized until this specification receives explicit user approval.
 
@@ -1806,12 +1806,15 @@ Application delivery must be reproducible and supportable without turning the up
 
 All design sections in this document were approved conversationally during architectural brainstorming.
 
-This consolidated written specification itself is **not yet approved**. Per the Superpowers architectural workflow, the next gate is explicit user review of this file.
+The consolidated written specification received explicit user approval on 2026-10-06.
 
-Until that approval is received:
-- do not create the implementation plan;
-- do not scaffold product code;
-- do not install product dependencies;
-- do not begin implementation.
+The Superpowers implementation plan now exists at:
 
-After explicit written-spec approval, invoke the Superpowers writing-plans workflow and create the detailed implementation plan under `docs/superpowers/plans/`.
+`docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`
+
+Current gate:
+- the implementation plan must be reviewed and explicitly approved;
+- the execution method required by Superpowers must be selected;
+- product implementation must not begin until those plan gates are complete.
+
+After plan approval, execution must use the selected Superpowers workflow together with TDD, systematic debugging when failures occur, and verification-before-completion.
