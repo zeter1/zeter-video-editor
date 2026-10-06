@@ -41,7 +41,7 @@ where
     precommit()?;
 
     AtomicFile::new(path, AllowOverwrite)
-        .write(|file| {
+        .write(|file| -> io::Result<()> {
             file.write_all(&bytes)?;
             file.sync_all()?;
             Ok(())
