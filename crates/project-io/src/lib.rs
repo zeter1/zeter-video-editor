@@ -6,14 +6,14 @@ mod recovery;
 mod save;
 mod schema;
 
-pub use cache::{cache_root, remove_project_cache, CacheKey};
-pub use codec::{load, LoadedProject};
-pub use media_resolver::{resolve_media, MediaResolution};
+pub use cache::{CacheKey, cache_root, remove_project_cache};
+pub use codec::{LoadedProject, load};
+pub use media_resolver::{MediaResolution, resolve_media};
 pub use recovery::{
-    find_recovery_candidates, retained_recovery, should_write_recovery, write_recovery,
-    RecoveryCandidate, RecoveryRecord, RecoverySnapshot,
+    RecoveryCandidate, RecoveryRecord, RecoverySnapshot, find_recovery_candidates,
+    retained_recovery, should_write_recovery, write_recovery,
 };
-pub use save::{save_atomic, SaveReceipt};
+pub use save::{SaveReceipt, save_atomic};
 pub use schema::CURRENT_SCHEMA_VERSION;
 
 use thiserror::Error;
@@ -36,8 +36,8 @@ pub enum ProjectIoError {
 pub(crate) fn test_project() -> editor_core::Project {
     use editor_core::{
         AudioState, Clip, ClipId, ClipKind, ColorAdjustments, MediaId, MediaRef, Project,
-        ProjectId, ProjectSettings, Sequence, SequenceId, SubtitleSegment, TimeUs, Track, TrackId,
-        TrackKind, Transform,
+        ProjectId, ProjectSettings, Sequence, SequenceId, SubtitleSegment, SubtitleStyle, TimeUs,
+        Track, TrackId, TrackKind, Transform,
     };
 
     let time = |value| TimeUs::new(value).expect("valid fixture time");
@@ -90,6 +90,7 @@ pub(crate) fn test_project() -> editor_core::Project {
                 end: time(2_000_000),
                 text: "Applied subtitle survives cache deletion".into(),
             }],
+            subtitle_style: SubtitleStyle::default(),
             markers: Vec::new(),
         }],
     }

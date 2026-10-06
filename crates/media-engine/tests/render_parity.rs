@@ -1,8 +1,8 @@
 use editor_core::{
     AudioState, Clip, ClipId, ClipKind, ColorAdjustments, Crop, MediaId, MediaRef, Project,
     ProjectId, ProjectRevision, ProjectSettings, RenderSnapshot, Sequence, SequenceId,
-    SubtitleSegment, TextState, TextStyle, TimeUs, Track, TrackId, TrackKind, Transform,
-    Transition, TransitionKind,
+    SubtitleSegment, SubtitleStyle, TextState, TextStyle, TimeUs, Track, TrackId, TrackKind,
+    Transform, Transition, TransitionKind,
 };
 use media_engine::render_plan::{
     ExportContainer, ExportQuality, ExportSettings, RenderPlan, VideoCodec,
@@ -115,6 +115,7 @@ fn fixture() -> (Project, SequenceId, ClipId) {
                 end: time(2_500_000),
                 text: "Subtitle".into(),
             }],
+            subtitle_style: SubtitleStyle::default(),
             markers: Vec::new(),
         }],
     };
@@ -164,7 +165,11 @@ fn compiled_render_plan_preserves_sources_and_parity_critical_semantics() {
     assert_eq!(clip.transform.position_x, 0.25);
     assert_eq!(clip.transform.rotation_degrees, 12.0);
 
-    let audio = plan.audio.iter().find(|audio| audio.clip_id == clip_id).unwrap();
+    let audio = plan
+        .audio
+        .iter()
+        .find(|audio| audio.clip_id == clip_id)
+        .unwrap();
     assert_eq!(audio.gain_db, 2.5);
     assert_eq!(audio.fade_in, time(250_000));
     assert_eq!(audio.fade_out, time(500_000));

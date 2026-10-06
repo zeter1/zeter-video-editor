@@ -86,8 +86,8 @@ mod tests {
 
     use crate::{
         AudioState, Clip, ClipId, ClipKind, ColorAdjustments, MediaId, MediaRef, Project,
-        ProjectId, ProjectSettings, Sequence, SequenceId, TimeUs, Track, TrackId, TrackKind,
-        Transform,
+        ProjectId, ProjectSettings, Sequence, SequenceId, SubtitleStyle, TimeUs, Track, TrackId,
+        TrackKind, Transform,
     };
 
     fn time(value: i64) -> TimeUs {
@@ -147,6 +147,7 @@ mod tests {
                     clips: vec![clip(ClipId::new(), media_id)],
                 }],
                 subtitle_segments: Vec::new(),
+                subtitle_style: SubtitleStyle::default(),
                 markers: Vec::new(),
             }],
         }

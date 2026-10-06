@@ -4,18 +4,15 @@ use std::{env, path::PathBuf};
 
 use editor_core::{
     AudioState, Clip, ClipId, ClipKind, ColorAdjustments, MediaId, MediaRef, Project, ProjectId,
-    ProjectRevision, ProjectSettings, RenderSnapshot, Sequence, SequenceId, TimeUs, Track, TrackId,
-    TrackKind, Transform,
+    ProjectRevision, ProjectSettings, RenderSnapshot, Sequence, SequenceId, SubtitleStyle, TimeUs,
+    Track, TrackId, TrackKind, Transform,
 };
 use media_engine::{
-    detect_capabilities,
+    ManagedRuntime, detect_capabilities,
     export::ExportJob,
     probe::probe_media,
-    process::{run, ProcessSpec},
-    render_plan::{
-        ExportContainer, ExportQuality, ExportSettings, RenderPlan, VideoCodec,
-    },
-    ManagedRuntime,
+    process::{ProcessSpec, run},
+    render_plan::{ExportContainer, ExportQuality, ExportSettings, RenderPlan, VideoCodec},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -111,6 +108,7 @@ fn real_managed_ffmpeg_exports_two_second_synthetic_fixture_when_configured() {
                 }],
             }],
             subtitle_segments: Vec::new(),
+            subtitle_style: SubtitleStyle::default(),
             markers: Vec::new(),
         }],
     };
@@ -139,7 +137,16 @@ fn real_managed_ffmpeg_exports_two_second_synthetic_fixture_when_configured() {
     assert!(receipt.bytes_written > 0);
 
     let probe = probe_media(&runtime, &output).expect("export should be probeable");
-    assert_eq!(probe.video.as_ref().map(|video| (video.width, video.height)), Some((640, 360)));
+    assert_eq!(
+        probe
+            .video
+            .as_ref()
+            .map(|video| (video.width, video.height)),
+        Some((640, 360))
+    );
     let duration = probe.duration_seconds.expect("export duration");
-    assert!((1.5..=2.2).contains(&duration), "unexpected duration: {duration}");
+    assert!(
+        (1.5..=2.2).contains(&duration),
+        "unexpected duration: {duration}"
+    );
 }

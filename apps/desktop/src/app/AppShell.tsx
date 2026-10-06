@@ -6,7 +6,13 @@ import { LeftPanel } from "../components/LeftPanel";
 import { PreviewPanel } from "../components/PreviewPanel";
 import { TimelinePanel } from "../components/TimelinePanel";
 import { TopToolbar } from "../components/TopToolbar";
-import type { Clip, RequestId, Sequence } from "../generated/ipc";
+import type {
+  Clip,
+  EditCommand,
+  RequestId,
+  Sequence,
+  TrackId,
+} from "../generated/ipc";
 import { ipcClient, type IpcClient } from "../ipc/client";
 import {
   projectStore as defaultProjectStore,
@@ -38,10 +44,15 @@ function requestId(): RequestId {
   return crypto.randomUUID();
 }
 
-function findSelectedClip(
+interface SelectedClipContext {
+  clip: Clip;
+  trackId: TrackId;
+}
+
+function findSelectedClipContext(
   sequence: Sequence | null,
   selectedClipId: string | null,
-): Clip | null {
+): SelectedClipContext | null {
   if (!sequence || !selectedClipId) {
     return null;
   }
@@ -49,7 +60,7 @@ function findSelectedClip(
   for (const track of sequence.tracks) {
     const clip = track.clips.find((candidate) => candidate.id === selectedClipId);
     if (clip) {
-      return clip;
+      return { clip, trackId: track.id };
     }
   }
   return null;
@@ -67,10 +78,12 @@ export function AppShell({
 
   const project = projectState.snapshot?.project ?? null;
   const activeSequence = project?.sequences[0] ?? null;
-  const selectedClip = useMemo(
-    () => findSelectedClip(activeSequence, transient.selectedClipId),
+  const selectedClipContext = useMemo(
+    () => findSelectedClipContext(activeSequence, transient.selectedClipId),
     [activeSequence, transient.selectedClipId],
   );
+  const selectedClip = selectedClipContext?.clip ?? null;
+  const selectedTrackId = selectedClipContext?.trackId ?? null;
 
   async function applyToolbarMutation(
     mutation: () => Promise<import("../generated/ipc").CommandResultDto>,
@@ -82,6 +95,29 @@ export function AppShell({
       projectStore.setError(
         error instanceof Error ? error.message : "Project operation failed.",
       );
+    }
+  }
+
+  async function handleEditCommand(command: EditCommand): Promise<boolean> {
+    const revision = projectStore.getState().revision;
+    if (revision === null) {
+      projectStore.setError("Open a project before editing.");
+      return false;
+    }
+
+    try {
+      const result = await client.executeEditCommand({
+        request_id: requestId(),
+        expected_revision: revision,
+        command,
+      });
+      await client.reconcileCommandResult(projectStore, result);
+      return true;
+    } catch (error) {
+      projectStore.setError(
+        error instanceof Error ? error.message : "Edit operation failed.",
+      );
+      return false;
     }
   }
 
@@ -162,8 +198,22 @@ export function AppShell({
 
       <div className="workspace-grid">
         <LeftPanel media={project?.media ?? []} />
-        <PreviewPanel sequence={activeSequence} />
-        <InspectorPanel project={project} selectedClip={selectedClip} />
+        <PreviewPanel
+          sequence={activeSequence}
+          selectedClip={selectedClip}
+          selectedTrackId={selectedTrackId}
+          playheadTimeUs={transient.playheadTimeUs}
+          onSeek={(timeUs) => transientStore.setPlayheadTime(timeUs)}
+          onCommit={handleEditCommand}
+        />
+        <InspectorPanel
+          project={project}
+          sequence={activeSequence}
+          selectedTrackId={selectedTrackId}
+          selectedClip={selectedClip}
+          onSeek={(timeUs) => transientStore.setPlayheadTime(timeUs)}
+          onCommit={handleEditCommand}
+        />
         <TimelinePanel
           sequence={activeSequence}
           projectStore={projectStore}

@@ -262,6 +262,15 @@ impl Editor {
                 find_clip_mut(clips, *clip_id)?.audio.gain_db = *gain_db;
                 Ok(vec![ChangedEntity::Clip(*clip_id)])
             }),
+            EditCommand::SetAudioState {
+                sequence_id,
+                track_id,
+                clip_id,
+                audio,
+            } => self.mutate_track_clips(*sequence_id, *track_id, |clips| {
+                find_clip_mut(clips, *clip_id)?.audio = *audio;
+                Ok(vec![ChangedEntity::Clip(*clip_id)])
+            }),
             EditCommand::SetTransform {
                 sequence_id,
                 track_id,
@@ -425,6 +434,18 @@ impl Editor {
                 subtitle_segments.extend(segments.clone());
                 Ok(vec![ChangedEntity::Sequence(*sequence_id)])
             }),
+            EditCommand::SetSubtitleSegments {
+                sequence_id,
+                segments,
+            } => self.mutate_sequence_subtitles(*sequence_id, |subtitle_segments| {
+                *subtitle_segments = segments.clone();
+                Ok(vec![ChangedEntity::Sequence(*sequence_id)])
+            }),
+            EditCommand::SetSubtitleStyle { sequence_id, style } => self
+                .mutate_sequence_subtitle_style(*sequence_id, |subtitle_style| {
+                    *subtitle_style = style.clone();
+                    Ok(vec![ChangedEntity::Sequence(*sequence_id)])
+                }),
             EditCommand::AddMarker {
                 sequence_id,
                 marker,
@@ -543,6 +564,31 @@ impl Editor {
         })
     }
 
+    fn mutate_sequence_subtitle_style<F>(
+        &mut self,
+        sequence_id: SequenceId,
+        mutate: F,
+    ) -> Result<HistoryEntry, DomainError>
+    where
+        F: FnOnce(&mut crate::SubtitleStyle) -> Result<Vec<ChangedEntity>, DomainError>,
+    {
+        let sequence = find_sequence_mut(&mut self.project, sequence_id)?;
+        let before = sequence.subtitle_style.clone();
+        let changed_entities = mutate(&mut sequence.subtitle_style)?;
+        let after = sequence.subtitle_style.clone();
+        Ok(HistoryEntry {
+            undo: HistoryAction::SequenceSubtitleStyle {
+                sequence_id,
+                subtitle_style: before,
+            },
+            redo: HistoryAction::SequenceSubtitleStyle {
+                sequence_id,
+                subtitle_style: after,
+            },
+            changed_entities,
+        })
+    }
+
     fn mutate_sequence_markers<F>(
         &mut self,
         sequence_id: SequenceId,
@@ -609,8 +655,8 @@ mod tests {
     use crate::{
         AudioState, Clip, ClipId, ClipKind, ColorAdjustments, DomainError, EditCommand,
         EditRequest, Editor, MediaId, MediaRef, Project, ProjectId, ProjectRevision,
-        ProjectSettings, RequestId, Sequence, SequenceId, TimeUs, Track, TrackId, TrackKind,
-        Transform,
+        ProjectSettings, RequestId, Sequence, SequenceId, SubtitleSegment, SubtitleStyle,
+        TextStyle, TimeUs, Track, TrackId, TrackKind, Transform,
     };
 
     fn time(value: i64) -> TimeUs {
@@ -661,6 +707,7 @@ mod tests {
                     ],
                 }],
                 subtitle_segments: Vec::new(),
+                subtitle_style: SubtitleStyle::default(),
                 markers: Vec::new(),
             }],
         };
@@ -958,5 +1005,84 @@ mod tests {
         assert_eq!(error, DomainError::TrackLocked { track_id });
         assert_eq!(editor.project(), &before);
         assert_eq!(editor.revision(), ProjectRevision::new(0));
+    }
+
+    #[test]
+    fn manual_audio_and_subtitle_state_is_authoritative_undoable_state() {
+        let (project, sequence_id, track_id, clip_id, _) = fixture();
+        let mut editor = Editor::new(project).expect("valid project");
+
+        let audio = AudioState {
+            volume: 0.65,
+            gain_db: 3.5,
+            muted: true,
+            fade_in: time(250_000),
+            fade_out: time(500_000),
+        };
+        editor
+            .execute(request(
+                0,
+                EditCommand::SetAudioState {
+                    sequence_id,
+                    track_id,
+                    clip_id,
+                    audio,
+                },
+            ))
+            .expect("set audio state");
+        assert_eq!(
+            editor.project().sequences[0].tracks[0].clips[0].audio,
+            audio
+        );
+
+        let segments = vec![
+            SubtitleSegment {
+                start: time(1_000_000),
+                end: time(2_000_000),
+                text: "First edited line".into(),
+            },
+            SubtitleSegment {
+                start: time(2_000_000),
+                end: time(3_000_000),
+                text: "Second line".into(),
+            },
+        ];
+        editor
+            .execute(request(
+                1,
+                EditCommand::SetSubtitleSegments {
+                    sequence_id,
+                    segments: segments.clone(),
+                },
+            ))
+            .expect("replace subtitle segments");
+        assert_eq!(editor.project().sequences[0].subtitle_segments, segments);
+
+        let style = SubtitleStyle {
+            text_style: TextStyle {
+                font_size: 60.0,
+                weight: 800,
+                stroke_width: 4.0,
+                shadow: true,
+                ..TextStyle::default()
+            },
+            active_word_color: Some("#FFD54A".into()),
+        };
+        editor
+            .execute(request(
+                2,
+                EditCommand::SetSubtitleStyle {
+                    sequence_id,
+                    style: style.clone(),
+                },
+            ))
+            .expect("set subtitle style");
+        assert_eq!(editor.project().sequences[0].subtitle_style, style);
+
+        editor.undo(RequestId::new()).expect("undo subtitle style");
+        assert_eq!(
+            editor.project().sequences[0].subtitle_style,
+            SubtitleStyle::default()
+        );
     }
 }

@@ -200,7 +200,7 @@
 **Interfaces:**
 - Consumes: `Project`, `ProjectRevision`, `MediaRef`.
 - Produces:
-  - `CURRENT_SCHEMA_VERSION: u32 = 1`
+  - `CURRENT_SCHEMA_VERSION: u32 = 1` at Task 6; Task 13 advances it to `2` with an explicit v1→v2 migration when durable subtitle style is added.
   - `save_atomic(path: &Path, project: &Project, revision: ProjectRevision) -> Result<SaveReceipt, ProjectIoError>`
   - `load(path: &Path) -> Result<LoadedProject, ProjectIoError>`
   - `write_recovery(project_dir: &Path, ...) -> Result<RecoverySnapshot, ProjectIoError>`

@@ -38,6 +38,7 @@ pub struct Sequence {
     pub fps: f64,
     pub tracks: Vec<Track>,
     pub subtitle_segments: Vec<SubtitleSegment>,
+    pub subtitle_style: SubtitleStyle,
     pub markers: Vec<Marker>,
 }
 
@@ -204,6 +205,21 @@ pub struct SubtitleSegment {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubtitleStyle {
+    pub text_style: TextStyle,
+    pub active_word_color: Option<String>,
+}
+
+impl Default for SubtitleStyle {
+    fn default() -> Self {
+        Self {
+            text_style: TextStyle::default(),
+            active_word_color: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextState {
     pub text: String,
     pub style: TextStyle,
@@ -309,6 +325,7 @@ mod tests {
                 clips: vec![video_clip(ClipId::new(), media_id)],
             }],
             subtitle_segments: Vec::new(),
+            subtitle_style: SubtitleStyle::default(),
             markers: Vec::new(),
         }
     }

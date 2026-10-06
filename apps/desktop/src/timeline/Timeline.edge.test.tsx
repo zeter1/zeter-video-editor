@@ -54,6 +54,21 @@ function fixture(withNeighbor = false): Sequence {
     height: 1080,
     fps: 30,
     subtitle_segments: [],
+    subtitle_style: {
+      text_style: {
+        font_family: "Arial",
+        font_size: 48,
+        weight: 400,
+        alignment: "Center",
+        color: "#FFFFFF",
+        stroke_color: "#000000",
+        stroke_width: 0,
+        shadow: false,
+        background: null,
+        opacity: 1,
+      },
+      active_word_color: null,
+    },
     markers: [],
     tracks: [
       {

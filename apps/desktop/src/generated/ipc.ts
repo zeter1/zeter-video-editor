@@ -60,6 +60,7 @@ export interface Sequence {
   fps: number;
   tracks: Track[];
   subtitle_segments: SubtitleSegment[];
+  subtitle_style: SubtitleStyle;
   markers: Marker[];
 }
 
@@ -135,6 +136,11 @@ export interface SubtitleSegment {
   text: string;
 }
 
+export interface SubtitleStyle {
+  text_style: TextStyle;
+  active_word_color: string | null;
+}
+
 export interface TextState {
   text: string;
   style: TextStyle;
@@ -182,6 +188,7 @@ export type EditCommand =
   | { SetTrackHidden: { sequence_id: SequenceId; track_id: TrackId; hidden: boolean } }
   | { SetVolume: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; volume: number } }
   | { NormalizeAudio: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; gain_db: number } }
+  | { SetAudioState: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; audio: AudioState } }
   | { SetTransform: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; transform: Transform } }
   | { SetColor: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; color: ColorAdjustments } }
   | { SetSpeed: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; speed: number } }
@@ -189,6 +196,8 @@ export type EditCommand =
   | { AddText: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; timeline_start: TimeUs; timeline_end: TimeUs; text: string; style: TextStyle } }
   | { SetTextStyle: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; style: TextStyle } }
   | { AddSubtitleSegments: { sequence_id: SequenceId; segments: SubtitleSegment[] } }
+  | { SetSubtitleSegments: { sequence_id: SequenceId; segments: SubtitleSegment[] } }
+  | { SetSubtitleStyle: { sequence_id: SequenceId; style: SubtitleStyle } }
   | { AddMarker: { sequence_id: SequenceId; marker: Marker } }
   | { RemoveMarker: { sequence_id: SequenceId; marker_id: UUID } };
 

@@ -49,3 +49,148 @@ describe("AppShell", () => {
     expect(redo).toHaveBeenCalledOnce();
   });
 });
+describe("AppShell edit gateway", () => {
+  it("routes inspector commit through the current Rust revision and reconciles once", async () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    projectStore.applySnapshot({
+      revision: 4,
+      project: {
+        id: "project-1",
+        name: "Fixture",
+        settings: {
+          default_sequence_width: 1920,
+          default_sequence_height: 1080,
+          default_sequence_fps: 30,
+        },
+        media: [],
+        sequences: [{
+          id: "sequence-1",
+          name: "Main",
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          tracks: [{
+            id: "track-1",
+            name: "Video",
+            kind: "Video",
+            muted: false,
+            locked: false,
+            hidden: false,
+            clips: [{
+              id: "clip-1",
+              kind: "Video",
+              media_id: null,
+              source_in: 0,
+              source_out: 2_000_000,
+              timeline_start: 0,
+              timeline_end: 2_000_000,
+              transform: {
+                position_x: 0,
+                position_y: 0,
+                scale_x: 1,
+                scale_y: 1,
+                rotation_degrees: 0,
+                opacity: 1,
+                crop: { left: 0, top: 0, right: 0, bottom: 0 },
+              },
+              color: {
+                exposure: 0,
+                contrast: 0,
+                highlights: 0,
+                shadows: 0,
+                saturation: 1,
+                temperature: 0,
+                tint: 0,
+              },
+              audio: {
+                volume: 1,
+                gain_db: 0,
+                muted: false,
+                fade_in: 0,
+                fade_out: 0,
+              },
+              speed: 1,
+              transition: null,
+              text: null,
+            }],
+          }],
+          subtitle_segments: [],
+          subtitle_style: {
+            text_style: {
+              font_family: "Arial",
+              font_size: 48,
+              weight: 400,
+              alignment: "Center",
+              color: "#FFFFFF",
+              stroke_color: "#000000",
+              stroke_width: 0,
+              shadow: false,
+              background: null,
+              opacity: 1,
+            },
+            active_word_color: null,
+          },
+          markers: [],
+        }],
+      },
+    });
+    transientStore.selectClip("clip-1");
+
+    const executeEditCommand = vi.fn().mockResolvedValue({
+      request_id: "request-result",
+      revision: 5,
+      changed_entities: [{ Clip: "clip-1" }],
+    });
+    const reconcileCommandResult = vi.fn().mockResolvedValue("refreshed");
+    const client = {
+      projectOpen: vi.fn(),
+      projectSave: vi.fn(),
+      projectSnapshot: vi.fn(),
+      executeEditCommand,
+      undo: vi.fn(),
+      redo: vi.fn(),
+      importMedia: vi.fn(),
+      startJob: vi.fn(),
+      cancelJob: vi.fn(),
+      getJobState: vi.fn(),
+      reconcileCommandResult,
+    };
+
+    render(
+      <AppShell
+        client={client}
+        projectStore={projectStore}
+        transientStore={transientStore}
+      />,
+    );
+
+    const opacity = screen.getByRole("slider", { name: "Opacity" });
+    fireEvent.change(opacity, { target: { value: "0.75" } });
+    fireEvent.pointerUp(opacity);
+    fireEvent.blur(opacity);
+
+    await vi.waitFor(() => expect(executeEditCommand).toHaveBeenCalledTimes(1));
+    expect(executeEditCommand).toHaveBeenCalledWith({
+      request_id: expect.any(String),
+      expected_revision: 4,
+      command: {
+        SetTransform: {
+          sequence_id: "sequence-1",
+          track_id: "track-1",
+          clip_id: "clip-1",
+          transform: {
+            position_x: 0,
+            position_y: 0,
+            scale_x: 1,
+            scale_y: 1,
+            rotation_degrees: 0,
+            opacity: 0.75,
+            crop: { left: 0, top: 0, right: 0, bottom: 0 },
+          },
+        },
+      },
+    });
+    expect(reconcileCommandResult).toHaveBeenCalledTimes(1);
+  });
+});

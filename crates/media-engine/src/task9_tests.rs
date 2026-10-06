@@ -4,26 +4,19 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use editor_core::{
-    ProjectId, ProjectRevision, RenderSnapshot, SequenceId,
-};
+use editor_core::{ProjectId, ProjectRevision, RenderSnapshot, SequenceId, SubtitleStyle};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
+    EncoderCapabilities, ManagedRuntime, MediaCapabilities, MediaError,
     encoder::EncoderKind,
     export::{ExportJob, ExportRunner},
     process::{ProcessOutput, ProcessSpec},
-    render_plan::{
-        ExportContainer, ExportQuality, ExportSettings, RenderPlan, VideoCodec,
-    },
-    EncoderCapabilities, ManagedRuntime, MediaCapabilities, MediaError,
+    render_plan::{ExportContainer, ExportQuality, ExportSettings, RenderPlan, VideoCodec},
 };
 
 fn runtime() -> ManagedRuntime {
-    ManagedRuntime::from_dir(
-        PathBuf::from(r"C:\Zeter\runtime"),
-        "ffmpeg-8-zeter-test",
-    )
+    ManagedRuntime::from_dir(PathBuf::from(r"C:\Zeter\runtime"), "ffmpeg-8-zeter-test")
 }
 
 fn settings() -> ExportSettings {
@@ -51,6 +44,7 @@ fn snapshot(revision: u64) -> RenderSnapshot {
         clips: Vec::new(),
         texts: Vec::new(),
         subtitles: Vec::new(),
+        subtitle_style: SubtitleStyle::default(),
         audio: Vec::new(),
         transitions: Vec::new(),
     }
@@ -68,7 +62,10 @@ impl ExportRunner for FakeRunner {
         spec: &ProcessSpec,
         cancel: &CancellationToken,
     ) -> Result<ProcessOutput, MediaError> {
-        assert!(!cancel.is_cancelled(), "cancelled work must not reach runner");
+        assert!(
+            !cancel.is_cancelled(),
+            "cancelled work must not reach runner"
+        );
 
         let args = spec
             .args
@@ -86,10 +83,7 @@ impl ExportRunner for FakeRunner {
         let attempt_number = attempts.len();
         drop(attempts);
 
-        if self.fail_first_hardware_init
-            && attempt_number == 1
-            && encoder.ends_with("_nvenc")
-        {
+        if self.fail_first_hardware_init && attempt_number == 1 && encoder.ends_with("_nvenc") {
             return Err(MediaError::ProcessFailed {
                 program: spec.program.clone(),
                 status_code: Some(1),

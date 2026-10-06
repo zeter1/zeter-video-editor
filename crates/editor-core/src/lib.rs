@@ -16,8 +16,8 @@ pub use ids::{ClipId, JobId, MediaId, ProjectId, RequestId, SequenceId, TrackId}
 pub use media::MediaRef;
 pub use model::{
     AudioState, Clip, ClipKind, ColorAdjustments, Crop, Marker, Project, ProjectSettings, Sequence,
-    SubtitleSegment, TextAlignment, TextState, TextStyle, Track, TrackKind, Transform, Transition,
-    TransitionKind,
+    SubtitleSegment, SubtitleStyle, TextAlignment, TextState, TextStyle, Track, TrackKind,
+    Transform, Transition, TransitionKind,
 };
 pub use render::{
     RenderAudio, RenderClip, RenderSnapshot, RenderSubtitle, RenderText, RenderTransition,

@@ -1,6 +1,6 @@
 use crate::{
     ChangedEntity, Clip, DomainError, Marker, MediaRef, Project, SequenceId, SubtitleSegment,
-    Track, TrackId,
+    SubtitleStyle, Track, TrackId,
 };
 
 #[derive(Debug, Clone)]
@@ -20,6 +20,10 @@ pub(crate) enum HistoryAction {
     SequenceSubtitles {
         sequence_id: SequenceId,
         subtitle_segments: Vec<SubtitleSegment>,
+    },
+    SequenceSubtitleStyle {
+        sequence_id: SequenceId,
+        subtitle_style: SubtitleStyle,
     },
     SequenceMarkers {
         sequence_id: SequenceId,
@@ -62,6 +66,17 @@ impl HistoryAction {
                     .find(|sequence| sequence.id == *sequence_id)
                     .ok_or(DomainError::EntityNotFound { entity: "sequence" })?;
                 sequence.subtitle_segments = subtitle_segments.clone();
+            }
+            Self::SequenceSubtitleStyle {
+                sequence_id,
+                subtitle_style,
+            } => {
+                let sequence = project
+                    .sequences
+                    .iter_mut()
+                    .find(|sequence| sequence.id == *sequence_id)
+                    .ok_or(DomainError::EntityNotFound { entity: "sequence" })?;
+                sequence.subtitle_style = subtitle_style.clone();
             }
             Self::SequenceMarkers {
                 sequence_id,

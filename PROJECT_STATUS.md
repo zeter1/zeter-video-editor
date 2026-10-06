@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–12 are implemented in the active implementation branch. Task 12 passed timeline TDD, full Windows Rust/frontend regression verification, managed-FFmpeg integration, and production-build verification. The next planned task is Task 13: Preview/Inspector Manual Editing — Transform, Color, Speed, Audio, Text, Subtitles, Transitions.
+Tasks 1–13 are implemented in the active implementation branch. Task 13 passed manual-editing TDD, full Windows Rust/frontend regression verification, managed-FFmpeg integration, project-schema migration coverage, and production-build verification. The next planned task is Task 14: AI Worker Protocol and Verified Model Manager.
 
 ## Approved decisions
 
@@ -136,6 +136,7 @@ Completed:
 - **Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization**
 - **Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI**
 - **Task 12: Timeline Interaction UI, Snapping, Markers, and Commit-on-Release Editing**
+- **Task 13: Preview/Inspector Manual Editing — Transform, Color, Speed, Audio, Text, Subtitles, Transitions**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -152,14 +153,15 @@ Active implementation branch:
 
 ## Next step
 
-**Task 13: Preview/Inspector Manual Editing — Transform, Color, Speed, Audio, Text, Subtitles, Transitions**
+**Task 14: AI Worker Protocol and Verified Model Manager**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write failing inspector tests proving slider/drag changes stay transient until commit and then send one typed command;
-2. prove exact subtitle preset values and transcript-click seeking;
-3. prove only the four approved MVP transition types are exposed;
-4. implement preview/inspector/subtitle UI plus Full/1/2/1/4 preview quality and Fit/100% controls without mutating export settings;
-5. run frontend tests/build and Task 4 render-semantics tests.
+1. write failing protocol-version compatibility tests;
+2. write failing model checksum/app/backend compatibility and offline-import tests;
+3. write the bounded 3-attempt download retry test with injected 1s/2s/4s backoff;
+4. prove worker crash/cancellation cannot mutate project state and a later worker can restart;
+5. implement local versioned stdio IPC and verified model lifecycle with no network inference path;
+6. run `cargo test -p ai-engine -p zeter-ai-worker` plus affected regressions.
 
 ## Verification status
 
@@ -285,6 +287,25 @@ Task 12 execution notes:
 - React owns only transient drag/trim/playhead/zoom/scroll preview state; authoritative timeline mutations still flow through Rust `EditRequest` + revision checks.
 - `CommandResultDto` reconciliation remains the Task 11 authoritative refresh boundary after every committed timeline command.
 - the existing Task 10 Tauri `dead_code` warnings remain expected until runtime registration/bundle wiring in Task 18.
+
+Task 13 TDD/verification on Windows x64:
+- RED core: new tests failed on missing authoritative clip-audio/subtitle style/subtitle replacement commands and missing subtitle render state.
+- GREEN core: `manual_audio_and_subtitle_state_is_authoritative_undoable_state` and `snapshot_preserves_render_semantics_exactly` — PASS.
+- RED frontend: Task 13 suites first failed because inspector/preview/subtitle modules did not exist; later review regressions also failed on duplicate slider commits, rejected-edit rollback, missing text stroke/background controls, and Speed/Transition rollback.
+- GREEN frontend: one pointer gesture now emits one authoritative edit; rejected edits restore the last confirmed transform/color/audio/speed/text/transition/subtitle state; preview quality Full/1/2/1/4 and Fit/100% remain transient and do not mutate export settings.
+- subtitle presets are pinned by exact tests for Clean, Bold short-form, and Active-word highlight; transcript timing buttons seek the shared transient playhead.
+- only Cross Dissolve, Fade, Dip to Black, and Dip to White are exposed by the transition inspector.
+- persistence review found a durable-schema risk after adding subtitle style: `.vcut` schema advanced from v1 to v2 with an explicit in-memory v1→v2 migration; v1 files receive the legacy default subtitle style without canonical rewrite, while malformed v2 files missing the required field fail safely.
+- `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace` — PASS; editor-core 23 tests, project-io 11 tests, media-engine 14 unit tests plus real managed-FFmpeg/export/render-parity integration, desktop contract tests all green.
+- `npm.cmd --prefix apps/desktop test -- --run` — PASS, 18 test files / 36 tests.
+- `npm.cmd --prefix apps/desktop run build` — PASS; TypeScript no-emit + Vite production build.
+- `git diff --check` — PASS.
+- `cargo fmt --all -- --check` — NOT GREEN because of previously recorded formatting drift in older media-engine/project-io files; no unrelated mass-format was performed inside Task 13.
+
+Task 13 execution notes:
+- `SetAudioState`, `SetSubtitleSegments`, and `SetSubtitleStyle` were added because Task 13 UI must commit those already-approved states through the same Rust command/undo model rather than keeping authoritative state in React.
+- exact subtitle preset styling values are implementation parameters pinned by tests; changing their visual defaults later does not change project architecture.
+- approved MVP `detach audio` semantics and the loudness-analysis source for a fully operational Normalize button are not specified by the current implementation plan. They remain explicit pre-acceptance product/technical debt and must not be silently invented or counted as complete.
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.

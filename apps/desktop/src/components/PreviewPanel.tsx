@@ -1,12 +1,31 @@
-import type { Sequence } from "../generated/ipc";
+import type { Clip, Sequence, TrackId } from "../generated/ipc";
+import type { EditCommit } from "../editing/commit";
+import { PreviewPlayer } from "../preview/PreviewPlayer";
 
 interface PreviewPanelProps {
   sequence: Sequence | null;
+  selectedClip: Clip | null;
+  selectedTrackId: TrackId | null;
+  playheadTimeUs: number;
+  onSeek: (timeUs: number) => void;
+  onCommit: EditCommit;
 }
 
-export function PreviewPanel({ sequence }: PreviewPanelProps) {
+export function PreviewPanel({
+  sequence,
+  selectedClip,
+  selectedTrackId,
+  playheadTimeUs,
+  onSeek,
+  onCommit,
+}: PreviewPanelProps) {
   return (
-    <section className="preview-panel panel" role="region" aria-label="Preview" data-testid="preview-panel">
+    <section
+      className="preview-panel panel"
+      role="region"
+      aria-label="Preview"
+      data-testid="preview-panel"
+    >
       <div className="panel-heading">
         <span>Preview</span>
         {sequence ? (
@@ -15,22 +34,30 @@ export function PreviewPanel({ sequence }: PreviewPanelProps) {
           </span>
         ) : null}
       </div>
-      <div className="preview-stage">
-        <div className="preview-frame">
-          {sequence ? (
-            <span>{sequence.name}</span>
-          ) : (
-            <span className="empty-copy">Open a project to preview the active sequence.</span>
-          )}
-        </div>
-      </div>
-      <div className="preview-controls" aria-label="Preview controls">
-        <button type="button" aria-label="Previous frame">‹</button>
-        <button type="button" className="play-button" aria-label="Play">▶</button>
-        <button type="button" aria-label="Next frame">›</button>
-        <span className="timecode">00:00:00:00</span>
-        <span className="quality-pill">Full</span>
-      </div>
+
+      {sequence ? (
+        <PreviewPlayer
+          sequence={sequence}
+          selectedClip={selectedClip}
+          selectedTrackId={selectedTrackId}
+          playheadTimeUs={playheadTimeUs}
+          onSeek={onSeek}
+          onCommit={onCommit}
+        />
+      ) : (
+        <>
+          <div className="preview-stage">
+            <div className="preview-frame">
+              <span className="empty-copy">
+                Open a project to preview the active sequence.
+              </span>
+            </div>
+          </div>
+          <div className="preview-controls" aria-label="Preview controls">
+            <span className="quality-pill">Full</span>
+          </div>
+        </>
+      )}
     </section>
   );
 }

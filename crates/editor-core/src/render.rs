@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ClipId, ClipKind, ColorAdjustments, DomainError, MediaId, MediaRef, Project, ProjectId,
-    ProjectRevision,
-    SequenceId, TextStyle, TimeUs, TrackId, Transform, TransitionKind,
+    ProjectRevision, SequenceId, SubtitleStyle, TextStyle, TimeUs, TrackId, Transform,
+    TransitionKind,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -18,6 +18,7 @@ pub struct RenderSnapshot {
     pub clips: Vec<RenderClip>,
     pub texts: Vec<RenderText>,
     pub subtitles: Vec<RenderSubtitle>,
+    pub subtitle_style: SubtitleStyle,
     pub audio: Vec<RenderAudio>,
     pub transitions: Vec<RenderTransition>,
 }
@@ -175,6 +176,7 @@ impl RenderSnapshot {
             clips,
             texts,
             subtitles,
+            subtitle_style: sequence.subtitle_style.clone(),
             audio,
             transitions,
         })
@@ -186,8 +188,8 @@ mod tests {
     use crate::{
         AudioState, Clip, ClipId, ClipKind, ColorAdjustments, Crop, MediaId, MediaRef, Project,
         ProjectId, ProjectRevision, ProjectSettings, RenderSnapshot, Sequence, SequenceId,
-        SubtitleSegment, TextState, TextStyle, TimeUs, Track, TrackId, TrackKind, Transform,
-        Transition, TransitionKind,
+        SubtitleSegment, SubtitleStyle, TextState, TextStyle, TimeUs, Track, TrackId, TrackKind,
+        Transform, Transition, TransitionKind,
     };
 
     fn time(value: i64) -> TimeUs {
@@ -294,6 +296,14 @@ mod tests {
                     end: time(2_500_000),
                     text: "Subtitle".into(),
                 }],
+                subtitle_style: SubtitleStyle {
+                    text_style: TextStyle {
+                        font_size: 60.0,
+                        weight: 800,
+                        ..TextStyle::default()
+                    },
+                    active_word_color: Some("#FFD54A".into()),
+                },
                 markers: Vec::new(),
             }],
         };
@@ -349,6 +359,12 @@ mod tests {
         assert_eq!(snapshot.subtitles[0].text, "Subtitle");
         assert_eq!(snapshot.subtitles[0].start, time(1_500_000));
         assert_eq!(snapshot.subtitles[0].end, time(2_500_000));
+        assert_eq!(snapshot.subtitle_style.text_style.font_size, 60.0);
+        assert_eq!(snapshot.subtitle_style.text_style.weight, 800);
+        assert_eq!(
+            snapshot.subtitle_style.active_word_color.as_deref(),
+            Some("#FFD54A")
+        );
     }
 
     #[test]

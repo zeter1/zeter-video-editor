@@ -2,7 +2,8 @@ use std::fs;
 
 use editor_core::{
     EditCommand, EditRequest, MediaId, MediaRef, Project, ProjectId, ProjectRevision,
-    ProjectSettings, RequestId, Sequence, SequenceId, TextStyle, TimeUs, Track, TrackId, TrackKind,
+    ProjectSettings, RequestId, Sequence, SequenceId, SubtitleStyle, TextStyle, TimeUs, Track,
+    TrackId, TrackKind,
 };
 use job_system::{JobKind, JobSpec};
 use tempfile::tempdir;
@@ -41,6 +42,7 @@ fn fixture_project() -> (Project, SequenceId, TrackId) {
                     clips: Vec::new(),
                 }],
                 subtitle_segments: Vec::new(),
+                subtitle_style: SubtitleStyle::default(),
                 markers: Vec::new(),
             }],
         },

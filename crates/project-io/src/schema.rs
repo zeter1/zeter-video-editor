@@ -1,7 +1,7 @@
 use editor_core::{Project, ProjectRevision};
 use serde::{Deserialize, Serialize};
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+pub const CURRENT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ProjectEnvelope {

@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    Clip, ClipId, ColorAdjustments, Marker, MediaId, MediaRef, RequestId, SequenceId,
-    SubtitleSegment, TextStyle, TimeUs, Track, TrackId, Transform, Transition,
+    AudioState, Clip, ClipId, ColorAdjustments, Marker, MediaId, MediaRef, RequestId, SequenceId,
+    SubtitleSegment, SubtitleStyle, TextStyle, TimeUs, Track, TrackId, Transform, Transition,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -114,6 +114,12 @@ pub enum EditCommand {
         clip_id: ClipId,
         gain_db: f32,
     },
+    SetAudioState {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        clip_id: ClipId,
+        audio: AudioState,
+    },
     SetTransform {
         sequence_id: SequenceId,
         track_id: TrackId,
@@ -156,6 +162,14 @@ pub enum EditCommand {
     AddSubtitleSegments {
         sequence_id: SequenceId,
         segments: Vec<SubtitleSegment>,
+    },
+    SetSubtitleSegments {
+        sequence_id: SequenceId,
+        segments: Vec<SubtitleSegment>,
+    },
+    SetSubtitleStyle {
+        sequence_id: SequenceId,
+        style: SubtitleStyle,
     },
     AddMarker {
         sequence_id: SequenceId,
