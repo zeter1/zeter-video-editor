@@ -1,3 +1,81 @@
+use editor_core::command::ProjectRevision;
+use editor_core::ids::{JobId, ProjectId, RequestId, SequenceId};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum JobKind {
+    Thumbnail,
+    Waveform,
+    Proxy,
+    PreviewRender,
+    Transcription,
+    SilenceAnalysis,
+    HighlightAnalysis,
+    Export,
+    ModelDownload,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum JobState {
+    Queued,
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+impl JobState {
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Completed | Self::Failed | Self::Cancelled)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JobContext {
+    pub job_id: JobId,
+    pub request_id: RequestId,
+    pub project_id: ProjectId,
+    pub sequence_id: Option<SequenceId>,
+    pub source_revision: ProjectRevision,
+}
+
+impl JobContext {
+    pub fn is_stale(&self, current_revision: ProjectRevision) -> bool {
+        self.source_revision != current_revision
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JobFailure {
+    pub code: String,
+    pub stage: String,
+    pub retryable: bool,
+    pub safe_message: String,
+    pub technical_detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JobSpec {
+    pub kind: JobKind,
+    pub request_id: RequestId,
+    pub project_id: ProjectId,
+    pub sequence_id: Option<SequenceId>,
+    pub source_revision: ProjectRevision,
+    pub cancellable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct JobSnapshot {
+    pub kind: JobKind,
+    pub context: JobContext,
+    pub state: JobState,
+    pub progress: f32,
+    pub failure: Option<JobFailure>,
+    pub cancellable: bool,
+}
+
+pub type JobEvent = JobSnapshot;
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,3 +1,176 @@
+use crate::error::JobError;
+use crate::job::{JobEvent, JobFailure, JobSnapshot, JobSpec, JobState};
+use editor_core::ids::JobId;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, MutexGuard};
+use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
+
+#[derive(Debug)]
+struct ManagedJob {
+    snapshot: JobSnapshot,
+    cancellation: CancellationToken,
+}
+
+#[derive(Clone)]
+pub struct JobManager {
+    jobs: Arc<Mutex<HashMap<JobId, ManagedJob>>>,
+    events: broadcast::Sender<JobEvent>,
+}
+
+impl Default for JobManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl JobManager {
+    pub fn new() -> Self {
+        let (events, _) = broadcast::channel(256);
+        Self {
+            jobs: Arc::new(Mutex::new(HashMap::new())),
+            events,
+        }
+    }
+
+    pub fn subscribe(&self) -> broadcast::Receiver<JobEvent> {
+        self.events.subscribe()
+    }
+
+    pub fn submit(&self, spec: JobSpec) -> JobId {
+        let job_id = JobId::new();
+        let snapshot = JobSnapshot {
+            kind: spec.kind,
+            context: crate::job::JobContext {
+                job_id,
+                request_id: spec.request_id,
+                project_id: spec.project_id,
+                sequence_id: spec.sequence_id,
+                source_revision: spec.source_revision,
+            },
+            state: JobState::Queued,
+            progress: 0.0,
+            failure: None,
+            cancellable: spec.cancellable,
+        };
+        let managed = ManagedJob {
+            snapshot: snapshot.clone(),
+            cancellation: CancellationToken::new(),
+        };
+        self.lock_jobs().insert(job_id, managed);
+        self.publish(snapshot);
+        job_id
+    }
+
+    pub fn snapshot(&self, job_id: JobId) -> Result<JobSnapshot, JobError> {
+        self.lock_jobs()
+            .get(&job_id)
+            .map(|job| job.snapshot.clone())
+            .ok_or(JobError::NotFound(job_id))
+    }
+
+    pub fn cancellation_token(&self, job_id: JobId) -> Result<CancellationToken, JobError> {
+        self.lock_jobs()
+            .get(&job_id)
+            .map(|job| job.cancellation.clone())
+            .ok_or(JobError::NotFound(job_id))
+    }
+
+    pub fn start(&self, job_id: JobId) -> Result<(), JobError> {
+        self.transition(job_id, JobState::Running, |snapshot| {
+            snapshot.failure = None;
+        })
+    }
+
+    pub fn complete(&self, job_id: JobId) -> Result<(), JobError> {
+        self.transition(job_id, JobState::Completed, |snapshot| {
+            snapshot.progress = 1.0;
+            snapshot.failure = None;
+        })
+    }
+
+    pub fn fail(&self, job_id: JobId, failure: JobFailure) -> Result<(), JobError> {
+        self.transition(job_id, JobState::Failed, move |snapshot| {
+            snapshot.failure = Some(failure);
+        })
+    }
+
+    pub fn cancel(&self, job_id: JobId) -> Result<(), JobError> {
+        let event = {
+            let mut jobs = self.lock_jobs();
+            let job = jobs.get_mut(&job_id).ok_or(JobError::NotFound(job_id))?;
+            if !job.snapshot.cancellable {
+                return Err(JobError::NotCancellable(job_id));
+            }
+            if !matches!(job.snapshot.state, JobState::Queued | JobState::Running) {
+                return Err(JobError::InvalidTransition {
+                    from: job.snapshot.state,
+                    to: JobState::Cancelled,
+                });
+            }
+            job.cancellation.cancel();
+            job.snapshot.state = JobState::Cancelled;
+            job.snapshot.clone()
+        };
+        self.publish(event);
+        Ok(())
+    }
+
+    pub fn set_progress(&self, job_id: JobId, progress: f32) -> Result<(), JobError> {
+        if !progress.is_finite() || !(0.0..=1.0).contains(&progress) {
+            return Err(JobError::InvalidProgress);
+        }
+
+        let event = {
+            let mut jobs = self.lock_jobs();
+            let job = jobs.get_mut(&job_id).ok_or(JobError::NotFound(job_id))?;
+            if job.snapshot.state != JobState::Running {
+                return Err(JobError::InvalidTransition {
+                    from: job.snapshot.state,
+                    to: JobState::Running,
+                });
+            }
+            job.snapshot.progress = progress;
+            job.snapshot.clone()
+        };
+        self.publish(event);
+        Ok(())
+    }
+
+    fn transition<F>(&self, job_id: JobId, to: JobState, update: F) -> Result<(), JobError>
+    where
+        F: FnOnce(&mut JobSnapshot),
+    {
+        let event = {
+            let mut jobs = self.lock_jobs();
+            let job = jobs.get_mut(&job_id).ok_or(JobError::NotFound(job_id))?;
+            let from = job.snapshot.state;
+            let valid = matches!(
+                (from, to),
+                (JobState::Queued, JobState::Running)
+                    | (JobState::Running, JobState::Completed)
+                    | (JobState::Running, JobState::Failed)
+            );
+            if !valid {
+                return Err(JobError::InvalidTransition { from, to });
+            }
+            job.snapshot.state = to;
+            update(&mut job.snapshot);
+            job.snapshot.clone()
+        };
+        self.publish(event);
+        Ok(())
+    }
+
+    fn lock_jobs(&self) -> MutexGuard<'_, HashMap<JobId, ManagedJob>> {
+        self.jobs.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn publish(&self, event: JobEvent) {
+        let _ = self.events.send(event);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
