@@ -92,6 +92,11 @@ AI tools are accelerators for the same timeline editing engine. AI must generate
 - Schema migrations are explicit and ordered; newer unsupported schemas fail safely without rewriting user files.
 - Source media keeps path plus inexpensive identity metadata for relinking/mismatch detection.
 - Temporary AI analysis belongs to rebuildable cache until it is applied as normal project state.
+- Local AI runs through an isolated native worker process so inference crashes/OOM/hangs do not own project integrity.
+- `whisper.cpp` is the first transcription backend behind a replaceable transcription interface.
+- Silence detection remains deterministic signal analysis; MVP highlight detection uses explainable scoring rather than a local LLM.
+- AI models are verified application resources, separate from project cache; default delivery is on-demand download with offline/manual import support.
+- AI inference remains local; model download networking is explicitly separate from inference.
 
 ## Current checkpoint
 
@@ -104,12 +109,13 @@ Approved design sections:
 6. Data flow, IPC contracts, mutation ownership and synchronization
 7. Preview, playback, render and export pipeline boundaries
 8. Project persistence, autosave, recovery and cache lifecycle
+9. Local AI runtime, model packaging and analysis boundaries
 
 ## Next step
 
 Continue Superpowers brainstorming with:
 
-**Section 9 — local AI runtime, model packaging and analysis boundaries**, including how transcription/highlight/silence analysis run locally, how models are installed/updated, and how AI jobs remain isolated from project integrity.
+**Section 10 — diagnostics, logging, error taxonomy and failure recovery**, including structured logs, user-facing errors, crash diagnostics, job failures and support bundles without leaking private data.
 
 After all design sections are approved:
 1. Write final design spec to `docs/superpowers/specs/...`.
