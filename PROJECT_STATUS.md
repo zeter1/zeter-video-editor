@@ -53,20 +53,20 @@ Known non-blocking setup observations:
 
 ## Current work
 
-**Task 6 — .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary**
+**Task 7 — Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection**
 
-Tasks 1–5 are verified and complete. Task 6 is the next implementation task.
+Tasks 1–6 are verified and complete. Task 7 is the next implementation task.
 
 ## Next step
 
-Continue Task 6 from its RED tests:
-- versioned .vcut round-trip/corruption/newer-schema safety
-- atomic save fault preservation
-- autosave/recovery retention with injected clock
-- media relinking/mismatch detection
-- disposable cache invariants
+Continue Task 7 from RED tests:
+- FFprobe command construction and JSON parsing
+- managed runtime path selection that ignores arbitrary PATH binaries
+- software/NVENC/QSV/AMF capability parsing
+- typed process/FFmpeg failures
+- optional Windows real-sidecar integration test gated by ZETER_TEST_FFMPEG_DIR
 
-Do not redesign the project or repeat Tasks 1–5.
+Do not redesign the project or repeat Tasks 1–6.
 
 ## Verification status
 
@@ -75,4 +75,5 @@ Do not redesign the project or repeat Tasks 1–5.
 - Task 3: run `37449717759` — PASS; `editor-core` 26/26.
 - Task 4: run `37450155773` — PASS; `editor-core` 28/28 including both RenderSnapshot tests; workspace/frontend regression passed.
 - Task 5: run `37450827037` — PASS; `job-system` 8/8 tests passed, workspace/frontend regression passed.
-- Task 6: not started at this checkpoint.
+- Task 6: run `37452351365` — PASS; `project-io` Task 6 suite 9/9, workspace/frontend regression passed, no new Rust warnings.
+- Task 7: not started at this checkpoint.
