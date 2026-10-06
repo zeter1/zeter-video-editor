@@ -27,4 +27,10 @@ pub enum MediaError {
         path: PathBuf,
         message: String,
     },
+    #[error("invalid render plan: {0}")]
+    InvalidRenderPlan(String),
+    #[error("no supported encoder is available for {codec}")]
+    NoSupportedEncoder { codec: &'static str },
+    #[error("media operation was cancelled")]
+    Cancelled,
 }
