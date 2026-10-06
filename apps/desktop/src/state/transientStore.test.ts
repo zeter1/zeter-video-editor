@@ -26,6 +26,8 @@ describe("transientStore", () => {
     transient.beginClipDrag("33333333-3333-4333-8333-333333333333", 2_000_000);
     transient.updateClipDrag(2_500_000);
     transient.setTimelineZoom(1.75);
+    transient.setPlayheadTime(3_250_000);
+    transient.setTimelineScrollLeft(240);
 
     expect(projectStore.getState().snapshot?.revision).toBe(12);
     expect(transient.getState().selectedClipId).toBe(
@@ -33,5 +35,7 @@ describe("transientStore", () => {
     );
     expect(transient.getState().drag?.previewStartUs).toBe(2_500_000);
     expect(transient.getState().timelineZoom).toBe(1.75);
+    expect(transient.getState().playheadTimeUs).toBe(3_250_000);
+    expect(transient.getState().timelineScrollLeftPx).toBe(240);
   });
 });

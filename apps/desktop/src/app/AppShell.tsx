@@ -164,7 +164,12 @@ export function AppShell({
         <LeftPanel media={project?.media ?? []} />
         <PreviewPanel sequence={activeSequence} />
         <InspectorPanel project={project} selectedClip={selectedClip} />
-        <TimelinePanel sequence={activeSequence} zoom={transient.timelineZoom} />
+        <TimelinePanel
+          sequence={activeSequence}
+          projectStore={projectStore}
+          transientStore={transientStore}
+          client={client}
+        />
       </div>
 
       <JobStatus />

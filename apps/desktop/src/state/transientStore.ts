@@ -24,6 +24,8 @@ export interface TransientUiState {
   hoveredClipId: ClipId | null;
   drag: ClipDragState | null;
   timelineZoom: number;
+  playheadTimeUs: number;
+  timelineScrollLeftPx: number;
 }
 
 type Listener = () => void;
@@ -34,6 +36,8 @@ const initialState = (): TransientUiState => ({
   hoveredClipId: null,
   drag: null,
   timelineZoom: 1,
+  playheadTimeUs: 0,
+  timelineScrollLeftPx: 0,
 });
 
 export class TransientStore {
@@ -97,6 +101,14 @@ export class TransientStore {
 
   setTimelineZoom(zoom: number): void {
     this.patch({ timelineZoom: Math.min(8, Math.max(0.25, zoom)) });
+  }
+
+  setPlayheadTime(timeUs: number): void {
+    this.patch({ playheadTimeUs: Math.max(0, Math.round(timeUs)) });
+  }
+
+  setTimelineScrollLeft(scrollLeftPx: number): void {
+    this.patch({ timelineScrollLeftPx: Math.max(0, scrollLeftPx) });
   }
 
   reset(): void {

@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–11 are implemented in the active implementation branch. Task 11 passed frontend synchronization, workspace-layout, TypeScript, and production-build verification. The next planned task is Task 12: Timeline Interaction UI, Snapping, Markers, and Commit-on-Release Editing.
+Tasks 1–12 are implemented in the active implementation branch. Task 12 passed timeline TDD, full Windows Rust/frontend regression verification, managed-FFmpeg integration, and production-build verification. The next planned task is Task 13: Preview/Inspector Manual Editing — Transform, Color, Speed, Audio, Text, Subtitles, Transitions.
 
 ## Approved decisions
 
@@ -135,6 +135,7 @@ Completed:
 - **Task 9: Render Planner and Revision-Isolated Export with CPU Fallback**
 - **Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization**
 - **Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI**
+- **Task 12: Timeline Interaction UI, Snapping, Markers, and Commit-on-Release Editing**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -151,14 +152,14 @@ Active implementation branch:
 
 ## Next step
 
-**Task 12: Timeline Interaction UI, Snapping, Markers, and Commit-on-Release Editing**
+**Task 13: Preview/Inspector Manual Editing — Transform, Color, Speed, Audio, Text, Subtitles, Transitions**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write failing pure tests for time↔pixel conversion and snapping precedence;
-2. prove pointer-move drag updates transient preview only and pointer-up sends exactly one authoritative `MoveClip`;
-3. prove stale/invalid command rejection restores the last confirmed position and surfaces the typed error;
-4. keep MVP rendering simple unless fixture performance proves virtualization is necessary;
-5. run focused timeline tests, frontend production build, and full regression verification.
+1. write failing inspector tests proving slider/drag changes stay transient until commit and then send one typed command;
+2. prove exact subtitle preset values and transcript-click seeking;
+3. prove only the four approved MVP transition types are exposed;
+4. implement preview/inspector/subtitle UI plus Full/1/2/1/4 preview quality and Fit/100% controls without mutating export settings;
+5. run frontend tests/build and Task 4 render-semantics tests.
 
 ## Verification status
 
@@ -264,6 +265,26 @@ Task 11 TDD/verification on Windows x64:
 Task 11 execution notes:
 - project lifecycle actions are wired through the typed IPC client; native file-dialog UX remains outside this task boundary.
 - contiguous command results currently trigger an authoritative snapshot refresh because Task 10 exposes changed entity IDs but not changed entity payloads; this preserves synchronization correctness without inventing state.
+
+Task 12 TDD/verification on Windows x64:
+- RED: focused frontend suites failed on intentionally missing `timeScale`, `snapping`, `interaction`, and `Timeline` modules.
+- GREEN core: pure time↔pixel conversion, deterministic snapping precedence (playhead → clip edge → marker), commit-on-release movement, and stale-rejection rollback — PASS.
+- high-frequency interaction invariant — PASS: 100 pointer-move events update transient drag preview only; pointer-up sends exactly one authoritative `MoveClip` request.
+- rejection invariant — PASS: stale/typed command errors clear transient drag state, surface the error, and leave the last confirmed project snapshot/revision unchanged.
+- review regressions — PASS: same-track neighboring clip edges remain snap targets; trim uses the final pointer-up coordinate even when no intermediate pointer-move event fires.
+- timeline coordinate invariant — PASS: ruler, markers, playhead, and track lanes share the same 132 px content origin; seeking uses a tested pure coordinate helper.
+- accessibility — PASS: keyboard-focusable clips expose actions through focus; the playhead is an accessible slider and ArrowLeft/ArrowRight seek exactly one sequence frame.
+- timeline UI now exposes move/trim/split/duplicate/delete/ripple-delete, track reorder/mute/lock/hide, markers, playhead, zoom/scroll, and snapping through ordinary typed edit commands.
+- virtualization was intentionally not added: the approved MVP plan requires it only when fixture performance demonstrates necessity, and no such evidence exists yet.
+- `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace` — PASS, including real managed-FFmpeg export/probe integration.
+- `npm.cmd --prefix apps/desktop test -- --run` — PASS, 10 test files / 21 tests.
+- `npm.cmd --prefix apps/desktop run build` — PASS.
+- `git diff --check` — PASS.
+
+Task 12 execution notes:
+- React owns only transient drag/trim/playhead/zoom/scroll preview state; authoritative timeline mutations still flow through Rust `EditRequest` + revision checks.
+- `CommandResultDto` reconciliation remains the Task 11 authoritative refresh boundary after every committed timeline command.
+- the existing Task 10 Tauri `dead_code` warnings remain expected until runtime registration/bundle wiring in Task 18.
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.
