@@ -1443,6 +1443,12 @@ dependencies = [
 [[package]]
 name = "job-system"
 version = "0.0.1"
+dependencies = [
+ "editor-core",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+]
 
 [[package]]
 name = "js-sys"
@@ -3003,6 +3009,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]

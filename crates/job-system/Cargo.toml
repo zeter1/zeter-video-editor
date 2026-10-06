@@ -5,3 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+editor-core = { path = "../editor-core" }
+thiserror.workspace = true
+tokio = { version = "1.53", features = ["sync"] }
+tokio-util = { version = "0.7", features = ["rt"] }

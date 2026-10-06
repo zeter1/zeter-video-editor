@@ -178,12 +178,12 @@
   - `JobManager::cancel(job_id: JobId) -> Result<(), JobError>`
   - progress/event subscription API.
 
-- [ ] **Step 1: Write failing lifecycle tests for queued→running→completed, failed, and cancelled transitions; terminal states cannot transition again.**
-- [ ] **Step 2: Write failing tests that preserve `source_revision` and stable `job_id` through completion/failure and mark results stale when compared against a newer authoritative revision.**
-- [ ] **Step 3: Run `cargo test -p job-system`; verify failure.**
-- [ ] **Step 4: Implement the Tokio-based manager with cooperative cancellation tokens and typed stage failures.**
-- [ ] **Step 5: Run `cargo test -p job-system`; pass.**
-- [ ] **Step 6: Commit: `feat(jobs): add cancellable background job lifecycle`.**
+- [x] **Step 1: Write failing lifecycle tests for queued→running→completed, failed, and cancelled transitions; terminal states cannot transition again.**
+- [x] **Step 2: Write failing tests that preserve `source_revision` and stable `job_id` through completion/failure and mark results stale when compared against a newer authoritative revision.**
+- [x] **Step 3: Run `cargo test -p job-system`; verify failure.**
+- [x] **Step 4: Implement the Tokio-based manager with cooperative cancellation tokens and typed stage failures.**
+- [x] **Step 5: Run `cargo test -p job-system`; pass.**
+- [x] **Step 6: Commit: `feat(jobs): add cancellable background job lifecycle`.**
 
 ### Task 6: .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary
 
