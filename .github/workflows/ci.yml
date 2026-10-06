@@ -15,7 +15,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --workspace
 
-  frontend-build:
+  frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -26,4 +26,5 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - run: npm test -- --run
       - run: npm run build
