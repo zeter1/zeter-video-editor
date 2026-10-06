@@ -6,15 +6,19 @@ Zeter Video Editor is a Windows-only desktop video editor for YouTube, Shorts, R
 
 ## Current lifecycle phase
 
-The project is at the Superpowers **written-spec review gate**.
+The project is at the Superpowers **implementation-plan review gate**.
 
-All MVP architectural brainstorming sections are complete. The final design specification exists at:
+All MVP architectural brainstorming sections are complete and the final design specification has explicit user approval:
 
 `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md`
 
-It is awaiting explicit user approval. No implementation plan exists yet.
+The detailed implementation plan exists at:
 
-**Do not begin product implementation merely because the repository exists, and do not create the implementation plan until the final written design specification is explicitly approved.**
+`docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`
+
+It is awaiting explicit user review/approval and selection of the Superpowers execution method.
+
+**Do not begin product implementation until the implementation plan is explicitly approved and the execution method is selected.**
 
 Before coding, read:
 1. `PROJECT_STATUS.md`
@@ -24,7 +28,7 @@ Before coding, read:
 
 If the final spec does not exist, continue the approved design workflow instead of inventing implementation details.
 
-If the final spec exists but has not yet received explicit user approval, stop at the written-spec review gate. After explicit spec approval, use the Superpowers `writing-plans` skill; do not skip directly to implementation.
+If the implementation plan exists but has not yet received explicit user approval, stop at the implementation-plan review gate. After plan approval, use the selected Superpowers execution workflow; do not skip TDD or verification gates.
 
 ## Architectural invariants already approved
 
