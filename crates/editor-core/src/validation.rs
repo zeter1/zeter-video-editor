@@ -93,6 +93,36 @@ mod tests {
         assert!(matches!(project.validate(), Err(DomainError::InvalidClipRange(_))));
     }
 
+
+    #[test]
+    fn duplicate_media_track_and_clip_ids_are_rejected() {
+        let mut project = valid_project(0, 1_000_000, 0, 1_000_000);
+        let duplicate_media = project.media[0].clone();
+        project.media.push(duplicate_media);
+        assert!(matches!(project.validate(), Err(DomainError::DuplicateId { kind: "media", .. })));
+
+        let mut project = valid_project(0, 1_000_000, 0, 1_000_000);
+        let duplicate_track = project.sequences[0].tracks[0].clone();
+        project.sequences[0].tracks.push(duplicate_track);
+        assert!(matches!(project.validate(), Err(DomainError::DuplicateId { kind: "track", .. })));
+
+        let mut project = valid_project(0, 1_000_000, 0, 1_000_000);
+        let duplicate_clip = project.sequences[0].tracks[0].clips[0].clone();
+        project.sequences[0].tracks[0].clips.push(duplicate_clip);
+        assert!(matches!(project.validate(), Err(DomainError::DuplicateId { kind: "clip", .. })));
+    }
+
+    #[test]
+    fn source_range_must_fit_referenced_media_duration() {
+        let mut project = valid_project(0, 1_000_000, 0, 1_000_000);
+        project.sequences[0].tracks[0].clips[0].source_out = t(20_000_001);
+
+        assert!(matches!(
+            project.validate(),
+            Err(DomainError::SourceRangeExceedsMedia(_))
+        ));
+    }
+
     proptest! {
         #[test]
         fn generated_valid_clip_timing_never_panics(
