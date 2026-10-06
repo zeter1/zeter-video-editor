@@ -53,19 +53,20 @@ Known non-blocking setup observations:
 
 ## Current work
 
-**Task 8 — Thumbnails, Waveforms, Proxies, Preview Cache, and Regeneration**
+**Task 9 — Render Planner and Revision-Isolated Export with CPU Fallback**
 
-Tasks 1–7 are verified and complete. Task 8 is the next implementation task.
+Tasks 1–8 are verified and complete. Task 9 is the next implementation task.
 
 ## Next step
 
-Continue Task 8 from RED tests:
-- deterministic cache identity includes source/revision/range/quality/settings
-- missing/corrupt thumbnails, waveforms, proxies and preview renders are cache misses
-- rebuildable artifacts can be regenerated without mutating project state
-- proxies remain secondary artifacts and never replace authoritative source media
+Continue Task 9 from RED tests:
+- RenderSnapshot → deterministic RenderPlan parity
+- captured project revision remains immutable for the whole export
+- one explicit NVENC/QSV/AMF → software fallback using the same RenderPlan
+- cancellation never reports success and cleans incomplete output
+- synthetic export process fixture validates command/process integration
 
-Do not redesign the project or repeat Tasks 1–7.
+Do not redesign the project or repeat Tasks 1–8.
 
 ## Verification status
 
@@ -76,4 +77,5 @@ Do not redesign the project or repeat Tasks 1–7.
 - Task 5: run `37450827037` — PASS; `job-system` 8/8 tests passed, workspace/frontend regression passed.
 - Task 6: run `37452351365` — PASS; `project-io` Task 6 suite 9/9, workspace/frontend regression passed, no new Rust warnings.
 - Task 7: run `37452929448` — PASS; `media-engine` Task 7 suite 7/7, workspace/frontend regression passed, no new Rust warnings.
-- Task 8: not started at this checkpoint.
+- Task 8: run `37453807219` — PASS; `media-engine` Task 8 suite 4/4, workspace/frontend regression passed, no new Rust warnings.
+- Task 9: not started at this checkpoint.
