@@ -1,7 +1,10 @@
 #![forbid(unsafe_code)]
 
 pub mod ids;
+pub mod media;
+pub mod model;
 pub mod time;
+pub mod validation;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DomainError {

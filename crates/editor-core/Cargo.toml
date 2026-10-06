@@ -13,4 +13,5 @@ uuid.workspace = true
 path = "src/lib.rs"
 
 [dev-dependencies]
+proptest = "1"
 serde_json = "1"
