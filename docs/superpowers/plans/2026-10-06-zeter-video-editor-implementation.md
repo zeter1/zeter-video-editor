@@ -89,13 +89,13 @@
 - Produces: `ProjectId`, `SequenceId`, `TrackId`, `ClipId`, `MediaId`, `JobId`, `RequestId` UUID newtypes; `TimeUs(i64)`; workspace crates and desktop/worker binaries.
 - Consumes: none.
 
-- [ ] **Step 1: Scaffold only the manifests/build entry points required for tests to compile.**
-- [ ] **Step 2: Write failing Rust tests `ids_round_trip_through_serde` and `time_rejects_negative_duration` in `crates/editor-core/src/ids.rs` and `time.rs`.**
-- [ ] **Step 3: Run `cargo test -p editor-core ids_round_trip_through_serde time_rejects_negative_duration` and verify failure because the types/validation are missing.**
-- [ ] **Step 4: Implement the ID newtypes plus `TimeUs::new(value: i64) -> Result<TimeUs, DomainError>`, `TimeUs::get(self) -> i64`, and checked add/sub helpers.**
-- [ ] **Step 5: Add a minimal React smoke test setup and verify `App` renders “Zeter Video Editor” without owning project state.**
-- [ ] **Step 6: Run `cargo test --workspace`, `npm --prefix apps/desktop test -- --run`, and `npm --prefix apps/desktop run build`; all must pass.**
-- [ ] **Step 7: Commit: `chore: scaffold desktop editor workspace`.**
+- [x] **Step 1: Scaffold only the manifests/build entry points required for tests to compile.**
+- [x] **Step 2: Write failing Rust tests `ids_round_trip_through_serde` and `time_rejects_negative_duration` in `crates/editor-core/src/ids.rs` and `time.rs`.**
+- [x] **Step 3: Run `cargo test -p editor-core ids_round_trip_through_serde time_rejects_negative_duration` and verify failure because the types/validation are missing.**
+- [x] **Step 4: Implement the ID newtypes plus `TimeUs::new(value: i64) -> Result<TimeUs, DomainError>`, `TimeUs::get(self) -> i64`, and checked add/sub helpers.**
+- [x] **Step 5: Add a minimal React smoke test setup and verify `App` renders “Zeter Video Editor” without owning project state.**
+- [x] **Step 6: Run `cargo test --workspace`, `npm --prefix apps/desktop test -- --run`, and `npm --prefix apps/desktop run build`; all must pass.**
+- [x] **Step 7: Commit: `chore: scaffold desktop editor workspace`.**
 
 ### Task 2: Project/Sequence/Track/Clip Domain Model and Invariants
 
