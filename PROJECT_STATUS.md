@@ -53,20 +53,19 @@ Known non-blocking setup observations:
 
 ## Current work
 
-**Task 7 — Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection**
+**Task 8 — Thumbnails, Waveforms, Proxies, Preview Cache, and Regeneration**
 
-Tasks 1–6 are verified and complete. Task 7 is the next implementation task.
+Tasks 1–7 are verified and complete. Task 8 is the next implementation task.
 
 ## Next step
 
-Continue Task 7 from RED tests:
-- FFprobe command construction and JSON parsing
-- managed runtime path selection that ignores arbitrary PATH binaries
-- software/NVENC/QSV/AMF capability parsing
-- typed process/FFmpeg failures
-- optional Windows real-sidecar integration test gated by ZETER_TEST_FFMPEG_DIR
+Continue Task 8 from RED tests:
+- deterministic cache identity includes source/revision/range/quality/settings
+- missing/corrupt thumbnails, waveforms, proxies and preview renders are cache misses
+- rebuildable artifacts can be regenerated without mutating project state
+- proxies remain secondary artifacts and never replace authoritative source media
 
-Do not redesign the project or repeat Tasks 1–6.
+Do not redesign the project or repeat Tasks 1–7.
 
 ## Verification status
 
@@ -76,4 +75,5 @@ Do not redesign the project or repeat Tasks 1–6.
 - Task 4: run `37450155773` — PASS; `editor-core` 28/28 including both RenderSnapshot tests; workspace/frontend regression passed.
 - Task 5: run `37450827037` — PASS; `job-system` 8/8 tests passed, workspace/frontend regression passed.
 - Task 6: run `37452351365` — PASS; `project-io` Task 6 suite 9/9, workspace/frontend regression passed, no new Rust warnings.
-- Task 7: not started at this checkpoint.
+- Task 7: run `37452929448` — PASS; `media-engine` Task 7 suite 7/7, workspace/frontend regression passed, no new Rust warnings.
+- Task 8: not started at this checkpoint.
