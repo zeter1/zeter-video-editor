@@ -86,6 +86,12 @@ AI tools are accelerators for the same timeline editing engine. AI must generate
 - Final export is revision-isolated and normally renders from original source media, never degrading output quality because proxies exist.
 - Hardware acceleration is selected by `media-engine` at runtime with CPU fallback; project files are not tied to NVIDIA/Intel/AMD encoders.
 - Render/proxy/thumbnail/waveform caches are disposable and cannot be required for `.vcut` project integrity.
+- Project persistence uses a canonical versioned `.vcut` with atomic replacement after successful serialization/validation.
+- Autosave writes bounded recovery snapshots from confirmed Rust state instead of repeatedly overwriting the canonical project file.
+- Crash recovery never silently replaces the canonical `.vcut`; recovered state opens separately and is saved through the normal Save flow.
+- Schema migrations are explicit and ordered; newer unsupported schemas fail safely without rewriting user files.
+- Source media keeps path plus inexpensive identity metadata for relinking/mismatch detection.
+- Temporary AI analysis belongs to rebuildable cache until it is applied as normal project state.
 
 ## Current checkpoint
 
@@ -97,12 +103,13 @@ Approved design sections:
 5. Technical module boundaries and source-code architecture
 6. Data flow, IPC contracts, mutation ownership and synchronization
 7. Preview, playback, render and export pipeline boundaries
+8. Project persistence, autosave, recovery and cache lifecycle
 
 ## Next step
 
 Continue Superpowers brainstorming with:
 
-**Section 8 — project persistence, autosave, recovery and cache lifecycle**, including atomic saves, recovery snapshots, schema migrations, crash recovery and cache ownership.
+**Section 9 — local AI runtime, model packaging and analysis boundaries**, including how transcription/highlight/silence analysis run locally, how models are installed/updated, and how AI jobs remain isolated from project integrity.
 
 After all design sections are approved:
 1. Write final design spec to `docs/superpowers/specs/...`.
