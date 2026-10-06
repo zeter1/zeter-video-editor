@@ -1,6 +1,6 @@
 # Zeter Video Editor — Working Design Record
 
-Status: **IN PROGRESS**
+Status: **ARCHITECTURAL DESIGN COMPLETE**
 
 This file preserves design decisions already approved during Superpowers brainstorming. It is not yet the final implementation spec.
 
@@ -1819,4 +1819,4 @@ Approved:
 
 All architectural brainstorming sections required for the MVP design are approved in conversation.
 
-The final written design specification is now generated under `docs/superpowers/specs/` and must receive explicit written-spec approval before an implementation plan is created.
+The final written design specification is approved. The detailed implementation plan exists at `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` and is awaiting explicit plan review/approval plus execution-method selection.
