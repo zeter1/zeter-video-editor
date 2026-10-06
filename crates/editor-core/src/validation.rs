@@ -1,3 +1,100 @@
+use crate::ids::{ClipId, MediaId, SequenceId, TrackId};
+use crate::model::{ClipKind, Project};
+use crate::DomainError;
+use std::collections::{HashMap, HashSet};
+
+impl Project {
+    pub fn validate(&self) -> Result<(), DomainError> {
+        let mut media_ids = HashSet::<MediaId>::new();
+        let mut media_by_id = HashMap::new();
+
+        for media in &self.media {
+            if !media_ids.insert(media.id) {
+                return Err(DomainError::DuplicateId {
+                    kind: "media",
+                    id: format!("{:?}", media.id),
+                });
+            }
+            media_by_id.insert(media.id, media);
+        }
+
+        let mut sequence_ids = HashSet::<SequenceId>::new();
+        let mut track_ids = HashSet::<TrackId>::new();
+        let mut clip_ids = HashSet::<ClipId>::new();
+
+        for sequence in &self.sequences {
+            if !sequence_ids.insert(sequence.id) {
+                return Err(DomainError::DuplicateId {
+                    kind: "sequence",
+                    id: format!("{:?}", sequence.id),
+                });
+            }
+
+            if sequence.width == 0
+                || sequence.height == 0
+                || !sequence.fps.is_finite()
+                || sequence.fps <= 0.0
+            {
+                return Err(DomainError::InvalidSequenceSettings(sequence.id));
+            }
+
+            for track in &sequence.tracks {
+                if !track_ids.insert(track.id) {
+                    return Err(DomainError::DuplicateId {
+                        kind: "track",
+                        id: format!("{:?}", track.id),
+                    });
+                }
+
+                for clip in &track.clips {
+                    if !clip_ids.insert(clip.id) {
+                        return Err(DomainError::DuplicateId {
+                            kind: "clip",
+                            id: format!("{:?}", clip.id),
+                        });
+                    }
+
+                    if clip.source_in >= clip.source_out
+                        || clip.timeline_start >= clip.timeline_end
+                        || clip
+                            .subtitles
+                            .iter()
+                            .any(|segment| segment.start >= segment.end)
+                    {
+                        return Err(DomainError::InvalidClipRange(clip.id));
+                    }
+
+                    if !clip.speed.is_finite()
+                        || clip.speed <= 0.0
+                        || !clip.opacity.is_finite()
+                        || !(0.0..=1.0).contains(&clip.opacity)
+                    {
+                        return Err(DomainError::InvalidClipProperties(clip.id));
+                    }
+
+                    if clip.kind.requires_media() && clip.media_id.is_none() {
+                        return Err(DomainError::MissingClipMedia(clip.id));
+                    }
+
+                    if let Some(media_id) = clip.media_id {
+                        let media = media_by_id
+                            .get(&media_id)
+                            .ok_or(DomainError::MissingMedia(media_id))?;
+
+                        if matches!(clip.kind, ClipKind::Video | ClipKind::Audio | ClipKind::Image)
+                            && clip.source_out > media.duration
+                        {
+                            return Err(DomainError::SourceRangeExceedsMedia(clip.id));
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ids::{ClipId, MediaId, ProjectId, SequenceId, TrackId};
@@ -92,7 +189,6 @@ mod tests {
 
         assert!(matches!(project.validate(), Err(DomainError::InvalidClipRange(_))));
     }
-
 
     #[test]
     fn duplicate_media_track_and_clip_ids_are_rejected() {

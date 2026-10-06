@@ -1,3 +1,19 @@
+use crate::ids::MediaId;
+use crate::time::TimeUs;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MediaRef {
+    pub id: MediaId,
+    pub absolute_path: PathBuf,
+    pub project_relative_path: Option<PathBuf>,
+    pub size_bytes: u64,
+    pub duration: TimeUs,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ids::{ClipId, MediaId, ProjectId, SequenceId, TrackId};
