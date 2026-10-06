@@ -1,0 +1,3 @@
+# Generated IPC contracts are byte-compared against Rust output.
+# Keep their checkout representation canonical on Windows.
+apps/desktop/src/generated/ipc.ts text eol=lf
