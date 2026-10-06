@@ -721,7 +721,193 @@ At any stable interaction boundary:
 
 If this invariant cannot be established incrementally, the UI requests a fresh authoritative snapshot rather than guessing.
 
-## 24. Design progress
+## 24. Preview, playback, render and export pipeline boundaries
+
+The application will use a hybrid render pipeline. Preview and final export share one normalized logical render description, while their execution paths are optimized for different goals.
+
+### Render snapshot
+
+A `RenderSnapshot` is an immutable render-oriented representation of one sequence at one project revision.
+
+It contains the timeline information needed to render:
+- source media references and source ranges
+- clip timing
+- transforms
+- crop/scale/position/rotation
+- opacity
+- color adjustments
+- transitions
+- text/subtitle render data
+- audio state
+- sequence resolution and frame rate
+
+It does not contain transient UI state.
+
+The core flow is:
+
+```text
+editor-core Sequence @ revision
+            ↓
+       RenderSnapshot
+            ↓
+       Render Planner
+        ↙          ↘
+ Preview path    Export path
+```
+
+Preview and export must not independently reinterpret editing semantics. Both consume the same normalized values so a transform, transition, subtitle timing value, or audio setting has one logical meaning.
+
+### Preview execution path
+
+For uncomplicated timeline regions, preview favors low-latency direct playback:
+- original media where practical
+- proxy media for difficult/expensive sources
+- React/WebView overlays for interactive text, selection bounds, handles, and other lightweight UI-controlled presentation
+
+For regions requiring composition that direct playback cannot accurately represent, `media-engine` creates short cached preview renders.
+
+Examples include:
+- overlapping video layers
+- transitions
+- expensive color operations
+- more complex composition
+- codecs or source characteristics unsuitable for responsive direct playback
+
+This avoids prematurely implementing a custom native GPU compositor in the MVP while keeping the preview abstraction replaceable later.
+
+### Preview cache identity
+
+Cached preview artifacts must be associated with enough identity to prevent stale output from being treated as current.
+
+A cache key includes, conceptually:
+- sequence ID
+- project/sequence revision relevant to the rendered range
+- timeline time range
+- preview quality
+- render-settings hash
+
+Changing the timeline invalidates only affected preview ranges where practical rather than discarding every preview artifact.
+
+Stale preview artifacts may remain on disk until normal cache cleanup, but they must not be selected as current.
+
+### Preview quality
+
+The MVP supports:
+- Full
+- 1/2
+- 1/4
+
+Preview quality changes only interactive playback quality. It must never silently alter final export quality.
+
+During rapid scrubbing or overloaded playback, the preview system may temporarily favor a cheaper frame path for responsiveness. When interaction settles, it should request/display a higher-quality current frame according to the selected preview quality.
+
+### Proxies
+
+Proxy generation is a rebuildable media job.
+
+Proxies may be used for responsive editing of difficult media such as:
+- HEVC sources
+- high-bitrate footage
+- variable-frame-rate footage
+- other sources that are expensive to decode interactively
+
+A proxy remains associated with its original media identity and must not replace the original as the authoritative source.
+
+### Final export
+
+Final export is compiled from a fixed `RenderSnapshot` and normally reads original source media:
+
+```text
+original media
+      ↓
+RenderSnapshot / Render Planner
+      ↓
+FFmpeg render graph
+      ↓
+full-quality transforms/effects/audio
+      ↓
+encoder selection
+      ↓
+output file
+```
+
+Proxy files are not normal final-export sources. The existence or deletion of proxies must not reduce source quality or change project meaning.
+
+### Export revision isolation
+
+An export job captures the sequence/project revision it is rendering.
+
+If an export starts from revision 127 and the user continues editing to revision 135, the running export remains an export of revision 127.
+
+A running export must not silently incorporate later mutations.
+
+The UI should make the export job identity/state clear enough that a user can distinguish a completed export from later unsaved or unexported edits.
+
+### Hardware acceleration
+
+GPU acceleration is an execution concern in `media-engine`, not part of the domain/project model.
+
+At runtime, `media-engine` may detect and use supported encoders/paths such as:
+- NVIDIA NVENC
+- Intel QSV
+- AMD AMF
+
+Supported export operations require a software/CPU fallback when an appropriate hardware path is unavailable or cannot handle the requested operation.
+
+The project file must not become tied to one vendor-specific encoder.
+
+### Preview/export consistency
+
+Both preview and export consume the same normalized render semantics.
+
+Conceptually:
+
+```text
+Clip / Sequence state
+        ↓
+  RenderSnapshot
+     ├─ preview interpreter
+     └─ FFmpeg export compiler
+```
+
+Tests should target parity-critical behavior, especially:
+- clip timing and source ranges
+- transforms
+- opacity
+- transitions
+- subtitle/text timing
+- audio gain/fades
+- sequence dimensions and frame rate
+
+Pixel-perfect parity is not required for every temporary low-quality preview frame, but preview must not communicate materially different editing semantics from export.
+
+### Render cache
+
+Rebuildable media/render cache is separate from project integrity and may include:
+
+```text
+cache/
+├─ proxies/
+├─ thumbnails/
+├─ waveforms/
+└─ preview-renders/
+```
+
+Deleting the entire cache must leave the `.vcut` project valid. Required cache artifacts are regenerated on demand.
+
+### Architectural invariant
+
+The MVP does not implement a full custom GPU compositor unless a later verified requirement makes it necessary.
+
+Instead:
+- `editor-core` owns editing meaning;
+- `RenderSnapshot` normalizes render meaning;
+- direct/proxy playback provides the fast path;
+- cached preview renders cover complex ranges;
+- FFmpeg compiles deterministic final exports from original media;
+- render/cache artifacts are disposable.
+
+## 25. Design progress
 
 Approved:
 - Section 1: editor/interface concept
@@ -730,8 +916,9 @@ Approved:
 - Section 4: UI states and workflows
 - Section 5: technical module boundaries/source-code architecture
 - Section 6: data flow, IPC contracts, mutation ownership and synchronization
+- Section 7: preview, playback, render and export pipeline boundaries
 
 Next:
-- Section 7: preview, playback, render and export pipeline boundaries
+- Section 8: project persistence, autosave, recovery and cache lifecycle
 
 Once remaining design work is approved, this working record will be converted into the final Superpowers design spec.
