@@ -15,7 +15,7 @@ use serde_json::json;
 use std::cell::Cell;
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tempfile::tempdir;
 
 fn t(value: i64) -> TimeUs {
