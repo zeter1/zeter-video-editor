@@ -109,12 +109,12 @@
 - Consumes: ID and time types from Task 1.
 - Produces: `Project`, `ProjectSettings`, `Sequence`, `Track`, `TrackKind`, `Clip`, `ClipKind`, `MediaRef`, `Transform`, `ColorAdjustments`, `AudioState`, `Transition`, `SubtitleSegment`; `Project::validate() -> Result<(), DomainError>`.
 
-- [ ] **Step 1: Write failing tests for multiple sequences, legal media references, non-overlapping source ranges, unique IDs, valid sequence dimensions/FPS, and non-destructive clip source references.**
-- [ ] **Step 2: Add a proptest that generates valid clip timing and asserts `source_in < source_out`, `timeline_start <= timeline_end`, and validation never panics.**
-- [ ] **Step 3: Run `cargo test -p editor-core model validation`; verify failures.**
-- [ ] **Step 4: Implement the domain structs/enums and `Project::validate` with no Tauri/FFmpeg/AI dependencies.**
-- [ ] **Step 5: Run `cargo test -p editor-core`; all domain/property tests pass.**
-- [ ] **Step 6: Commit: `feat(core): add project timeline domain model`.**
+- [x] **Step 1: Write failing tests for multiple sequences, legal media references, non-overlapping source ranges, unique IDs, valid sequence dimensions/FPS, and non-destructive clip source references.**
+- [x] **Step 2: Add a proptest that generates valid clip timing and asserts `source_in < source_out`, `timeline_start <= timeline_end`, and validation never panics.**
+- [x] **Step 3: Run `cargo test -p editor-core model validation`; verify failures.**
+- [x] **Step 4: Implement the domain structs/enums and `Project::validate` with no Tauri/FFmpeg/AI dependencies.**
+- [x] **Step 5: Run `cargo test -p editor-core`; all domain/property tests pass.**
+- [x] **Step 6: Commit: `feat(core): add project timeline domain model`.**
 
 ### Task 3: Edit Command Engine, Revisioning, Undo/Redo, and Core Timeline Operations
 

@@ -53,16 +53,11 @@ Known non-blocking setup observations:
 
 ## Current work
 
-**Task 2 — Project/Sequence/Track/Clip Domain Model and Invariants**
+**Task 3 — Edit Command Engine, Revisioning, Undo/Redo, and Core Timeline Operations**
 
-Next TDD cycle will add failing `editor-core` tests for:
-- multiple sequences
-- media references
-- unique IDs/reference integrity
-- legal source/timeline ranges
-- sequence dimensions/FPS
-- project validation
-- property/invariant coverage with `proptest`
+Task 2 is verified and complete.
+
+Task 3 will add the revisioned authoritative edit-command engine, inverse undo/redo history, stale-revision rejection, changed-entity results, and the approved core timeline mutation set.
 
 ## Next step
 
@@ -70,5 +65,7 @@ Continue Task 2 from its first failing tests. Do not redesign the project or rep
 
 ## Verification status
 
-Task 1 is verified by GitHub Actions run `37447178764`.
-No later task is claimed complete.
+- Task 1: GitHub Actions run `37447178764` — PASS.
+- Task 2: GitHub Actions run `37448149039` — PASS; `editor-core` 11 tests passed, 0 failed, including proptest invariant coverage; full Rust workspace and frontend regression passed.
+- Task 2 ruling: source ranges must be ordered/non-empty per clip; multiple clips may legitimately reuse overlapping source spans.
+- No Task 3 behavior is claimed complete yet.
