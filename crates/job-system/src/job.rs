@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manager::JobManager;
     use editor_core::command::ProjectRevision;
     use editor_core::ids::{ProjectId, RequestId, SequenceId};
 
