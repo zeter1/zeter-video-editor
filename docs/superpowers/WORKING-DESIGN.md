@@ -907,7 +907,227 @@ Instead:
 - FFmpeg compiles deterministic final exports from original media;
 - render/cache artifacts are disposable.
 
-## 25. Design progress
+## 25. Project persistence, autosave, recovery and cache lifecycle
+
+The MVP will use a canonical `.vcut` project file with atomic writes, bounded recovery snapshots, explicit schema migrations, and a rebuildable project-scoped cache.
+
+### Canonical project file
+
+The user-facing `.vcut` file is the canonical durable project representation.
+
+It contains versioned structured data for:
+- schema version
+- project identity and metadata
+- media references
+- sequences
+- tracks and clips
+- subtitle/text state
+- transforms/effects/audio settings
+- project settings
+
+It does not contain rebuildable artifacts such as thumbnails, waveforms, proxies, preview renders, or temporary AI analysis cache.
+
+### Atomic save
+
+A normal Save must not overwrite the canonical project file in-place while serialization is still in progress.
+
+The save flow is:
+
+```text
+authoritative Rust state
+        ↓
+serialize snapshot
+        ↓
+validate serialized project
+        ↓
+write temporary file
+        ↓
+flush / close
+        ↓
+atomically replace canonical .vcut where supported
+        ↓
+record saved revision
+```
+
+If serialization, validation, or temporary-file writing fails, the previous valid `.vcut` remains intact.
+
+The application tracks at least:
+- current authoritative project revision
+- last successfully saved revision
+
+A project is dirty when these differ.
+
+### Autosave and recovery snapshots
+
+Autosave writes recovery snapshots rather than constantly replacing the user's canonical `.vcut`.
+
+Conceptually:
+
+```text
+recovery/
+└─ <project-id>/
+   ├─ snapshot-000124.vcut
+   ├─ snapshot-000131.vcut
+   └─ snapshot-000139.vcut
+```
+
+Recovery snapshots are created only from confirmed authoritative Rust state.
+
+Autosave policy should combine:
+- debounced saving after meaningful edits
+- a periodic safety save while active editing continues
+
+Exact timing values are implementation parameters to be chosen and verified later rather than hard-coded as architectural requirements.
+
+Recovery history is bounded by count/age/size policy so it cannot grow indefinitely.
+
+### Clean shutdown and crash recovery
+
+A normal application shutdown records a clean session state.
+
+On startup, if a newer valid recovery snapshot exists than the last explicitly saved project revision, the application offers recovery.
+
+Recovery must not silently overwrite the canonical `.vcut`.
+
+A recovered snapshot is opened into authoritative memory first. The user can then save it through the normal Save flow.
+
+The UI should clearly distinguish:
+- saved project version
+- newer recovered version
+- recovery timestamp/revision
+
+### Schema versioning and migration
+
+Every `.vcut` includes an explicit `schema_version`.
+
+Loading follows:
+
+```text
+read
+ ↓
+parse
+ ↓
+schema-version check
+ ↓
+migrate supported older version -> current model
+ ↓
+validate
+ ↓
+open
+```
+
+Migrations are explicit, ordered, and testable, for example:
+- v1 -> v2
+- v2 -> v3
+
+The loader must not rely on heuristic guessing about missing historical fields.
+
+If a project was created by a newer unsupported schema version, the application must fail safely without rewriting the file and explain that a newer Zeter Video Editor version is required.
+
+### Project validation
+
+A project is not admitted into authoritative `editor-core` state until structural/domain validation succeeds.
+
+Validation includes, as applicable:
+- parse success
+- supported schema version
+- required IDs
+- unique identity constraints
+- valid references between project, sequences, tracks, clips, and media
+- legal timing/range values
+- valid sequence settings
+- migration postconditions
+
+A corrupted project must not become a partially valid authoritative state.
+
+### Media references and relinking
+
+Source media remains external to the project file.
+
+Each media entry stores stable project identity plus location/identity hints such as:
+- media ID
+- absolute path
+- project-relative path when meaningful
+- basic media identity metadata
+
+On open, resolution should prefer available known locations and then fall back to missing-media/relink UX.
+
+A project folder moved together with its media should remain practical to reopen through relative-path resolution where possible.
+
+### Media identity checks
+
+File path alone is not sufficient identity because a different file may later occupy the same path.
+
+The MVP should keep inexpensive identity information such as:
+- file size
+- probed duration
+- stream/resolution metadata
+- other cheap metadata useful for mismatch detection
+
+A full cryptographic hash of multi-gigabyte source media is not required on every open.
+
+If a source appears materially different from the media originally referenced, the application should surface that mismatch rather than silently accepting it as equivalent.
+
+### Cache lifecycle and ownership
+
+Rebuildable cache is project-scoped and keyed by source/revision/settings identity as needed.
+
+Conceptually:
+
+```text
+cache/
+└─ <project-id>/
+   ├─ thumbnails/
+   ├─ waveforms/
+   ├─ proxies/
+   ├─ preview-renders/
+   └─ ai/
+```
+
+A cache artifact is either:
+- verifiably valid for the requested source/revision/settings identity; or
+- ignored and regenerated.
+
+Deleting `cache/<project-id>/` must never damage the `.vcut` or source media.
+
+### AI-result persistence boundary
+
+Temporary analysis output is rebuildable cache when it has not become project state.
+
+Examples:
+- transcript candidate data
+- silence analysis
+- highlight candidates
+
+Once the user/application applies an AI result through ordinary `editor-core` commands, the resulting durable editing state belongs in the project:
+- subtitle segments/clips
+- timeline cuts
+- created Short sequences
+- other accepted timeline changes
+
+Deleting AI cache must not remove already applied project edits.
+
+### Persistence invariant
+
+At all times:
+
+```text
+canonical .vcut
+    = last explicitly saved durable project
+
+recovery snapshots
+    = bounded crash-recovery copies of newer confirmed revisions
+
+cache
+    = disposable and rebuildable
+
+source media
+    = referenced and never destructively modified by editing
+```
+
+The MVP does not require a full database or event-journal architecture unless later evidence shows the atomic-file model is insufficient.
+
+## 26. Design progress
 
 Approved:
 - Section 1: editor/interface concept
@@ -917,8 +1137,9 @@ Approved:
 - Section 5: technical module boundaries/source-code architecture
 - Section 6: data flow, IPC contracts, mutation ownership and synchronization
 - Section 7: preview, playback, render and export pipeline boundaries
+- Section 8: project persistence, autosave, recovery and cache lifecycle
 
 Next:
-- Section 8: project persistence, autosave, recovery and cache lifecycle
+- Section 9: local AI runtime, model packaging and analysis boundaries
 
 Once remaining design work is approved, this working record will be converted into the final Superpowers design spec.
