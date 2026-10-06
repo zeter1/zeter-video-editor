@@ -4,15 +4,17 @@ Last updated: 2026-10-06
 
 ## Current phase
 
-Superpowers architectural design — **written-spec review gate**.
+Superpowers — **implementation-plan review gate**.
 
-All required MVP architectural brainstorming sections are complete. The consolidated final design specification exists at:
+The consolidated final design specification was explicitly approved by the user on 2026-10-06:
 
 `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md`
 
-It is awaiting explicit user approval before an implementation plan may be created.
+The detailed MVP implementation plan now exists:
 
-No product implementation has started yet.
+`docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`
+
+No product implementation has started yet. The plan must be explicitly reviewed/approved and a Superpowers execution method must be selected before implementation begins.
 
 ## Approved decisions
 
@@ -115,46 +117,42 @@ AI tools are accelerators for the same timeline editing engine. AI must generate
 
 ## Current checkpoint
 
-Approved design sections:
-1. Product/editor UI concept
-2. Internal architecture
-3. MVP scope
-4. UI states and workflows
-5. Technical module boundaries and source-code architecture
-6. Data flow, IPC contracts, mutation ownership and synchronization
-7. Preview, playback, render and export pipeline boundaries
-8. Project persistence, autosave, recovery and cache lifecycle
-9. Local AI runtime, model packaging and analysis boundaries
-10. Diagnostics, logging, error taxonomy and failure recovery
-11. Windows packaging, runtime dependencies and update boundaries
+Completed:
+- all required MVP architectural brainstorming sections
+- final consolidated design specification
+- explicit user approval of the final written specification
+- detailed Superpowers MVP implementation plan
+- implementation-plan self-review for spec coverage, step granularity, type consistency, review-focus failures, and proportionality
 
-Final design spec written:
-- `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md`
+Implementation plan commit:
+- `d4616a81a0ec310063031c9f8809edf11ef86521` — `docs: add Superpowers MVP implementation plan`
 
-Self-review performed before commit:
-- no TBD/TODO placeholders found by the spec review check
-- packaging/update decisions reconciled with the existing persistence, AI and diagnostics boundaries
-- spec status explicitly remains awaiting written approval
+Implementation remains intentionally unstarted.
 
 ## Next step
 
-**User review of the committed final design specification.**
+**User review/approval of the committed implementation plan:**
 
-The user must explicitly approve:
+`docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`
 
-`docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md`
+The user must:
+1. confirm that the implementation plan captures the approved product/design;
+2. choose the Superpowers execution method:
+   - **Subagent-driven** — fresh implementer/reviewer context per task; more thorough and higher cost;
+   - **Native** — execute the plan task-by-task in the current harness/session, followed by whole-branch review; faster/cheaper.
 
-Only after that written-spec approval:
-1. Invoke the Superpowers `writing-plans` skill.
-2. Create the detailed implementation plan under `docs/superpowers/plans/`.
-3. Ask the user to review/approve the implementation plan and select the execution method required by Superpowers.
-4. Only then start implementation using TDD, verification and the applicable execution workflow.
-
-Do not scaffold or implement product code before these gates are complete.
+After those gates:
+1. use the selected Superpowers execution skill;
+2. establish an isolated worktree if the execution workflow requires/permits it;
+3. run baseline verification;
+4. start Task 1 of the implementation plan;
+5. use TDD for product code, systematic debugging for failures, and verification-before-completion before claims/commits.
 
 ## Verification status
 
 - Repository still contains no product implementation code.
 - No product test suite exists yet because implementation has not started.
-- Documentation/spec self-review completed for the current design gate.
-- Final written spec is committed but not yet user-approved.
+- Final design specification is explicitly approved.
+- Implementation plan exists and has completed its Superpowers self-review.
+- No implementation task is being claimed complete.
+- Next verification occurs when execution starts with workspace/baseline checks defined by the selected Superpowers workflow.
