@@ -6,6 +6,7 @@ pub mod history;
 pub mod ids;
 pub mod media;
 pub mod model;
+pub mod render;
 pub mod time;
 pub mod validation;
 
