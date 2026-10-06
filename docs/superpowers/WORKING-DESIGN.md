@@ -549,7 +549,179 @@ Testing should follow module ownership:
 
 Do not split `editor-core` into many crates pre-emptively. Extract a new crate later only when a subsystem has a stable independent responsibility and the extraction measurably improves isolation, testing, or maintainability.
 
-## 23. Design progress
+## 23. Data flow, IPC contracts, mutation ownership and synchronization
+
+The project will use a revisioned hybrid state model.
+
+Rust remains the single authoritative owner of project and timeline state. React keeps a read-model/mirror suitable for fast rendering plus transient UI state. React must not maintain an independent authoritative editing model.
+
+### Authoritative mutation flow
+
+A normal editing action follows this path:
+
+```text
+User interaction
+      ↓
+React creates an intent
+      ↓
+execute_edit_command {
+    request_id,
+    expected_revision,
+    command
+}
+      ↓
+Tauri IPC
+      ↓
+Rust application layer
+      ↓
+editor-core validates and applies command
+      ↓
+project_revision N -> N+1
+      ↓
+CommandResult {
+    request_id,
+    revision,
+    changed_entities
+}
+      ↓
+React updates its read-model
+```
+
+Every committed project mutation receives a monotonically increasing project revision.
+
+The application layer may reject a command whose `expected_revision` is no longer valid when accepting it could violate correctness. The response must make stale-state conflicts distinguishable from ordinary validation errors.
+
+### Full snapshots and incremental updates
+
+A complete authoritative `ProjectSnapshot` contains at least:
+- project data needed by the UI
+- current project revision
+
+Full snapshots are used for:
+- project open
+- recovery
+- explicit resynchronization
+- suspected state drift
+- situations where incremental reconciliation would be more complex than replacing the read-model
+
+Normal edits should return only the changed state required by the UI rather than serializing the whole project after every mutation.
+
+This is intentionally not full event sourcing. Incremental change payloads are an optimization/read-model mechanism; the authoritative state remains the current Rust project model.
+
+### Transient UI preview versus committed state
+
+High-frequency interactions such as:
+- dragging clips
+- trimming
+- moving visual elements in preview
+- adjusting slider controls
+
+may use temporary React-side preview state so interaction remains immediate.
+
+Temporary preview state:
+- is not durable project state
+- does not enter undo/redo history
+- must be replaceable by the last authoritative Rust state
+
+At the commit boundary, such as mouse release or completed input, React sends one authoritative edit command. If Rust rejects the mutation, the UI returns to the last confirmed state and surfaces an appropriate error.
+
+This prevents hundreds of mouse-move events from polluting the core command history.
+
+### Undo and redo
+
+Undo/redo are owned entirely by Rust/`editor-core`.
+
+React does not maintain a second editing history stack.
+
+An undo or redo is itself an authoritative state transition and advances the project revision:
+
+```text
+React -> undo
+Rust/editor-core -> apply undo
+revision 61 -> 62
+React <- changed state
+```
+
+### Background jobs
+
+Long-running jobs use an event channel separate from normal edit-command responses.
+
+Representative events:
+- `job_started`
+- `job_progress`
+- `job_completed`
+- `job_failed`
+- `job_cancelled`
+
+Job events include a stable job ID so UI state cannot accidentally associate a delayed update with another operation.
+
+Completing a job does not implicitly mutate the timeline.
+
+Examples:
+- transcription completion returns transcript data
+- silence analysis returns candidate ranges
+- highlight detection returns candidate segments
+- proxy generation makes a cache artifact available
+- export completion returns export outcome
+
+Where a job result can lead to editing changes, a separate application action turns that result into ordinary `editor-core` commands.
+
+### Stale async results
+
+Long-running operations must retain the identity/revision of the state they analyzed when correctness depends on it.
+
+Example:
+1. highlight analysis starts against sequence revision 42;
+2. the user continues editing and project revision reaches 48;
+3. the analysis completes;
+4. the result must not silently apply edits assuming revision 42 is still current.
+
+The application layer decides whether the result:
+- is still safe to present unchanged;
+- requires revalidation/rebasing against current state;
+- must be marked stale and recomputed.
+
+AI and media jobs may present stale analytical results for review when useful, but stale results cannot bypass current `editor-core` validation when converted to edits.
+
+### Autosave ownership
+
+Autosave is driven from confirmed authoritative Rust state, never from uncommitted React preview state.
+
+A successful core mutation marks the project dirty and schedules persistence according to the autosave policy. The saved revision should be trackable so the UI can distinguish:
+- current revision
+- last saved revision
+- save in progress
+- save failure
+
+### IPC contracts
+
+IPC DTOs are explicit, typed and versionable.
+
+Requests that can overlap or complete asynchronously include a `request_id`. Editing requests that depend on a particular project state include `expected_revision` where appropriate.
+
+Rust responses should use structured success/error envelopes rather than relying on unstructured strings.
+
+A representative structured error contains:
+- machine-readable error code
+- safe user-facing message
+- optional technical details for diagnostics
+- request/job ID where applicable
+- recoverability/retry information where useful
+
+Internal stack traces, sensitive paths, environment values, and FFmpeg command details must not be blindly exposed in user-facing messages. Technical diagnostics may contain sanitized details needed for debugging.
+
+### Synchronization invariant
+
+At any stable interaction boundary:
+- Rust holds the authoritative project state;
+- React's committed read-model corresponds to a known Rust revision;
+- transient React preview state is clearly separate;
+- background jobs are correlated by stable IDs;
+- delayed async results cannot silently overwrite newer state.
+
+If this invariant cannot be established incrementally, the UI requests a fresh authoritative snapshot rather than guessing.
+
+## 24. Design progress
 
 Approved:
 - Section 1: editor/interface concept
@@ -557,8 +729,9 @@ Approved:
 - Section 3: MVP scope
 - Section 4: UI states and workflows
 - Section 5: technical module boundaries/source-code architecture
+- Section 6: data flow, IPC contracts, mutation ownership and synchronization
 
 Next:
-- Section 6: data flow, IPC contracts, mutation ownership and synchronization
+- Section 7: preview, playback, render and export pipeline boundaries
 
 Once remaining design work is approved, this working record will be converted into the final Superpowers design spec.
