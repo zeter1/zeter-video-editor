@@ -1,0 +1,16 @@
+[package]
+name = "editor-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dev-dependencies]
+serde_json = "1"

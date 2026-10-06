@@ -1,0 +1,9 @@
+[package]
+name = "zeter-desktop-tauri"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "zeter-video-editor"
+path = "src/main.rs"

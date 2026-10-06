@@ -1,0 +1,21 @@
+[workspace]
+members = [
+  "apps/desktop/src-tauri",
+  "apps/ai-worker",
+  "crates/editor-core",
+  "crates/media-engine",
+  "crates/ai-engine",
+  "crates/project-io",
+  "crates/job-system",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "UNLICENSED"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
