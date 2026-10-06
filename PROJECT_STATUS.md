@@ -97,6 +97,10 @@ AI tools are accelerators for the same timeline editing engine. AI must generate
 - Silence detection remains deterministic signal analysis; MVP highlight detection uses explainable scoring rather than a local LLM.
 - AI models are verified application resources, separate from project cache; default delivery is on-demand download with offline/manual import support.
 - AI inference remains local; model download networking is explicitly separate from inference.
+- Diagnostics use typed errors, structured local logs, correlation IDs, bounded retention and privacy-by-default redaction.
+- Optional/rebuildable subsystem failures degrade gracefully where safe; project-integrity failures stop the unsafe operation.
+- Background job failures preserve stage/error metadata instead of collapsing to generic messages.
+- Users can explicitly export a sanitized local diagnostics bundle; external telemetry/crash SaaS is not required for MVP.
 
 ## Current checkpoint
 
@@ -110,12 +114,15 @@ Approved design sections:
 7. Preview, playback, render and export pipeline boundaries
 8. Project persistence, autosave, recovery and cache lifecycle
 9. Local AI runtime, model packaging and analysis boundaries
+10. Diagnostics, logging, error taxonomy and failure recovery
 
 ## Next step
 
 Continue Superpowers brainstorming with:
 
-**Section 10 — diagnostics, logging, error taxonomy and failure recovery**, including structured logs, user-facing errors, crash diagnostics, job failures and support bundles without leaking private data.
+**Section 11 — Windows packaging, runtime dependencies and update boundaries**, including how FFmpeg, the AI worker and optional models are delivered without requiring manual system setup or turning updates into a project-integrity risk.
+
+After Section 11 is approved, consolidate the working record into the final Superpowers design spec, self-review it, commit it, and request explicit written-spec approval before creating an implementation plan.
 
 After all design sections are approved:
 1. Write final design spec to `docs/superpowers/specs/...`.
