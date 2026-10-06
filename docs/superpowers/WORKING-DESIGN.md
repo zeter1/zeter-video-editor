@@ -1127,7 +1127,192 @@ source media
 
 The MVP does not require a full database or event-journal architecture unless later evidence shows the atomic-file model is insufficient.
 
-## 26. Design progress
+## 26. Local AI runtime, model packaging and analysis boundaries
+
+Local AI runs behind an isolated native worker process rather than inside `editor-core` or directly inside the primary Tauri process.
+
+### Process boundary
+
+The intended flow is:
+
+```text
+Zeter Video Editor
+      ↓
+job-system
+      ↓
+ai-engine
+      ↓
+native AI worker process
+      ├─ transcription backend
+      ├─ deterministic audio analysis
+      └─ highlight analysis
+```
+
+The worker boundary limits the blast radius of:
+- native inference crashes
+- model-loading failures
+- out-of-memory conditions
+- hung inference
+- cancellation of expensive work
+
+A failed AI worker must fail the associated job without corrupting project state or forcing the editor process to terminate.
+
+### Analysis request contract
+
+AI work is started from immutable analysis input.
+
+A request carries, as applicable:
+- job ID
+- project ID
+- sequence ID
+- source/project revision
+- media identity
+- analysis task type
+- analysis parameters
+
+The worker returns structured analysis output, not direct timeline mutations.
+
+Any accepted AI-assisted editing change is translated by the application layer into ordinary `editor-core` commands.
+
+### Transcription backend
+
+The first transcription backend will use `whisper.cpp`.
+
+The architectural interface must remain backend-neutral so replacing or adding a transcription implementation later does not require changes to `editor-core` or the project schema.
+
+Media normalization stays in the media boundary:
+
+```text
+source media
+    ↓
+media-engine / FFmpeg audio normalization
+    ↓
+AI worker transcription backend
+    ↓
+TranscriptResult
+```
+
+The transcription result contains structured timestamped segments and language/diagnostic metadata needed by the subtitle workflow.
+
+The transcription implementation must not become a second media-decoding subsystem.
+
+### Silence analysis
+
+Silence/pause detection is deterministic signal analysis in the MVP rather than a machine-learning feature.
+
+The pipeline produces candidate silence ranges from normalized audio using user-adjustable parameters such as:
+- sensitivity/threshold
+- minimum silence duration
+- padding
+
+Candidate ranges can be previewed. Applying them creates ordinary timeline commands under normal validation and undo/redo.
+
+### Highlight detection
+
+The MVP does not introduce a local LLM for highlight detection.
+
+Highlight detection uses an explainable scoring pipeline built from available signals such as:
+- transcript sentence/thought boundaries
+- speech density
+- pauses
+- loudness changes
+- speaking pace
+- scene-change information
+
+The output is a ranked list of `HighlightCandidate` values with:
+- start/end range
+- score
+- contributing reason/signals
+- analyzed source revision
+
+A candidate has no authority to mutate the timeline. Creating a Short or applying an edit remains a separate application/core operation.
+
+### Models versus project cache
+
+Installed AI models are application resources, not per-project cache.
+
+Conceptually:
+
+```text
+application-data/
+├─ models/             # installed verified AI models
+└─ cache/
+   └─ <project-id>/
+      └─ ai/           # rebuildable project analysis results
+```
+
+Deleting project cache does not uninstall models.
+
+Deleting an optional model does not damage a project; the relevant AI feature becomes unavailable until the model is installed again.
+
+### Model manager
+
+Models are described by a manifest containing at least:
+- model ID
+- model version
+- backend/runtime compatibility
+- download source
+- expected size where useful
+- cryptographic checksum
+- license/source metadata required for distribution
+- application compatibility constraints
+
+A downloaded/imported model is verified before it becomes available to the worker.
+
+AI result metadata records enough provenance for diagnostics and reproducibility, including:
+- model ID
+- model version
+- relevant analysis parameters
+- source/media identity
+- source/project revision
+
+### Model delivery
+
+Large AI models are not bundled into the main installer by default.
+
+The MVP uses:
+- verified on-demand model download when an AI feature is first used or explicitly installed;
+- offline/manual model import for computers without network access.
+
+The main application remains useful without an installed AI model.
+
+A model update must not silently replace a known working model in the middle of project work. Model compatibility and replacement are controlled through the model manifest/version policy.
+
+### CPU baseline and optional acceleration
+
+AI functionality must have a supported CPU path appropriate to the selected model/backend.
+
+Hardware acceleration is capability-driven and isolated behind the AI backend/runtime abstraction rather than embedded into product/project logic.
+
+For future ONNX-based Windows inference components, new Windows-specific work should prefer the current WinML direction rather than architecting new dependencies around the legacy DirectML execution-provider path. This is an implementation/runtime choice and does not change the `editor-core` domain model.
+
+### Cancellation and worker recovery
+
+AI jobs support cooperative cancellation where the backend allows it.
+
+If a worker is hung or cannot cancel safely, the application may terminate that worker process and create a fresh worker for later jobs.
+
+Worker restart must not:
+- modify project state
+- invalidate already applied edits
+- delete installed models
+- break unrelated editor functionality
+
+Temporary worker artifacts are cleaned up according to the job/cache lifecycle.
+
+### Privacy boundary
+
+AI inference for the MVP is local:
+
+```text
+local media -> local processing -> local analysis result
+```
+
+Media, extracted audio, frames, and transcripts are not sent to cloud inference APIs.
+
+Network access used by the model manager to download model files is a separate capability from inference and must not make cloud inference an implicit dependency.
+
+## 27. Design progress
 
 Approved:
 - Section 1: editor/interface concept
@@ -1138,8 +1323,9 @@ Approved:
 - Section 6: data flow, IPC contracts, mutation ownership and synchronization
 - Section 7: preview, playback, render and export pipeline boundaries
 - Section 8: project persistence, autosave, recovery and cache lifecycle
+- Section 9: local AI runtime, model packaging and analysis boundaries
 
 Next:
-- Section 9: local AI runtime, model packaging and analysis boundaries
+- Section 10: diagnostics, logging, error taxonomy and failure recovery
 
 Once remaining design work is approved, this working record will be converted into the final Superpowers design spec.
