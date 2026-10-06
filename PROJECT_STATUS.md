@@ -53,20 +53,20 @@ Known non-blocking setup observations:
 
 ## Current work
 
-**Task 9 — Render Planner and Revision-Isolated Export with CPU Fallback**
+**Task 10 — Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization**
 
-Tasks 1–8 are verified and complete. Task 9 is the next implementation task.
+Tasks 1–9 are verified and complete. Task 10 is the next implementation task.
 
 ## Next step
 
-Continue Task 9 from RED tests:
-- RenderSnapshot → deterministic RenderPlan parity
-- captured project revision remains immutable for the whole export
-- one explicit NVENC/QSV/AMF → software fallback using the same RenderPlan
-- cancellation never reports success and cleans incomplete output
-- synthetic export process fixture validates command/process integration
+Continue Task 10 from RED tests:
+- application mutations route through editor-core
+- stale expected revision is preserved as a distinct typed IPC error
+- background job completion alone cannot mutate timeline state
+- stale async AI/media results must be revalidated through an edit command
+- generated TypeScript IPC contracts must match Rust DTOs byte-for-byte
 
-Do not redesign the project or repeat Tasks 1–8.
+Do not redesign the project or repeat Tasks 1–9.
 
 ## Verification status
 
@@ -78,4 +78,5 @@ Do not redesign the project or repeat Tasks 1–8.
 - Task 6: run `37452351365` — PASS; `project-io` Task 6 suite 9/9, workspace/frontend regression passed, no new Rust warnings.
 - Task 7: run `37452929448` — PASS; `media-engine` Task 7 suite 7/7, workspace/frontend regression passed, no new Rust warnings.
 - Task 8: run `37453807219` — PASS; `media-engine` Task 8 suite 4/4, workspace/frontend regression passed, no new Rust warnings.
-- Task 9: not started at this checkpoint.
+- Task 9: run `37455036695` — PASS; render parity 2/2, export fallback/cancellation 3/3, real synthetic FFmpeg export 1/1, workspace/frontend regression passed, no new Rust warnings.
+- Task 10: not started at this checkpoint.
