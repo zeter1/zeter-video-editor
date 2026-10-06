@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–3 are implemented and verified in the active implementation branch. The next planned task is Task 4: Immutable RenderSnapshot and Shared Render Semantics.
+Tasks 1–4 are implemented and verified locally in the active implementation branch. The next planned task is Task 5: Background Job System and Stale-Result Safety.
 
 ## Approved decisions
 
@@ -127,6 +127,7 @@ Completed:
 - **Task 1: Workspace, Toolchain, and First Authoritative Domain Slice**
 - **Task 2: Project/Sequence/Track/Clip Domain Model and Invariants**
 - **Task 3: Edit Command Engine, Revisioning, Undo/Redo, and Core Timeline Operations**
+- **Task 4: Immutable RenderSnapshot and Shared Render Semantics**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -143,13 +144,13 @@ Active implementation branch:
 
 ## Next step
 
-**Task 4: Immutable RenderSnapshot and Shared Render Semantics**
+**Task 5: Background Job System and Stale-Result Safety**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` exactly:
-1. write failing render snapshot parity/immutability tests first;
-2. normalize sequence state without FFmpeg-specific strings in `editor-core`;
-3. preserve timing, transforms, color, speed, text/subtitles, audio, transitions, dimensions and FPS;
-4. prove later edits do not mutate an already-created snapshot;
+1. write failing lifecycle tests for queued/running/completed/failed/cancelled transitions;
+2. preserve stable job IDs and source revision through terminal states;
+3. mark results stale against newer authoritative revisions;
+4. implement cooperative cancellation and typed stage failures;
 5. run focused and workspace regression verification before committing.
 
 ## Verification status
@@ -178,4 +179,10 @@ Task 3 verification on Windows x64:
 - `npm --prefix apps/desktop run build` — PASS
 - GitHub Actions CI run #45 for Task 2 — SUCCESS
 
-Task 4 has not started yet.
+Task 4 verification on Windows x64:
+- `cargo test -p editor-core render` — PASS, 2 focused tests
+- `cargo test --workspace` — PASS; `editor-core` 22 tests
+- `npm --prefix apps/desktop test -- --run` — PASS, 1 test
+- `npm --prefix apps/desktop run build` — PASS
+
+Task 5 has not started yet.

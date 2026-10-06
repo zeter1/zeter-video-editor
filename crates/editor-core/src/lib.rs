@@ -4,6 +4,7 @@ pub mod history;
 pub mod ids;
 pub mod media;
 pub mod model;
+pub mod render;
 pub mod time;
 pub mod validation;
 
@@ -14,9 +15,12 @@ pub use editor::Editor;
 pub use ids::{ClipId, JobId, MediaId, ProjectId, RequestId, SequenceId, TrackId};
 pub use media::MediaRef;
 pub use model::{
-    AudioState, Clip, ClipKind, ColorAdjustments, Marker, Project, ProjectSettings, Sequence,
+    AudioState, Clip, ClipKind, ColorAdjustments, Crop, Marker, Project, ProjectSettings, Sequence,
     SubtitleSegment, TextAlignment, TextState, TextStyle, Track, TrackKind, Transform, Transition,
     TransitionKind,
+};
+pub use render::{
+    RenderAudio, RenderClip, RenderSnapshot, RenderSubtitle, RenderText, RenderTransition,
 };
 pub use time::TimeUs;
 

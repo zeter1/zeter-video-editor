@@ -153,12 +153,12 @@
 - Consumes: Project/Sequence state from Tasks 2–3.
 - Produces: `RenderSnapshot::from_sequence(project: &Project, sequence_id: SequenceId, revision: ProjectRevision) -> Result<RenderSnapshot, DomainError>`; normalized `RenderClip`, `RenderText`, `RenderSubtitle`, `RenderAudio`, `RenderTransition`.
 
-- [ ] **Step 1: Write failing tests asserting snapshot immutability and exact preservation of source ranges, timing, transforms, opacity, color, speed, text/subtitle timing, audio gain/fades, dimensions, and FPS.**
-- [ ] **Step 2: Write a test proving later project edits do not mutate an already-created snapshot.**
-- [ ] **Step 3: Run `cargo test -p editor-core render`; verify failure.**
-- [ ] **Step 4: Implement deterministic snapshot normalization with no FFmpeg-specific strings inside `editor-core`.**
-- [ ] **Step 5: Run `cargo test -p editor-core render`; pass.**
-- [ ] **Step 6: Commit: `feat(core): add immutable render snapshots`.**
+- [x] **Step 1: Write failing tests asserting snapshot immutability and exact preservation of source ranges, timing, transforms, opacity, color, speed, text/subtitle timing, audio gain/fades, dimensions, and FPS.**
+- [x] **Step 2: Write a test proving later project edits do not mutate an already-created snapshot.**
+- [x] **Step 3: Run `cargo test -p editor-core render`; verify failure.**
+- [x] **Step 4: Implement deterministic snapshot normalization with no FFmpeg-specific strings inside `editor-core`.**
+- [x] **Step 5: Run `cargo test -p editor-core render`; pass.**
+- [x] **Step 6: Commit: `feat(core): add immutable render snapshots`.**
 
 ### Task 5: Background Job System and Stale-Result Safety
 

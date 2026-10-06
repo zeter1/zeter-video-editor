@@ -100,6 +100,26 @@ pub struct Transform {
     pub scale_y: f32,
     pub rotation_degrees: f32,
     pub opacity: f32,
+    pub crop: Crop,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Crop {
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+}
+
+impl Default for Crop {
+    fn default() -> Self {
+        Self {
+            left: 0.0,
+            top: 0.0,
+            right: 0.0,
+            bottom: 0.0,
+        }
+    }
 }
 
 impl Default for Transform {
@@ -111,6 +131,7 @@ impl Default for Transform {
             scale_y: 1.0,
             rotation_degrees: 0.0,
             opacity: 1.0,
+            crop: Crop::default(),
         }
     }
 }
