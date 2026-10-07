@@ -165,10 +165,13 @@ describe("commit-on-release clip movement", () => {
     projectStore.applySnapshot(confirmed);
 
     const stale: AppErrorDto = {
+      category: "Domain",
       code: "stale_revision",
       message: "Project changed while the drag was in progress.",
       retryable: false,
       technical_detail: "expected 7, actual 8",
+      component: "application",
+      operation: "apply_edit",
       request_id: "request-2",
       job_id: null,
     };

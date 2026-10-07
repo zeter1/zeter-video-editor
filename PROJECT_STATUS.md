@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-10-06
+Last updated: 2026-10-07
 
 ## Current phase
 
@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–16 are implemented in the active implementation branch. Task 16 passed deterministic analysis TDD, authoritative silence-removal/short-creation undo and stale-safety verification, package-scoped rustfmt/clippy, full Windows Rust/frontend regression verification, managed-FFmpeg integration, and production-build verification. The next planned task is Task 17: Typed Diagnostics, Local Logs, Failure UX, and Sanitized Support Bundle.
+Tasks 1–17 are implemented in the active implementation branch. Task 17 passed diagnostics/privacy TDD, typed-error contract parity, structured-log correlation and bounded-retention verification, sanitized support-bundle review, full Windows Rust/frontend regression verification, managed-FFmpeg integration, and production-build verification. The next planned task is Task 18: Windows Runtime Manifest, NSIS Packaging, Signed Soft Updates, and Safe Shutdown.
 
 ## Approved decisions
 
@@ -140,6 +140,7 @@ Completed:
 - **Task 14: AI Worker Protocol and Verified Model Manager**
 - **Task 15: Local Transcription and Editable Automatic Subtitles**
 - **Task 16: Silence Removal, Highlight Ranking, Short Creation, and Simple Face-Aware Reframe**
+- **Task 17: Typed Diagnostics, Local Logs, Failure UX, and Sanitized Support Bundle**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -156,15 +157,15 @@ Active implementation branch:
 
 ## Next step
 
-**Task 17: Typed Diagnostics, Local Logs, Failure UX, and Sanitized Support Bundle**
+**Task 18: Windows Runtime Manifest, NSIS Packaging, Signed Soft Updates, and Safe Shutdown**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write failing redaction tests for transcript text, secrets/tokens, environment credentials, full project JSON, raw FFmpeg arguments, and filesystem paths;
-2. write the injected-clock/filesystem rotation policy test for 10×10 MiB and 14-day pruning;
-3. prove support bundles include build/runtime/capability/log/job/crash metadata while excluding source media, `.vcut`, transcripts, extracted audio/frames, and credentials;
-4. write frontend recovery-action tests for CPU export fallback, relink, model install, save elsewhere, and technical details;
-5. implement typed diagnostic categories, correlation IDs, structured local logging, bounded rotation, redaction, and sanitized bundle export;
-6. run desktop Rust/frontend tests and production build.
+1. write failing runtime-manifest validation tests for missing/incompatible managed FFmpeg, FFprobe, and AI worker; no PATH fallback;
+2. write safe-shutdown tests proving dirty project, save in progress/failure, active export, and active AI/media jobs block immediate installation while allowing defer;
+3. prove updater code never opens or rewrites `.vcut`, recovery snapshots, source media, or exports;
+4. add fail-closed release-workflow validation for missing updater/code-signing inputs;
+5. configure Tauri NSIS/current-user/updater/sidecars and implement startup/runtime/update validation;
+6. run Windows Rust/frontend verification plus a debug Tauri bundle smoke build before declaring packaging complete.
 
 ## Verification status
 
@@ -384,6 +385,27 @@ Task 16 execution notes:
 - Remove Silences is represented as one command/history entry, not a sequence of UI-issued split/delete commands, so undo is atomic and revision checking is preserved.
 - Short creation does not change the `.vcut` schema: `Sequence` was already durable state; Task 16 only adds command paths for creating it.
 - platform-specific face detection can be plugged into the tested capability-gated `FaceLocator`; center fallback and manual reframe are the verified MVP behavior today.
+
+Task 17 TDD/verification on Windows x64:
+- typed diagnostics — PASS: application errors expose stable category/code/component/operation plus request/job correlation IDs, and generated TypeScript contract parity remains byte-for-byte green.
+- privacy/redaction — PASS: transcript/subtitle content, full project JSON, credentials/tokens, filesystem paths, raw process arguments, and log-injection controls are redacted by default.
+- bounded local logging — PASS: structured JSON tracing uses managed `zeter-*.log` files with 10 × 10 MiB / 14-day retention policy and correlation-preserving error events.
+- support bundle — PASS: allowlisted metadata plus sanitized managed logs only; source media, `.vcut`, transcripts, extracted audio/frames, credentials, arbitrary `.log` files, and unstructured legacy log contents are excluded/fail-closed.
+- review hardening RED→GREEN: an added regression first proved arbitrary `notes.log` entered the bundle; export now accepts only managed `zeter-*.log`. Another regression proved raw untyped frontend IPC failures leaked private exception text; the fallback now emits only a stable safe diagnostic marker.
+- structured correlation RED→GREEN: a new test first failed because no structured application-error event existed; `log_app_error` now records category/code/component/operation/request_id/job_id/retryability with sanitized technical detail, and IPC error boundaries use it.
+- failure UX — PASS: reusable `ErrorDialog` branches on typed semantics for CPU export fallback, relink, model installation, save elsewhere, and hides technical details until requested; 5/5 focused UI tests pass.
+- TypeScript contract drift review — PASS: production `tsc --noEmit` caught two old timeline fallback/fixture shapes missing Task 17 error fields; both were corrected and privacy-safe.
+- `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace` — PASS, including real managed-FFmpeg export/probe/render-parity and transcription-audio integration.
+- `npm.cmd --prefix apps/desktop test -- --run` — PASS, 23 test files / 47 tests.
+- `npm.cmd --prefix apps/desktop run build` — PASS; TypeScript no-emit + Vite production build.
+- `cargo fmt --package zeter-desktop-tauri -- --check` — PASS.
+- `git diff --check` — PASS.
+
+Task 17 execution notes:
+- `init_local_logging(log_dir)` and the rotating/sanitizing writer are implemented, but actual Tauri app-data startup initialization remains intentionally owned by Task 18 runtime/bootstrap wiring; startup logging is therefore **NOT VERIFIED** yet.
+- the typed `ErrorDialog` is reusable and tested, but concrete recovery buttons are not wired to fake/no-op actions where the corresponding export/relink/model frontend command does not yet exist.
+- external telemetry/crash SaaS was not added; diagnostics remain local by default.
+- repository-wide `cargo fmt --all -- --check` debt from earlier media/project files remains intentionally outside this bounded task.
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.

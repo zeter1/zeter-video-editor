@@ -26,3 +26,5 @@
 - Добавлен managed-FFmpeg transcription handoff в mono 16 kHz PCM s16le, безопасная provenance без runtime paths, cache-independence для уже применённых субтитров и optional real-whisper integration fixture.
 - Реализован Task 16: детерминированное удаление пауз с настраиваемыми threshold/minimum-duration/padding, explainable highlight ranking и stale-safe Create Short в новую 1080x1920 sequence через обычные undoable editor-core команды.
 - Добавлен capability-gated face/reframe boundary с гарантированным center-crop fallback и ручной корректировкой crop; platform-specific Windows face detector пока не заявляется реализованным.
+- Реализован Task 17: typed diagnostics/error taxonomy, correlation-aware structured local logging, bounded retention, privacy-first redaction, sanitized support bundle и typed recovery UX.
+- Усилен fail-closed privacy boundary: diagnostics bundle принимает только managed `zeter-*.log`, неструктурированные строки полностью редактируются, а untyped frontend IPC/timeline failures не раскрывают raw exception text.

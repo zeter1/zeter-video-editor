@@ -48,10 +48,14 @@ function asAppError(error: unknown): AppErrorDto {
   }
 
   return {
+    category: "Internal",
     code: "timeline_commit_failed",
-    message: error instanceof Error ? error.message : "Timeline edit failed.",
+    message: "Timeline edit failed.",
     retryable: true,
-    technical_detail: error instanceof Error ? error.stack ?? error.message : String(error),
+    technical_detail:
+      "Untyped timeline commit rejection; inspect sanitized local diagnostics.",
+    component: "timeline",
+    operation: "commit_edit",
     request_id: null,
     job_id: null,
   };

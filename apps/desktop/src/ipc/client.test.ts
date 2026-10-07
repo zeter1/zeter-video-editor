@@ -50,6 +50,22 @@ describe("IPC synchronization", () => {
     expect(store.getState().revision).toBe(12);
   });
 
+  it("does not expose raw untyped invoke errors through technical details", async () => {
+    const invoke = vi.fn(async () => {
+      throw new Error(
+        "Bearer super-secret from C:\\Users\\Alice\\private-client\\take.mov",
+      );
+    });
+    const client = createIpcClient(invoke);
+
+    await expect(client.projectSnapshot()).rejects.toMatchObject({
+      category: "Internal",
+      code: "ipc_error",
+      technical_detail:
+        "Untyped IPC rejection; inspect sanitized local diagnostics.",
+    });
+  });
+
   it("refreshes from Rust after a contiguous result because changed IDs carry no guessed values", async () => {
     const invoke = vi.fn(async (command: string) => {
       if (command === "project_snapshot") {

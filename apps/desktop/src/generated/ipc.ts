@@ -225,11 +225,16 @@ export interface CommandResultDto {
   changed_entities: ChangedEntity[];
 }
 
+export type ErrorCategory = "Domain" | "Project" | "Media" | "AiModel" | "Job" | "Filesystem" | "Capability" | "Internal";
+
 export interface AppErrorDto {
+  category: ErrorCategory;
   code: string;
   message: string;
   retryable: boolean;
   technical_detail: string;
+  component: string;
+  operation: string;
   request_id: RequestId | null;
   job_id: JobId | null;
 }

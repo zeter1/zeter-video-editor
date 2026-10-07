@@ -1,5 +1,6 @@
 mod app;
 mod contracts;
+mod diagnostics;
 mod error;
 mod ipc;
 
@@ -9,5 +10,7 @@ mod task10_tests;
 mod task15_tests;
 #[cfg(test)]
 mod task16_tests;
+#[cfg(test)]
+mod task17_tests;
 
 fn main() {}

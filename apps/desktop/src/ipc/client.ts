@@ -45,10 +45,14 @@ function mapInvokeError(error: unknown): AppErrorDto {
     return error as AppErrorDto;
   }
   return {
+    category: "Internal",
     code: "ipc_error",
     message: "The desktop service could not be reached.",
     retryable: true,
-    technical_detail: error instanceof Error ? error.message : String(error),
+    technical_detail:
+      "Untyped IPC rejection; inspect sanitized local diagnostics.",
+    component: "frontend-ipc",
+    operation: "invoke",
     request_id: null,
     job_id: null,
   };
