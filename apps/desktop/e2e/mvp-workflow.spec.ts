@@ -632,6 +632,7 @@ interface ExportJobView {
 async function waitForJob(
   page: TauriPage,
   jobId: string,
+  timeoutMs = 30_000,
 ): Promise<ExportJobView> {
   let latest: ExportJobView | null = null;
   await expect
@@ -642,7 +643,7 @@ async function waitForJob(
         });
         return latest.state;
       },
-      { timeout: 30_000 },
+      { timeout: timeoutMs },
     )
     .toMatch(/Completed|Failed|Cancelled/);
   if (!latest) throw new Error("job polling produced no snapshot");
@@ -650,6 +651,10 @@ async function waitForJob(
 }
 
 test("exports MP4 H264 through the real desktop job boundary and cancels without publishing partial output", async () => {
+  // Real 1080p software export duration varies on shared Windows runners.
+  // Keep the acceptance bounded while avoiding a runner-speed timing contract.
+  test.setTimeout(120_000);
+
   const { page, state } = await connectTauri();
   await openProject(page, state.workflowProjectPath);
   await expectRevision(page, 0);
@@ -668,7 +673,7 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
     source_revision: 0,
   });
 
-  const completed = await waitForJob(page, started.job_id);
+  const completed = await waitForJob(page, started.job_id, 90_000);
   expect(completed.state, completed.failure?.technical_detail).toBe("Completed");
   expect(existsSync(exportPath)).toBe(true);
 
