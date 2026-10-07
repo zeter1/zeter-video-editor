@@ -446,7 +446,7 @@ Task 19 acceptance on Windows x64:
 - Real export/cancel — PASS. MP4/H.264 export runs through the desktop job boundary and managed FFmpeg; managed FFprobe verifies successful output metadata. Cancellation never publishes a partial final output.
 - Recovery smoke — PASS. The acceptance workflow simulates abnormal application termination after confirmed edits, reopens, explicitly chooses recovery, and verifies the previous canonical `.vcut` was not silently overwritten.
 - Whole-branch Superpowers review — PASS for Critical/Important findings. Review rechecked moved/mismatched media, stale async results, rebuildable-cache behavior, hardware-export fallback, and persistence/update crash boundaries. The media-identity/relink-history gaps found during review were fixed before completion.
-- CI coverage — PASS by workflow contract. The existing single Windows CI job now runs the same `test:e2e` acceptance suite before the debug NSIS bundle smoke; no additional workflow or release trigger was introduced.
+- CI coverage — workflow contract includes the same `test:e2e` acceptance suite before the debug NSIS bundle smoke; no additional workflow or release trigger was introduced. GitHub Actions run #62 exposed a clean-runner ordering bug because Tauri external sidecars were staged after `cargo test --workspace`; a RED→GREEN workflow regression now requires staging before Rust tests, and the clean-runner-equivalent local sequence passes. Remote re-verification is pending the follow-up CI run.
 
 Final fresh verification after all review fixes:
 - `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace` — PASS.

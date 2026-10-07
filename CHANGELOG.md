@@ -33,3 +33,4 @@
 
 - Реализован Task 19: real Tauri/WebView2 Playwright acceptance для полного MVP workflow — import/edit/save-reopen, deterministic local AI/Create Short, real H.264 export/cancel, crash recovery, media identity mismatch и explicit relink.
 - Усилен media-integrity/history boundary: project open fail-closed сверяет size + managed-FFprobe duration/resolution hints, explicit relink проходит через undoable `RelinkMedia`, а Inspector controls не создают дублирующие history entries после authoritative rerender.
+- Исправлен clean-runner CI порядок для Tauri external sidecars: production/fixture AI workers и managed FFmpeg/FFprobe/whisper sidecars теперь staging-ятся до `cargo test --workspace`, поэтому Rust tests не зависят от локально оставшихся ignored binaries.
