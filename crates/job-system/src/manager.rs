@@ -77,6 +77,16 @@ impl JobManager {
             .ok_or(JobError::NotFound { job_id })
     }
 
+    pub fn snapshots(&self) -> Result<Vec<JobSnapshot>, JobError> {
+        let jobs = self.lock_jobs()?;
+        let mut snapshots = jobs
+            .values()
+            .map(|record| record.snapshot.clone())
+            .collect::<Vec<_>>();
+        snapshots.sort_by_key(|snapshot| snapshot.context.job_id.get().to_string());
+        Ok(snapshots)
+    }
+
     pub fn cancellation_token(&self, job_id: JobId) -> Result<CancellationToken, JobError> {
         let jobs = self.lock_jobs()?;
         jobs.get(&job_id)
@@ -297,5 +307,25 @@ mod tests {
         assert_eq!(snapshot.context.source_revision, ProjectRevision::new(7));
         assert!(!snapshot.is_stale(ProjectRevision::new(7)));
         assert!(snapshot.is_stale(ProjectRevision::new(8)));
+    }
+
+    #[test]
+    fn snapshots_return_all_jobs_without_mutating_registry() {
+        let manager = JobManager::new();
+        let running = manager.submit(spec(11, true));
+        manager.start(running).unwrap();
+        let queued = manager.submit(spec(12, false));
+
+        let snapshots = manager.snapshots().unwrap();
+
+        assert_eq!(snapshots.len(), 2);
+        assert!(snapshots.iter().any(|snapshot| {
+            snapshot.context.job_id == running && snapshot.state == JobState::Running
+        }));
+        assert!(snapshots.iter().any(|snapshot| {
+            snapshot.context.job_id == queued && snapshot.state == JobState::Queued
+        }));
+        assert_eq!(manager.snapshot(running).unwrap().state, JobState::Running);
+        assert_eq!(manager.snapshot(queued).unwrap().state, JobState::Queued);
     }
 }

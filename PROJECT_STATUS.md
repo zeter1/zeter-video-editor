@@ -184,7 +184,7 @@ Priorities:
 - PR #2 squash merge produced `main` commit `5a4deb0a6eee58a1d941372dec382a58e0ca4dd2`.
 - Exact-`main` CI #70 / run `37610261147` — PASS: Rust workspace, 23/23 Vitest files / 50 tests, 7/7 real Tauri/WebView2 E2E scenarios (real export/cancel included; export completed in 35.8s), and debug NSIS bundle smoke.
 - Rustfmt stabilization PR #3 normalized the documented media/project formatting drift and added `cargo fmt --all -- --check` to Windows CI with an explicit `rustfmt` component on Rust 1.99.0. Exact-`main` CI #74 on `aeea1c4de836e3bae8aaf7333aeabf7ee708227a` — PASS.
-- Sanitized support-bundle export is now connected to the real Tauri command boundary and the ordinary project toolbar. The command exports only allowlisted managed logs plus sanitized runtime metadata; the real Tauri/WebView2 acceptance suite covers ZIP creation.
+- Sanitized support-bundle export is now connected to the real Tauri command boundary and the ordinary project toolbar. The command exports only allowlisted managed logs plus sanitized runtime metadata and current job state/error-code metadata; the real Tauri/WebView2 acceptance suite covers ZIP creation.
 
 Production updater signing, Windows Authenticode signing, real whisper-model inference, and Windows platform face-analysis are not promoted beyond their existing **NOT VERIFIED / not implemented** boundaries.
 

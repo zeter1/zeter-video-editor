@@ -4,7 +4,7 @@ use ai_engine::HighlightCandidate;
 use editor_core::{
     Crop, EditRequest, JobId, MediaId, MediaRef, ProjectRevision, RequestId, SequenceId, TimeUs,
 };
-use job_system::{JobKind, JobSpec};
+use job_system::{JobKind, JobSnapshot, JobSpec};
 use media_engine::{
     ExportContainer, ExportJob, ExportQuality, ExportSettings, ManagedRuntime, RenderPlan,
     VideoCodec, detect_capabilities, probe_media,
@@ -17,7 +17,8 @@ use crate::{
     diagnostics::{
         DiagnosticsError,
         bundle::{
-            SupportBundleMetadata, export_support_bundle as write_support_bundle, managed_log_paths,
+            SupportBundleMetadata, SupportJobMetadata,
+            export_support_bundle as write_support_bundle, managed_log_paths,
         },
         logging::log_app_error,
     },
@@ -39,7 +40,10 @@ fn state_error(request_id: Option<RequestId>, job_id: Option<JobId>) -> AppError
     diagnostic_error(AppError::StatePoisoned, request_id, job_id)
 }
 
-pub(crate) fn support_bundle_metadata(manifest: &RuntimeManifest) -> SupportBundleMetadata {
+pub(crate) fn support_bundle_metadata(
+    manifest: &RuntimeManifest,
+    jobs: &[JobSnapshot],
+) -> SupportBundleMetadata {
     SupportBundleMetadata {
         app_version: manifest.app.version.clone(),
         build_id: manifest.app.build.clone(),
@@ -63,7 +67,18 @@ pub(crate) fn support_bundle_metadata(manifest: &RuntimeManifest) -> SupportBund
                 manifest.ai_worker.protocol_version.to_string(),
             ),
         ]),
-        jobs: Vec::new(),
+        jobs: jobs
+            .iter()
+            .map(|snapshot| SupportJobMetadata {
+                job_id: snapshot.context.job_id.get().to_string(),
+                kind: format!("{:?}", snapshot.kind),
+                state: format!("{:?}", snapshot.state),
+                error_code: snapshot
+                    .failure
+                    .as_ref()
+                    .map(|failure| failure.code.clone()),
+            })
+            .collect(),
         crashes: Vec::new(),
     }
 }
@@ -74,7 +89,13 @@ pub fn export_support_bundle(
     output_path: String,
 ) -> Result<String, AppErrorDto> {
     let runtime = app.state::<ValidatedRuntime>();
-    let metadata = support_bundle_metadata(&runtime.manifest);
+    let state = app.state::<AppState>();
+    let jobs = state
+        .jobs
+        .snapshots()
+        .map_err(AppError::from)
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    let metadata = support_bundle_metadata(&runtime.manifest, &jobs);
     let log_dir = app.path().app_log_dir().map_err(|error| {
         diagnostic_error(
             AppError::Diagnostics(DiagnosticsError::Io(std::io::Error::other(
