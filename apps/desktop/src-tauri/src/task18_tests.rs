@@ -341,6 +341,13 @@ fn packaging_and_release_workflows_encode_fail_closed_windows_contract() {
     let ci = fs::read_to_string(repo.join(".github/workflows/ci.yml")).unwrap();
     assert!(ci.contains("Tauri debug bundle smoke"));
     assert!(ci.contains("stage-managed-runtime.ps1"));
+    assert!(ci.contains("fetch-ffmpeg-runtime.ps1"));
+    assert!(ci.contains("ffmpeg-8.0.1-full_build.zip"));
+    assert!(ci.contains("467cde100a47ed4b03a897988aeb4a296890c1e2b2d2864204657d002bc5fb90"));
+    assert!(
+        !ci.contains("Get-Command ffmpeg.exe"),
+        "CI must use the checksum-pinned managed FFmpeg archive, not runner PATH"
+    );
     let stage_index = ci
         .find("Stage managed runtime for tests and bundle smoke")
         .expect("CI must stage managed sidecars before compiling the Tauri package");
