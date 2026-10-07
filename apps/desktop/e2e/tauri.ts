@@ -19,6 +19,8 @@ export interface E2EState {
   workflowProjectPath: string;
   recoveryProjectPath: string;
   mediaDir: string;
+  modelPath: string;
+  modelManifestPath: string;
 }
 
 export function readE2EState(): E2EState {

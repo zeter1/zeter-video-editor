@@ -336,7 +336,7 @@ describe("AppShell missing-media recovery", () => {
 });
 
 describe("AppShell AI tools", () => {
-  it("opens the Remove Silences review panel from the AI tools button", () => {
+  it("opens the production AI review panels from the AI tools button", () => {
     render(
       <AppShell
         projectStore={createProjectStore()}
@@ -346,6 +346,7 @@ describe("AppShell AI tools", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "AI tools" }));
 
+    expect(screen.getByRole("region", { name: "Automatic subtitles" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Silence removal" })).toBeTruthy();
   });
 });

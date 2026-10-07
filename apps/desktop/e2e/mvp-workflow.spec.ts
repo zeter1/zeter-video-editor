@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Dialog } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -867,3 +867,62 @@ test("runs Remove Silences through the production local AI worker and explicit a
     .clips.find((clip) => clip.id === AUDIO_CLIP)!.timeline_end;
   expect(restoredEnd).toBe(beforeEnd);
 });
+
+test("runs Automatic subtitles through the production local AI worker and explicit apply", async () => {
+  test.setTimeout(60_000);
+
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  await expectRevision(page, 0);
+
+  await page.getByTestId(`clip-${AUDIO_CLIP}`).dispatchEvent("click");
+  const transcription = page.getByRole("region", { name: "Automatic subtitles" });
+  if (!(await transcription.isVisible())) {
+    await page.getByRole("button", { name: "AI tools" }).click();
+  }
+  await expect(transcription).toBeVisible();
+
+  const modelPrompts = [state.modelPath, state.modelManifestPath];
+  const acceptModelPrompt = async (dialog: Dialog) => {
+    const value = modelPrompts.shift();
+    if (!value) {
+      await dialog.dismiss();
+      return;
+    }
+    await dialog.accept(value);
+  };
+  page.on("dialog", acceptModelPrompt);
+
+  await page.getByRole("button", { name: "Generate subtitles" }).click();
+  await expect(page.getByText("English · 1 segments", { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByText("Production runtime subtitle", { exact: true })).toBeVisible();
+  page.off("dialog", acceptModelPrompt);
+
+  await page.getByRole("button", { name: "Apply subtitles" }).click();
+  await expectRevision(page, 1);
+
+  const applied = await invokeTauri<{
+    project: {
+      sequences: Array<{
+        subtitle_segments: Array<{ text: string }>;
+      }>;
+    };
+  }>(page, "project_snapshot");
+  expect(
+    applied.project.sequences[0].subtitle_segments.some(
+      (segment) => segment.text === "Production runtime subtitle",
+    ),
+  ).toBe(true);
+
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectRevision(page, 2);
+  const restored = await invokeTauri<typeof applied>(page, "project_snapshot");
+  expect(
+    restored.project.sequences[0].subtitle_segments.some(
+      (segment) => segment.text === "Production runtime subtitle",
+    ),
+  ).toBe(false);
+});
+

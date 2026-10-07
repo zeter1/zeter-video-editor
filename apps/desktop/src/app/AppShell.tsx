@@ -5,6 +5,7 @@ import {
   type SilenceParametersView,
   type SilenceRangeView,
 } from "../ai/SilencePanel";
+import { TranscriptionRuntimePanel } from "../ai/TranscriptionRuntimePanel";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { ErrorDialog } from "../errors/ErrorDialog";
 import type { RecoveryAction } from "../errors/actions";
@@ -396,12 +397,22 @@ export function AppShell({
           onAiTools={() => setAiToolsOpen((open) => !open)}
           aiToolsOpen={aiToolsOpen}
           aiToolsContent={
-            <SilencePanel
-              running={silenceRunning}
-              ranges={silenceRanges}
-              onAnalyze={(parameters) => void handleSilenceAnalyze(parameters)}
-              onApply={() => void handleSilenceApply()}
-            />
+            <div className="ai-tools-stack">
+              <TranscriptionRuntimePanel
+                mediaId={selectedClip?.media_id ?? null}
+                sequenceId={activeSequence?.id ?? null}
+                onApplied={async (result) => {
+                  await client.reconcileCommandResult(projectStore, result);
+                }}
+                onError={(message) => projectStore.setError(message)}
+              />
+              <SilencePanel
+                running={silenceRunning}
+                ranges={silenceRanges}
+                onAnalyze={(parameters) => void handleSilenceAnalyze(parameters)}
+                onApply={() => void handleSilenceApply()}
+              />
+            </div>
           }
         />
         <PreviewPanel

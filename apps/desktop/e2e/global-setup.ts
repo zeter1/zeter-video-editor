@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -307,6 +308,28 @@ export default async function globalSetup(): Promise<void> {
     REPO,
   );
 
+  const modelPath = path.join(FIXTURES, "task19-whisper-model.bin");
+  writeFileSync(modelPath, "task19 deterministic transcription model fixture\n");
+  const modelBytes = readFileSync(modelPath);
+  const modelManifestPath = path.join(FIXTURES, "task19-whisper-manifest.json");
+  writeFileSync(
+    modelManifestPath,
+    JSON.stringify(
+      {
+        id: "task19-fixture-whisper",
+        version: "1.0.0",
+        backend_compatibility: "whisper.cpp >=1.7,<2.0",
+        source: "offline-test-fixture",
+        expected_size: modelBytes.byteLength,
+        sha256: createHash("sha256").update(modelBytes).digest("hex"),
+        license: "test fixture",
+        app_compatibility: ">=0.0.1,<1.0.0",
+      },
+      null,
+      2,
+    ),
+  );
+
   const importProjectPath = path.join(FIXTURES, "task19-import.vcut");
   const workflowProjectPath = path.join(FIXTURES, "task19-workflow.vcut");
   const recoveryProjectPath = path.join(FIXTURES, "task19-recovery.vcut");
@@ -400,6 +423,8 @@ export default async function globalSetup(): Promise<void> {
         workflowProjectPath,
         recoveryProjectPath,
         mediaDir,
+        modelPath,
+        modelManifestPath,
       },
       null,
       2,

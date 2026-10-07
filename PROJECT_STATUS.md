@@ -168,7 +168,7 @@ The approved Tasks 1–19 implementation plan is complete and integrated. Contin
 
 Priorities:
 1. Keep exact-`main` CI green; classify any failure from logs before changing code or workflow.
-2. Close approved-MVP runtime integration gaps before adding new scope. The current highest-impact gap is the user-facing local-AI path: standalone AI panels exist, but `AppShell` does not mount them, the `AI tools` button is not wired, and the production worker currently handles transcription only while silence/highlight requests return `analysis_backend_not_ready`.
+2. Close approved-MVP runtime integration gaps before adding new scope. Production Remove Silences and Automatic subtitles are now wired through ordinary `AI tools`; the remaining highest-impact local-AI gap is highlight analysis/Create Short orchestration, with `HighlightAnalysis` still returning `analysis_backend_not_ready` in the production worker.
 3. Address remaining bounded technical debt where it provides real value, especially warnings that reveal unconnected runtime paths; do not silence them mechanically.
 4. Keep production signing, updater signing, and tagged release work fail-closed until the real release secrets/certificate are available.
 5. Treat real whisper-model inference as **NOT VERIFIED** until an explicit model/speech fixture is available.
@@ -454,7 +454,8 @@ Task 18 execution notes:
 Known verification debt:
 - The historical repository-wide rustfmt drift is closed: `cargo fmt --all -- --check` is now an explicit Windows CI gate on the pinned Rust toolchain, and exact-`main` CI #74 passed it together with Rust/frontend/E2E/NSIS verification.
 - Production **Remove Silences** orchestration is now wired and verified end to end: ordinary `AI tools` mounts the review panel, Tauri creates a revision-bound `SilenceAnalysis` job, managed FFmpeg emits an 8 kHz mono `f32le` handoff, the production AI worker returns deterministic ranges, and only explicit Apply mutates authoritative project state through undoable `ApplySilenceRemoval`. Real Tauri/WebView2 acceptance verifies analysis → review → Apply → Undo.
-- Remaining production AI orchestration debt is narrower: transcription/subtitle generation and highlight/Create Short are still not mounted as complete end-user production paths; `HighlightAnalysis` still returns `analysis_backend_not_ready`, and real whisper model inference remains **NOT VERIFIED** without explicit model/speech fixtures.
+- Production **Automatic subtitles** orchestration is now wired and remotely verified on the stacked PR code head: selected media is normalized by managed FFmpeg to mono 16 kHz PCM WAV, Model Manager accepts only verified compatible whisper.cpp models, the production AI worker returns a reviewable transcript, and explicit Apply uses the existing revision-checked undoable subtitle command path.
+- Remaining production AI orchestration debt is now highlight/Create Short: `HighlightAnalysis` still returns `analysis_backend_not_ready`. Real whisper model inference remains **NOT VERIFIED** without an explicit real model/speech fixture; deterministic whisper-CLI output verifies orchestration only, not inference quality.
 - The safe-update controller is implemented and unit-tested but is not yet wired into the ordinary Tauri updater/UI flow; production updater signing and end-user update installation remain **NOT VERIFIED**.
 
 ## Post-MVP production AI orchestration — Remove Silences
@@ -470,6 +471,22 @@ Verified on Windows x64 after Task 19 integration:
 - final local verification — PASS: `cargo fmt --all -- --check`, `git diff --check`, `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace`, frontend 23/23 files and 54/54 tests, production build, and real Tauri/WebView2 9/9 acceptance tests.
 - worker quality gate — PASS: `cargo clippy -p zeter-ai-worker --all-targets --no-deps -- -D warnings` after fixing the two new clippy findings instead of suppressing them.
 - debug NSIS smoke with the freshly built production worker — PASS: `Zeter Video Editor_0.0.1_x64-setup.exe`, 115,788,438 bytes (~110.42 MiB).
+
+## Post-MVP production AI orchestration — Automatic subtitles
+
+Verified on the stacked PR #8 code head `cc0319462a9531adaa090caa719942fdc203d1df` over PR #7:
+- ordinary `AI tools` mounts the Automatic subtitles review panel alongside Remove Silences;
+- selected video/audio media is normalized through managed FFmpeg to mono 16 kHz PCM s16le WAV; the AI worker does not become a second media-decoding subsystem;
+- the application resolves installed models through the existing Model Manager and validates SHA-256, expected size, application compatibility and whisper.cpp backend compatibility before a model path reaches the worker;
+- first-run offline import accepts a local `model.bin` plus matching `manifest.json`; model resources live under application data, outside canonical project state and rebuildable project cache;
+- transcript output stays review-only until explicit Apply; application uses the captured job/source revision and existing `ProjectService::apply_transcript_result`, so accepted subtitles are ordinary undoable project state;
+- worker/job failure detail is sanitized before user-facing job metadata; transcript contents are not added to diagnostics;
+- real Tauri/WebView2 acceptance uses the production AI worker and real managed FFmpeg normalization. A test-only whisper CLI fixture validates that normalized audio and the verified model are actually handed to the worker, then emits deterministic whisper JSON; this is not represented as real model inference.
+- Windows CI #81 / run `37634740327` failed only at the new rustfmt gate before build/test; the exact rustfmt diff was applied without changing behavior or weakening checks.
+- Windows CI #82 / run `37634920446` — **PASS** on the corrected code head: `cargo fmt --all -- --check`, frontend production build, full Rust workspace, Vitest 23/23 files / 54/54 tests, real Tauri/WebView2 Playwright 10/10 scenarios, and debug NSIS bundle smoke.
+- production Automatic subtitles E2E — PASS: Generate subtitles → verified offline model import when needed → production worker review → explicit Apply → Undo.
+- debug NSIS smoke — PASS: `Zeter Video Editor_0.0.1_x64-setup.exe` (~110.44 MiB).
+- real whisper model inference remains **NOT VERIFIED** because CI intentionally uses deterministic CLI output rather than a real model/speech fixture.
 
 ## Task 19 — End-to-End MVP Workflow and Acceptance Verification
 

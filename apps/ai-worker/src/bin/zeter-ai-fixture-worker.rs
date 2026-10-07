@@ -1,4 +1,8 @@
-use std::io::{self, BufRead, Write};
+use std::{
+    fs,
+    io::{self, BufRead, Write},
+    path::PathBuf,
+};
 
 use ai_engine::{
     AI_WORKER_PROTOCOL_VERSION, AnalysisParameters, AnalysisResult, AnalysisTask, HighlightParams,
@@ -92,9 +96,47 @@ fn write_response(writer: &mut impl Write, response: &WorkerResponse) {
     writer.flush().expect("fixture response flushes");
 }
 
+fn argument_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
+    args.windows(2)
+        .find(|pair| pair[0] == flag)
+        .map(|pair| pair[1].as_str())
+}
+
+fn run_whisper_fixture_cli(args: &[String]) -> bool {
+    if !args.iter().any(|arg| arg == "-oj") {
+        return false;
+    }
+
+    let model = argument_value(args, "-m").expect("fixture whisper CLI requires -m");
+    let audio = argument_value(args, "-f").expect("fixture whisper CLI requires -f");
+    let output_base = argument_value(args, "-of").expect("fixture whisper CLI requires -of");
+    assert!(PathBuf::from(model).is_file(), "fixture model must exist");
+    assert!(
+        PathBuf::from(audio).is_file(),
+        "normalized audio must exist"
+    );
+
+    let output_json = PathBuf::from(output_base).with_extension("json");
+    fs::write(
+        output_json,
+        r#"{
+          "result": {"language": "en"},
+          "transcription": [
+            {"offsets": {"from": 250, "to": 900}, "text": " Production runtime subtitle "}
+          ]
+        }"#,
+    )
+    .expect("fixture whisper JSON writes");
+    true
+}
+
 fn main() {
-    if std::env::args().any(|arg| arg == "--version") {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args.iter().any(|arg| arg == "--version") {
         println!("whisper.cpp version: 1.9.4");
+        return;
+    }
+    if run_whisper_fixture_cli(&args) {
         return;
     }
 

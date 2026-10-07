@@ -6,6 +6,7 @@ mod diagnostics;
 mod error;
 mod ipc;
 mod runtime_manifest;
+mod transcription_ipc;
 mod update;
 
 use tauri::Manager;
@@ -70,6 +71,9 @@ fn main() {
             ipc::start_silence_analysis,
             ipc::get_silence_analysis_result,
             ipc::apply_silence_analysis,
+            transcription_ipc::start_transcription,
+            transcription_ipc::get_transcription_result,
+            transcription_ipc::apply_transcription,
             ipc::execute_edit_command,
             ipc::undo,
             ipc::redo,
