@@ -95,7 +95,7 @@ fn millis_to_time(value: u64, key: &str) -> Result<TimeUs, AiError> {
     TimeUs::new(micros).map_err(|error| AiError::InvalidAnalysisOutput(error.to_string()))
 }
 
-fn read_f32le_samples(path: &Path) -> Result<Vec<f32>, AiError> {
+pub(crate) fn read_f32le_samples(path: &Path) -> Result<Vec<f32>, AiError> {
     let bytes = fs::read(path)?;
     if bytes.is_empty() || bytes.len() % std::mem::size_of::<f32>() != 0 {
         return Err(AiError::InvalidAnalysisOutput(

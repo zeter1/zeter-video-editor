@@ -1,33 +1,39 @@
-export interface HighlightCandidateView {
-  start: number;
-  end: number;
-  score: number;
-  reasons: string[];
-  source_revision: number;
-}
+import type { HighlightCandidate } from "../generated/ipc";
+
+export type HighlightCandidateView = HighlightCandidate;
 
 interface HighlightsPanelProps {
   candidates: HighlightCandidateView[];
+  running?: boolean;
   onAnalyze: () => void;
   onCreateShort: (candidate: HighlightCandidateView) => void;
 }
 
 export function HighlightsPanel({
   candidates,
+  running = false,
   onAnalyze,
   onCreateShort,
 }: HighlightsPanelProps) {
   return (
     <section className="ai-review-panel" aria-label="Highlights">
-      <button type="button" onClick={onAnalyze}>
-        Analyze highlights
+      <button type="button" disabled={running} onClick={onAnalyze}>
+        {running ? "Analyzing highlights…" : "Analyze highlights"}
       </button>
       {candidates.length === 0 ? (
         <p className="empty-copy">No highlight candidates yet.</p>
       ) : (
         <div className="highlight-candidates">
           {candidates.map((candidate, index) => (
-            <article key={String(candidate.start) + "-" + String(candidate.end) + "-" + String(index)}>
+            <article
+              key={
+                String(candidate.start) +
+                "-" +
+                String(candidate.end) +
+                "-" +
+                String(index)
+              }
+            >
               <strong>{Math.round(candidate.score * 100)}% score</strong>
               <ul>
                 {candidate.reasons.map((reason) => (

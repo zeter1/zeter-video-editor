@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
 
+import { CreateShortDialog } from "../ai/CreateShortDialog";
+import {
+  HighlightsPanel,
+  type HighlightCandidateView,
+} from "../ai/HighlightsPanel";
 import {
   SilencePanel,
   type SilenceParametersView,
@@ -17,6 +22,7 @@ import { TopToolbar } from "../components/TopToolbar";
 import type {
   AppErrorDto,
   Clip,
+  Crop,
   EditCommand,
   RequestId,
   Sequence,
@@ -51,6 +57,34 @@ interface AppShellProps {
 
 function requestId(): RequestId {
   return crypto.randomUUID();
+}
+
+function initialVerticalCrop(sequence: Sequence): Crop {
+  const targetAspect = 9 / 16;
+  const sourceAspect = sequence.width / sequence.height;
+  if (!Number.isFinite(sourceAspect) || sourceAspect <= 0) {
+    return { left: 0, top: 0, right: 0, bottom: 0 };
+  }
+
+  if (sourceAspect > targetAspect) {
+    const visibleWidth = sequence.height * targetAspect;
+    const horizontal = Math.max(
+      0,
+      Math.min(0.5, (sequence.width - visibleWidth) / (2 * sequence.width)),
+    );
+    return { left: horizontal, top: 0, right: horizontal, bottom: 0 };
+  }
+
+  if (sourceAspect < targetAspect) {
+    const visibleHeight = sequence.width / targetAspect;
+    const vertical = Math.max(
+      0,
+      Math.min(0.5, (sequence.height - visibleHeight) / (2 * sequence.height)),
+    );
+    return { left: 0, top: vertical, right: 0, bottom: vertical };
+  }
+
+  return { left: 0, top: 0, right: 0, bottom: 0 };
 }
 
 function appError(error: unknown): AppErrorDto | null {
@@ -106,6 +140,12 @@ export function AppShell({
   const [silenceRunning, setSilenceRunning] = useState(false);
   const [silenceJobId, setSilenceJobId] = useState<string | null>(null);
   const [silenceRanges, setSilenceRanges] = useState<SilenceRangeView[]>([]);
+  const [highlightRunning, setHighlightRunning] = useState(false);
+  const [highlightCandidates, setHighlightCandidates] = useState<
+    HighlightCandidateView[]
+  >([]);
+  const [shortCandidate, setShortCandidate] =
+    useState<HighlightCandidateView | null>(null);
 
   const project = projectState.snapshot?.project ?? null;
   const activeSequence = project?.sequences[0] ?? null;
@@ -283,6 +323,79 @@ export function AppShell({
     }
   }
 
+  async function handleHighlightAnalyze(): Promise<void> {
+    if (!project || !activeSequence || !selectedClip?.media_id) {
+      projectStore.setError(
+        "Select a video or audio clip before analyzing highlights.",
+      );
+      return;
+    }
+
+    setHighlightRunning(true);
+    setHighlightCandidates([]);
+    setShortCandidate(null);
+
+    try {
+      let job = await client.startHighlightAnalysis(
+        selectedClip.media_id,
+        activeSequence.id,
+      );
+
+      while (job.state === "Queued" || job.state === "Running") {
+        await new Promise((resolve) => window.setTimeout(resolve, 200));
+        job = await client.getJobState(job.job_id);
+      }
+
+      if (job.state !== "Completed") {
+        throw new Error(
+          job.failure?.safe_message ?? "Highlight analysis did not complete.",
+        );
+      }
+
+      setHighlightCandidates(
+        await client.getHighlightAnalysisResult(job.job_id),
+      );
+    } catch (error) {
+      const typed = appError(error);
+      projectStore.setError(
+        typed?.message ??
+          (error instanceof Error
+            ? error.message
+            : "Highlight analysis failed."),
+      );
+    } finally {
+      setHighlightRunning(false);
+    }
+  }
+
+  async function handleCreateShort(
+    candidate: HighlightCandidateView,
+    crop: Crop,
+  ): Promise<void> {
+    if (!activeSequence) {
+      projectStore.setError("Open a sequence before creating a Short.");
+      return;
+    }
+
+    try {
+      const result = await client.createShortFromCandidate(
+        activeSequence.id,
+        candidate,
+        requestId(),
+        crop,
+      );
+      await client.reconcileCommandResult(projectStore, result);
+      setShortCandidate(null);
+      setHighlightCandidates([]);
+    } catch (error) {
+      const typed = appError(error);
+      projectStore.setError(
+        typed?.message ??
+          (error instanceof Error ? error.message : "Create Short failed."),
+      );
+    }
+  }
+
   async function handleSilenceAnalyze(
     parameters: SilenceParametersView,
   ): Promise<void> {
@@ -406,6 +519,12 @@ export function AppShell({
                 }}
                 onError={(message) => projectStore.setError(message)}
               />
+              <HighlightsPanel
+                running={highlightRunning}
+                candidates={highlightCandidates}
+                onAnalyze={() => void handleHighlightAnalyze()}
+                onCreateShort={setShortCandidate}
+              />
               <SilencePanel
                 running={silenceRunning}
                 ranges={silenceRanges}
@@ -440,6 +559,16 @@ export function AppShell({
       </div>
 
       <JobStatus />
+
+      {shortCandidate && activeSequence ? (
+        <CreateShortDialog
+          open
+          candidate={shortCandidate}
+          initialCrop={initialVerticalCrop(activeSequence)}
+          onCreate={({ crop }) => void handleCreateShort(shortCandidate, crop)}
+          onCancel={() => setShortCandidate(null)}
+        />
+      ) : null}
 
       {openError ? (
         <ErrorDialog
