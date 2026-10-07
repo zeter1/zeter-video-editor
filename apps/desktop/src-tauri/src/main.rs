@@ -7,5 +7,7 @@ mod ipc;
 mod task10_tests;
 #[cfg(test)]
 mod task15_tests;
+#[cfg(test)]
+mod task16_tests;
 
 fn main() {}

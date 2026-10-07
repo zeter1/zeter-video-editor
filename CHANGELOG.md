@@ -24,3 +24,5 @@
 - Добавлен verified Model Manager: SHA-256/size/app/backend compatibility, безопасный staging publish, offline import, bounded download retry и деградация повреждённых optional models без повреждения проекта.
 - Реализован Task 15: local transcription contract с whisper.cpp segment JSON, isolated worker adapter, review-before-apply subtitle workflow и stale-revision protection через обычные editor-core команды.
 - Добавлен managed-FFmpeg transcription handoff в mono 16 kHz PCM s16le, безопасная provenance без runtime paths, cache-independence для уже применённых субтитров и optional real-whisper integration fixture.
+- Реализован Task 16: детерминированное удаление пауз с настраиваемыми threshold/minimum-duration/padding, explainable highlight ranking и stale-safe Create Short в новую 1080x1920 sequence через обычные undoable editor-core команды.
+- Добавлен capability-gated face/reframe boundary с гарантированным center-crop fallback и ручной корректировкой crop; platform-specific Windows face detector пока не заявляется реализованным.

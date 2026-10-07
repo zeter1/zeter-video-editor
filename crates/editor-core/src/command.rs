@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    AudioState, Clip, ClipId, ColorAdjustments, Marker, MediaId, MediaRef, RequestId, SequenceId,
-    SubtitleSegment, SubtitleStyle, TextStyle, TimeUs, Track, TrackId, Transform, Transition,
+    AudioState, Clip, ClipId, ColorAdjustments, Marker, MediaId, MediaRef, RequestId, Sequence,
+    SequenceId, SubtitleSegment, SubtitleStyle, TextStyle, TimeUs, TimelineRange, Track, TrackId,
+    Transform, Transition,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -28,6 +29,10 @@ impl ProjectRevision {
 pub enum EditCommand {
     ImportMedia {
         media: MediaRef,
+    },
+    AddSequence {
+        sequence: Sequence,
+        index: Option<usize>,
     },
     AddClip {
         sequence_id: SequenceId,
@@ -72,6 +77,10 @@ pub enum EditCommand {
         sequence_id: SequenceId,
         track_id: TrackId,
         clip_id: ClipId,
+    },
+    ApplySilenceRemoval {
+        sequence_id: SequenceId,
+        ranges: Vec<TimelineRange>,
     },
     AddTrack {
         sequence_id: SequenceId,

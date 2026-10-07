@@ -165,6 +165,11 @@ export interface Marker {
   label: string;
 }
 
+export interface TimelineRange {
+  start: TimeUs;
+  end: TimeUs;
+}
+
 export type ChangedEntity =
   | { Media: MediaId }
   | { Sequence: SequenceId }
@@ -173,6 +178,7 @@ export type ChangedEntity =
 
 export type EditCommand =
   | { ImportMedia: { media: MediaRef } }
+  | { AddSequence: { sequence: Sequence; index: number | null } }
   | { AddClip: { sequence_id: SequenceId; track_id: TrackId; clip: Clip } }
   | { DeleteClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId } }
   | { MoveClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; timeline_start: TimeUs } }
@@ -180,6 +186,7 @@ export type EditCommand =
   | { SplitClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; split_at: TimeUs; right_clip_id: ClipId } }
   | { DuplicateClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; duplicate_id: ClipId; timeline_start: TimeUs } }
   | { RippleDelete: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId } }
+  | { ApplySilenceRemoval: { sequence_id: SequenceId; ranges: TimelineRange[] } }
   | { AddTrack: { sequence_id: SequenceId; track: Track; index: number | null } }
   | { RemoveTrack: { sequence_id: SequenceId; track_id: TrackId } }
   | { ReorderTrack: { sequence_id: SequenceId; track_id: TrackId; new_index: number } }

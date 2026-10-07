@@ -119,6 +119,18 @@ impl Editor {
                 items.push(media.clone());
                 Ok(vec![ChangedEntity::Media(media.id)])
             }),
+            EditCommand::AddSequence { sequence, index } => {
+                self.mutate_project_sequences(|sequences| {
+                    let insert_at = index.unwrap_or(sequences.len());
+                    if insert_at > sequences.len() {
+                        return Err(DomainError::InvalidEdit {
+                            reason: "sequence insertion index is out of range",
+                        });
+                    }
+                    sequences.insert(insert_at, sequence.clone());
+                    Ok(vec![ChangedEntity::Sequence(sequence.id)])
+                })
+            }
             EditCommand::AddClip {
                 sequence_id,
                 track_id,
@@ -244,6 +256,19 @@ impl Editor {
                 }
                 Ok(changed)
             }),
+            EditCommand::ApplySilenceRemoval {
+                sequence_id,
+                ranges,
+            } => {
+                let normalized = normalize_timeline_ranges(ranges)?;
+                self.mutate_project_sequences(|sequences| {
+                    let sequence = sequences
+                        .iter_mut()
+                        .find(|sequence| sequence.id == *sequence_id)
+                        .ok_or(DomainError::EntityNotFound { entity: "sequence" })?;
+                    apply_silence_removal(sequence, &normalized)
+                })
+            }
             EditCommand::SetVolume {
                 sequence_id,
                 track_id,
@@ -482,6 +507,21 @@ impl Editor {
         })
     }
 
+    fn mutate_project_sequences<F>(&mut self, mutate: F) -> Result<HistoryEntry, DomainError>
+    where
+        F: FnOnce(&mut Vec<crate::Sequence>) -> Result<Vec<ChangedEntity>, DomainError>,
+    {
+        let before = self.project.sequences.clone();
+        let changed_entities = mutate(&mut self.project.sequences)?;
+        let after = self.project.sequences.clone();
+
+        Ok(HistoryEntry {
+            undo: HistoryAction::ProjectSequences { sequences: before },
+            redo: HistoryAction::ProjectSequences { sequences: after },
+            changed_entities,
+        })
+    }
+
     fn mutate_track_clips<F>(
         &mut self,
         sequence_id: SequenceId,
@@ -613,6 +653,178 @@ impl Editor {
             changed_entities,
         })
     }
+}
+
+fn normalize_timeline_ranges(
+    ranges: &[crate::TimelineRange],
+) -> Result<Vec<crate::TimelineRange>, DomainError> {
+    if ranges.is_empty() {
+        return Err(DomainError::InvalidEdit {
+            reason: "silence removal requires at least one range",
+        });
+    }
+
+    let mut sorted = ranges.to_vec();
+    for range in &sorted {
+        if range.end <= range.start {
+            return Err(DomainError::InvalidEdit {
+                reason: "silence removal ranges must have positive duration",
+            });
+        }
+    }
+    sorted.sort_by_key(|range| (range.start, range.end));
+
+    let mut merged: Vec<crate::TimelineRange> = Vec::new();
+    for range in sorted {
+        if let Some(previous) = merged.last_mut()
+            && range.start <= previous.end
+        {
+            if range.end > previous.end {
+                previous.end = range.end;
+            }
+            continue;
+        }
+        merged.push(range);
+    }
+    Ok(merged)
+}
+
+fn apply_silence_removal(
+    sequence: &mut crate::Sequence,
+    ranges: &[crate::TimelineRange],
+) -> Result<Vec<ChangedEntity>, DomainError> {
+    if let Some(locked) = sequence.tracks.iter().find(|track| track.locked) {
+        return Err(DomainError::TrackLocked {
+            track_id: locked.id,
+        });
+    }
+
+    let mut changed = vec![ChangedEntity::Sequence(sequence.id)];
+    for track in &mut sequence.tracks {
+        let original_clips = std::mem::take(&mut track.clips);
+        let mut rewritten = Vec::new();
+        for original in original_clips {
+            let kept = kept_intervals(original.timeline_start, original.timeline_end, ranges);
+            for (piece_index, (start, end)) in kept.iter().copied().enumerate() {
+                let mut clip = original.clone();
+                if piece_index > 0 {
+                    clip.id = crate::ClipId::new();
+                }
+
+                let start_delta = start.checked_sub(original.timeline_start)?;
+                let end_delta = end.checked_sub(original.timeline_start)?;
+                clip.source_in = original
+                    .source_in
+                    .checked_add(scale_timeline_delta(start_delta, original.speed)?)?;
+                clip.source_out = original
+                    .source_in
+                    .checked_add(scale_timeline_delta(end_delta, original.speed)?)?;
+                if clip.source_out > original.source_out {
+                    clip.source_out = original.source_out;
+                }
+
+                clip.timeline_start = compress_time(start, ranges)?;
+                clip.timeline_end = compress_time(end, ranges)?;
+                if piece_index + 1 != kept.len() {
+                    clip.transition = None;
+                    clip.audio.fade_out = TimeUs::new(0)?;
+                }
+                if piece_index > 0 {
+                    clip.audio.fade_in = TimeUs::new(0)?;
+                }
+
+                changed.push(ChangedEntity::Clip(clip.id));
+                rewritten.push(clip);
+            }
+        }
+        rewritten.sort_by_key(|clip| (clip.timeline_start, clip.timeline_end));
+        track.clips = rewritten;
+        changed.push(ChangedEntity::Track(track.id));
+    }
+
+    let original_subtitles = std::mem::take(&mut sequence.subtitle_segments);
+    let mut subtitles = Vec::new();
+    for subtitle in original_subtitles {
+        for (start, end) in kept_intervals(subtitle.start, subtitle.end, ranges) {
+            subtitles.push(crate::SubtitleSegment {
+                start: compress_time(start, ranges)?,
+                end: compress_time(end, ranges)?,
+                text: subtitle.text.clone(),
+            });
+        }
+    }
+    sequence.subtitle_segments = subtitles;
+
+    let original_markers = std::mem::take(&mut sequence.markers);
+    let mut markers = Vec::with_capacity(original_markers.len());
+    for mut marker in original_markers {
+        if ranges
+            .iter()
+            .any(|range| marker.time >= range.start && marker.time < range.end)
+        {
+            continue;
+        }
+        marker.time = compress_time(marker.time, ranges)?;
+        markers.push(marker);
+    }
+    sequence.markers = markers;
+
+    Ok(changed)
+}
+
+fn kept_intervals(
+    start: TimeUs,
+    end: TimeUs,
+    ranges: &[crate::TimelineRange],
+) -> Vec<(TimeUs, TimeUs)> {
+    let mut kept = Vec::new();
+    let mut cursor = start;
+
+    for range in ranges {
+        if range.end <= cursor {
+            continue;
+        }
+        if range.start >= end {
+            break;
+        }
+        if range.start > cursor {
+            kept.push((cursor, range.start.min(end)));
+        }
+        if range.end > cursor {
+            cursor = range.end.min(end);
+        }
+        if cursor >= end {
+            break;
+        }
+    }
+
+    if cursor < end {
+        kept.push((cursor, end));
+    }
+    kept
+}
+
+fn compress_time(time: TimeUs, ranges: &[crate::TimelineRange]) -> Result<TimeUs, DomainError> {
+    let mut removed = TimeUs::new(0)?;
+    for range in ranges {
+        if time >= range.end {
+            removed = removed.checked_add(range.end.checked_sub(range.start)?)?;
+            continue;
+        }
+        if time > range.start {
+            removed = removed.checked_add(time.checked_sub(range.start)?)?;
+        }
+        break;
+    }
+    time.checked_sub(removed)
+}
+
+fn scale_timeline_delta(delta: TimeUs, speed: f64) -> Result<TimeUs, DomainError> {
+    let scaled = (delta.get() as f64) * speed;
+    if !scaled.is_finite() || scaled < 0.0 || scaled > i64::MAX as f64 {
+        return Err(DomainError::TimeOverflow);
+    }
+    TimeUs::new(scaled.round() as i64)
 }
 
 fn find_sequence_mut(
@@ -933,8 +1145,10 @@ mod tests {
                 },
             ))
             .expect("add text");
-        let mut style = crate::TextStyle::default();
-        style.font_size = 72.0;
+        let style = crate::TextStyle {
+            font_size: 72.0,
+            ..crate::TextStyle::default()
+        };
         editor
             .execute(request(
                 2,

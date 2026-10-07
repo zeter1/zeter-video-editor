@@ -66,10 +66,10 @@ impl Project {
                             },
                         )?;
 
-                        if let Some(duration) = media.duration {
-                            if clip.source_out > duration {
-                                return Err(DomainError::InvalidSourceRange { clip_id: clip.id });
-                            }
+                        if let Some(duration) = media.duration
+                            && clip.source_out > duration
+                        {
+                            return Err(DomainError::InvalidSourceRange { clip_id: clip.id });
                         }
                     }
                 }

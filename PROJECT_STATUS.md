@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–15 are implemented in the active implementation branch. Task 15 passed structured-transcript TDD, stale-result/cache-integrity verification, real managed-FFmpeg transcription-audio normalization, package-scoped AI/worker clippy, full Windows Rust/frontend regression verification, and production-build verification. The next planned task is Task 16: Silence Removal, Highlight Ranking, Short Creation, and Simple Face-Aware Reframe.
+Tasks 1–16 are implemented in the active implementation branch. Task 16 passed deterministic analysis TDD, authoritative silence-removal/short-creation undo and stale-safety verification, package-scoped rustfmt/clippy, full Windows Rust/frontend regression verification, managed-FFmpeg integration, and production-build verification. The next planned task is Task 17: Typed Diagnostics, Local Logs, Failure UX, and Sanitized Support Bundle.
 
 ## Approved decisions
 
@@ -139,6 +139,7 @@ Completed:
 - **Task 13: Preview/Inspector Manual Editing — Transform, Color, Speed, Audio, Text, Subtitles, Transitions**
 - **Task 14: AI Worker Protocol and Verified Model Manager**
 - **Task 15: Local Transcription and Editable Automatic Subtitles**
+- **Task 16: Silence Removal, Highlight Ranking, Short Creation, and Simple Face-Aware Reframe**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -155,15 +156,15 @@ Active implementation branch:
 
 ## Next step
 
-**Task 16: Silence Removal, Highlight Ranking, Short Creation, and Simple Face-Aware Reframe**
+**Task 17: Typed Diagnostics, Local Logs, Failure UX, and Sanitized Support Bundle**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write failing deterministic silence tests for threshold, minimum duration, padding, and boundaries;
-2. write failing highlight-scoring tests proving deterministic score/reasons without LLM/network dependency;
-3. prove stale highlight candidates cannot directly edit newer project state;
-4. write failing short-creation tests for a new 1080x1920 sequence plus editable manual reframe values;
-5. implement deterministic silence/highlight analysis, capability-gated face locator with center-crop fallback, and ordinary editor-core commands for accepted changes;
-6. run affected AI/core/application/frontend tests and production build.
+1. write failing redaction tests for transcript text, secrets/tokens, environment credentials, full project JSON, raw FFmpeg arguments, and filesystem paths;
+2. write the injected-clock/filesystem rotation policy test for 10×10 MiB and 14-day pruning;
+3. prove support bundles include build/runtime/capability/log/job/crash metadata while excluding source media, `.vcut`, transcripts, extracted audio/frames, and credentials;
+4. write frontend recovery-action tests for CPU export fallback, relink, model install, save elsewhere, and technical details;
+5. implement typed diagnostic categories, correlation IDs, structured local logging, bounded rotation, redaction, and sanitized bundle export;
+6. run desktop Rust/frontend tests and production build.
 
 ## Verification status
 
@@ -357,6 +358,32 @@ Task 15 execution notes:
 - accepted transcript output becomes ordinary undoable project subtitle state; cached analysis remains disposable.
 - production sidecar/runtime-path discovery and packaging remain owned by Task 18. Task 15 proves the worker adapter and explicit fixture path; it does not silently fall back to PATH or claim a packaged whisper runtime before Task 18.
 - real whisper inference remains `NOT VERIFIED` until explicit model/speech fixtures are provided; deterministic parser/worker tests and real FFmpeg handoff are verified.
+
+Task 16 TDD/verification on Windows x64:
+- RED analysis: focused tests failed on missing silence/highlight/face APIs; RED core failed on missing authoritative `AddSequence` and later `ApplySilenceRemoval`; RED application failed on missing stale-safe short creation; RED frontend failed because the three AI review components did not exist.
+- deterministic silence analysis — PASS: threshold, minimum-duration, padding, start/end boundaries, overlap merging, and zero-clamping are covered. The UI exposes threshold/minimum-duration/padding before analysis and keeps Apply separate from review.
+- deterministic highlights — PASS: weighted multi-signal scoring is normalized, explainable with reason strings, deterministically ordered, revision-bound, and contains no LLM/network dependency.
+- face/reframe boundary — PASS: `FaceLocator` is capability-gated; disabled capability never calls the locator, enabled capability does. `initial_vertical_crop` always has a deterministic center-crop fallback and can seed from normalized face bounds.
+- **Windows platform face-analysis backend is NOT VERIFIED and is not implemented in Task 16**; manual crop remains fully editable. No claim is made that WinRT/MediaFaceAnalysis is active.
+- authoritative sequence creation — PASS: `AddSequence` is an ordinary revision-checked editor command and undo/redo project state.
+- silence apply — PASS: `ApplySilenceRemoval` is one authoritative undoable command; it splits/trims affected clips, compresses timeline time, updates source ranges with speed, shifts/splits subtitles, removes/shifts markers, respects locked tracks, and keeps failure propagation explicit.
+- application silence boundary — PASS: completed `SilenceAnalysis` applies through `execute_job_result` at the captured source revision and undo restores the original timeline.
+- stale highlight safety — PASS: a candidate analyzed at an older revision cannot create a Short after newer edits.
+- Create Short — PASS: accepted candidate creates a new 1080×1920 sequence through `AddSequence`, trims/shifts overlapping clips and subtitles into the candidate range, preserves source-media identity, seeds crop, and remains manually editable through ordinary `SetTransform`.
+- typed IPC drift — PASS: `AddSequence`, `ApplySilenceRemoval`, and `TimelineRange` were added to the generated TypeScript contract and byte-for-byte contract verification passes.
+- `cargo fmt --package ai-engine --package editor-core --package zeter-desktop-tauri -- --check` — PASS.
+- `cargo clippy -p ai-engine --all-targets --no-deps -- -D warnings` — PASS.
+- `cargo clippy -p editor-core --all-targets --no-deps -- -D warnings` — PASS after removing three pre-existing local style warnings without behavior changes.
+- `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace` — PASS, including 4 Task 16 analysis tests, 2 Task 16 editor-core tests, 3 Task 16 desktop application tests, real managed-FFmpeg export/probe/render-parity and transcription-audio normalization.
+- `npm.cmd --prefix apps/desktop test -- --run` — PASS, 22 test files / 41 tests.
+- `npm.cmd --prefix apps/desktop run build` — PASS; TypeScript no-emit + Vite production build.
+- `git diff --check` — PASS.
+
+Task 16 execution notes:
+- analysis results remain powerless data until an explicit application/core action; AI code never mutates project state directly.
+- Remove Silences is represented as one command/history entry, not a sequence of UI-issued split/delete commands, so undo is atomic and revision checking is preserved.
+- Short creation does not change the `.vcut` schema: `Sequence` was already durable state; Task 16 only adds command paths for creating it.
+- platform-specific face detection can be plugged into the tested capability-gated `FaceLocator`; center fallback and manual reframe are the verified MVP behavior today.
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.

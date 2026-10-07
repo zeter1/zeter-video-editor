@@ -197,6 +197,12 @@ pub enum TransitionKind {
     DipToWhite,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TimelineRange {
+    pub start: TimeUs,
+    pub end: TimeUs,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubtitleSegment {
     pub start: TimeUs,
@@ -204,19 +210,10 @@ pub struct SubtitleSegment {
     pub text: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SubtitleStyle {
     pub text_style: TextStyle,
     pub active_word_color: Option<String>,
-}
-
-impl Default for SubtitleStyle {
-    fn default() -> Self {
-        Self {
-            text_style: TextStyle::default(),
-            active_word_color: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
