@@ -14,3 +14,5 @@ fn main() {
 mod task14_tests;
 #[cfg(test)]
 mod task15_integration_tests;
+#[cfg(test)]
+mod task16_runtime_tests;

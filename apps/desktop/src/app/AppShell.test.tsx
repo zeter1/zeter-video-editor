@@ -348,5 +348,6 @@ describe("AppShell AI tools", () => {
 
     expect(screen.getByRole("region", { name: "Automatic subtitles" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Silence removal" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Highlights" })).toBeTruthy();
   });
 });

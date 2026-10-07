@@ -926,3 +926,47 @@ test("runs Automatic subtitles through the production local AI worker and explic
   ).toBe(false);
 });
 
+
+
+test("runs Highlight Analysis through the production local AI worker and creates an undoable Short", async () => {
+  test.setTimeout(60_000);
+
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  await expectRevision(page, 0);
+
+  await page.getByTestId(`clip-${AUDIO_CLIP}`).dispatchEvent("click");
+  const highlights = page.getByRole("region", { name: "Highlights" });
+  if (!(await highlights.isVisible())) {
+    await page.getByRole("button", { name: "AI tools" }).click();
+  }
+  await expect(highlights).toBeVisible();
+
+  await page.getByRole("button", { name: "Analyze highlights" }).click();
+  await expect(highlights.getByText(/% score/).first()).toBeVisible({
+    timeout: 30_000,
+  });
+
+  const before = await invokeTauri<{
+    project: { sequences: Array<{ width: number; height: number }> };
+  }>(page, "project_snapshot");
+  expect(before.project.sequences).toHaveLength(1);
+
+  await highlights.getByRole("button", { name: "Create Short" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Create Short" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Create Short" }).click();
+
+  await expectRevision(page, 1);
+  const created = await invokeTauri<typeof before>(page, "project_snapshot");
+  expect(created.project.sequences).toHaveLength(2);
+  expect(created.project.sequences[1]).toMatchObject({
+    width: 1080,
+    height: 1920,
+  });
+
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectRevision(page, 2);
+  const restored = await invokeTauri<typeof before>(page, "project_snapshot");
+  expect(restored.project.sequences).toHaveLength(1);
+});
