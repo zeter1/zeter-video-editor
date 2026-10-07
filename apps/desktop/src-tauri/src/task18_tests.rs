@@ -341,4 +341,14 @@ fn packaging_and_release_workflows_encode_fail_closed_windows_contract() {
     let ci = fs::read_to_string(repo.join(".github/workflows/ci.yml")).unwrap();
     assert!(ci.contains("Tauri debug bundle smoke"));
     assert!(ci.contains("stage-managed-runtime.ps1"));
+    let stage_index = ci
+        .find("Stage managed runtime for tests and bundle smoke")
+        .expect("CI must stage managed sidecars before compiling the Tauri package");
+    let rust_tests_index = ci
+        .find("- name: Rust tests")
+        .expect("CI must retain the Rust workspace test gate");
+    assert!(
+        stage_index < rust_tests_index,
+        "managed sidecars must exist before cargo test builds the Tauri package"
+    );
 }
