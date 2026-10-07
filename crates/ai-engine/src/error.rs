@@ -17,6 +17,12 @@ pub enum AiError {
     #[error("AI protocol JSON is invalid: {0}")]
     ProtocolJson(String),
 
+    #[error("AI analysis output is invalid: {0}")]
+    InvalidAnalysisOutput(String),
+
+    #[error("local transcription failed: {0}")]
+    TranscriptionFailed(String),
+
     #[error("model download failed: {0}")]
     DownloadFailed(String),
 

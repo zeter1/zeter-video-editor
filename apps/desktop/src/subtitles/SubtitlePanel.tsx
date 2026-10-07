@@ -5,15 +5,32 @@ import {
   requestEditCommit,
   type EditCommit,
 } from "../editing/commit";
+import {
+  TranscriptionPanel,
+  type TranscriptResultView,
+} from "../ai/TranscriptionPanel";
 import { SUBTITLE_PRESETS } from "./presets";
+
+export interface TranscriptionWorkflow {
+  result: TranscriptResultView | null;
+  running: boolean;
+  onStart: () => void;
+  onApply: (result: TranscriptResultView) => void;
+}
 
 interface SubtitlePanelProps {
   sequence: Sequence;
   onSeek: (timeUs: number) => void;
   onCommit: EditCommit;
+  transcription?: TranscriptionWorkflow;
 }
 
-export function SubtitlePanel({ sequence, onSeek, onCommit }: SubtitlePanelProps) {
+export function SubtitlePanel({
+  sequence,
+  onSeek,
+  onCommit,
+  transcription,
+}: SubtitlePanelProps) {
   const [segments, setSegments] = useState<SubtitleSegment[]>(sequence.subtitle_segments);
   const lastSubmitted = useRef<string | null>(null);
 
@@ -53,6 +70,15 @@ export function SubtitlePanel({ sequence, onSeek, onCommit }: SubtitlePanelProps
   return (
     <fieldset className="inspector-section subtitle-panel">
       <legend>Subtitles</legend>
+      {transcription ? (
+        <TranscriptionPanel
+          result={transcription.result}
+          running={transcription.running}
+          onStart={transcription.onStart}
+          onApply={transcription.onApply}
+        />
+      ) : null}
+
       <div className="subtitle-presets" aria-label="Subtitle presets">
         {Object.values(SUBTITLE_PRESETS).map((preset) => (
           <button

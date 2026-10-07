@@ -46,6 +46,12 @@ pub enum MediaError {
     #[error("invalid export settings: {reason}")]
     InvalidExportSettings { reason: &'static str },
 
+    #[error("invalid transcription audio request: {reason}")]
+    InvalidTranscriptionAudio { reason: &'static str },
+
+    #[error("normalized transcription audio is missing or invalid at {path:?}")]
+    InvalidTranscriptionAudioOutput { path: PathBuf },
+
     #[error("render snapshot references missing media {media_id:?}")]
     MissingRenderSource { media_id: MediaId },
 

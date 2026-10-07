@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+ai-engine = { path = "../../../crates/ai-engine" }
 editor-core = { path = "../../../crates/editor-core" }
 job-system = { path = "../../../crates/job-system" }
 project-io = { path = "../../../crates/project-io" }

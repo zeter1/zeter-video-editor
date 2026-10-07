@@ -1,10 +1,22 @@
 use std::io::{self, BufRead, Write};
 
-use ai_engine::{AiError, AnalysisResult};
+use ai_engine::{AiError, AnalysisResult, AnalysisTask};
 
-use crate::protocol::{AI_WORKER_PROTOCOL_VERSION, WorkerRequest, WorkerResponse};
+use crate::{
+    protocol::{AI_WORKER_PROTOCOL_VERSION, WorkerRequest, WorkerResponse},
+    transcription::{TranscriptionBackend, WhisperCliBackend, handle_transcription_request},
+};
 
 pub fn run_session<R: BufRead, W: Write>(reader: R, writer: &mut W) -> Result<(), AiError> {
+    let mut backend = WhisperCliBackend::from_worker_sibling()?;
+    run_session_with_backend(reader, writer, &mut backend)
+}
+
+pub fn run_session_with_backend<R: BufRead, W: Write, B: TranscriptionBackend>(
+    reader: R,
+    writer: &mut W,
+    transcription_backend: &mut B,
+) -> Result<(), AiError> {
     let mut compatible = false;
 
     for line in reader.lines() {
@@ -54,12 +66,28 @@ pub fn run_session<R: BufRead, W: Write>(reader: R, writer: &mut W) -> Result<()
                     ));
                 }
 
-                WorkerResponse::Analysis(AnalysisResult::Failed {
-                    job_id: request.job_id,
-                    code: "analysis_backend_not_ready".into(),
-                    message: "Task 14 establishes worker isolation; analysis backends arrive in later tasks."
-                        .into(),
-                })
+                match request.task {
+                    AnalysisTask::Transcription => {
+                        let result =
+                            match handle_transcription_request(&request, transcription_backend) {
+                                Ok(result) => result,
+                                Err(error) => AnalysisResult::Failed {
+                                    job_id: request.job_id,
+                                    code: "transcription_failed".into(),
+                                    message: error.to_string(),
+                                },
+                            };
+                        WorkerResponse::Analysis(result)
+                    }
+                    AnalysisTask::SilenceAnalysis | AnalysisTask::HighlightAnalysis => {
+                        WorkerResponse::Analysis(AnalysisResult::Failed {
+                            job_id: request.job_id,
+                            code: "analysis_backend_not_ready".into(),
+                            message: "This local analysis backend is implemented by a later task."
+                                .into(),
+                        })
+                    }
+                }
             }
             WorkerRequest::Cancel { job_id } => {
                 if !compatible {

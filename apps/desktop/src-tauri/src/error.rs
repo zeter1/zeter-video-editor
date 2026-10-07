@@ -1,5 +1,5 @@
 use editor_core::{DomainError, JobId, ProjectRevision, RequestId};
-use job_system::{JobError, JobState};
+use job_system::{JobError, JobKind, JobState};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -16,6 +16,17 @@ pub enum AppError {
 
     #[error("job result cannot be applied from state {state:?}")]
     InvalidJobState { state: JobState },
+
+    #[error(
+        "analysis result revision {result_revision:?} does not match job source revision {job_revision:?}"
+    )]
+    AnalysisRevisionMismatch {
+        job_revision: ProjectRevision,
+        result_revision: ProjectRevision,
+    },
+
+    #[error("transcript result cannot be applied from job kind {actual:?}")]
+    InvalidAnalysisJobKind { actual: JobKind },
 
     #[error("application state lock was poisoned")]
     StatePoisoned,
@@ -75,6 +86,25 @@ impl AppError {
                 "The background result is not ready to apply.",
                 false,
                 format!("job state is {state:?}"),
+            ),
+            Self::AnalysisRevisionMismatch {
+                job_revision,
+                result_revision,
+            } => (
+                "analysis_revision_mismatch",
+                "The analysis result does not match the job revision.",
+                false,
+                format!(
+                    "job revision {}, result revision {}",
+                    job_revision.get(),
+                    result_revision.get()
+                ),
+            ),
+            Self::InvalidAnalysisJobKind { actual } => (
+                "invalid_analysis_job_kind",
+                "This analysis result belongs to a different background task.",
+                false,
+                format!("expected transcription job, got {actual:?}"),
             ),
             Self::StatePoisoned => (
                 "state_unavailable",

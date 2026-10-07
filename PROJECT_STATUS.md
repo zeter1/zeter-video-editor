@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–14 are implemented in the active implementation branch. Task 14 passed protocol/model-manager TDD, package-scoped rustfmt/clippy, full Windows Rust/frontend regression verification, real AI-worker stdio smoke verification, and managed-FFmpeg integration. The next planned task is Task 15: Local Transcription and Editable Automatic Subtitles.
+Tasks 1–15 are implemented in the active implementation branch. Task 15 passed structured-transcript TDD, stale-result/cache-integrity verification, real managed-FFmpeg transcription-audio normalization, package-scoped AI/worker clippy, full Windows Rust/frontend regression verification, and production-build verification. The next planned task is Task 16: Silence Removal, Highlight Ranking, Short Creation, and Simple Face-Aware Reframe.
 
 ## Approved decisions
 
@@ -138,6 +138,7 @@ Completed:
 - **Task 12: Timeline Interaction UI, Snapping, Markers, and Commit-on-Release Editing**
 - **Task 13: Preview/Inspector Manual Editing — Transform, Color, Speed, Audio, Text, Subtitles, Transitions**
 - **Task 14: AI Worker Protocol and Verified Model Manager**
+- **Task 15: Local Transcription and Editable Automatic Subtitles**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -154,15 +155,15 @@ Active implementation branch:
 
 ## Next step
 
-**Task 15: Local Transcription and Editable Automatic Subtitles**
+**Task 16: Silence Removal, Highlight Ranking, Short Creation, and Simple Face-Aware Reframe**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write failing structured-output tests using deterministic worker fixture output;
-2. prove transcription completion at an old revision is reviewable but cannot silently mutate current timeline state;
-3. prove deleting cached transcript analysis does not remove subtitle segments already applied to the project;
-4. implement the whisper.cpp worker adapter and FFmpeg audio-normalization handoff behind the Task 14 worker protocol;
-5. add the optional Windows integration test using an explicitly configured tiny speech/model fixture and a visible skip when absent;
-6. run affected AI/application/core/frontend tests plus production build.
+1. write failing deterministic silence tests for threshold, minimum duration, padding, and boundaries;
+2. write failing highlight-scoring tests proving deterministic score/reasons without LLM/network dependency;
+3. prove stale highlight candidates cannot directly edit newer project state;
+4. write failing short-creation tests for a new 1080x1920 sequence plus editable manual reframe values;
+5. implement deterministic silence/highlight analysis, capability-gated face locator with center-crop fallback, and ordinary editor-core commands for accepted changes;
+6. run affected AI/core/application/frontend tests and production build.
 
 ## Verification status
 
@@ -327,6 +328,35 @@ Task 14 execution notes:
 - the worker returns structured analysis results only; it cannot mutate the project/timeline directly. Accepted AI edits remain an application-layer responsibility translated into ordinary editor-core commands.
 - corrupted optional model installs degrade model availability only; they do not invalidate projects or hide other verified models.
 - the live model downloader is represented by an injected `DownloadClient` boundary in Task 14; a concrete HTTP client remains application/runtime integration work and must preserve the same verify-before-publish contract.
+
+Task 15 TDD/verification on Windows x64:
+- RED AI: focused test failed on missing `TranscriptProvenance` and `parse_whisper_cli_json`.
+- RED media: focused test failed on missing transcription-audio handoff.
+- RED application: focused test failed on missing transcript result storage/review/apply APIs.
+- RED worker: focused test failed on missing transcription backend/structured result adapter.
+- RED frontend: Vitest failed because `TranscriptionPanel` did not exist.
+- structured transcript parser — PASS: current whisper-cli segment JSON `offsets.from/to` milliseconds are converted to checked microsecond `TimeUs`; invalid negative/reversed/overflowing offsets fail closed; subtitle text is trimmed and remains editable data.
+- upstream compatibility review — PASS: current whisper.cpp CLI writes segment offsets in milliseconds; MVP intentionally uses ordinary segment JSON (`-oj`) and does not depend on `--output-json-full` token timings because an open September 2026 VAD/token time-base bug affects token timestamps.
+- media boundary — PASS: managed FFmpeg builds a separate mono 16 kHz PCM s16le WAV and refuses source==output. Real `C:\\ffmpeg\\bin` integration generated 48 kHz stereo source, normalized it, and FFprobe confirmed `pcm_s16le`, 16000 Hz, 1 channel.
+- worker adapter — PASS with deterministic backend fixture: transcription returns structured `AnalysisResult::Completed`; production adapter invokes managed `whisper-cli` with `-oj -np`, consumes normalized audio only, writes temporary JSON by JobId, and cleans temporary output.
+- provenance privacy — PASS: runtime audio/model filesystem paths and duplicate model path metadata are stripped from stored transcript provenance; language/analysis parameters remain.
+- review/apply boundary — PASS: completed transcript data is reviewable without project mutation; apply is accepted only for `JobKind::Transcription` at the captured source revision and becomes ordinary `AddSubtitleSegments` editor state.
+- stale result safety — PASS: after a newer edit advances revision, applying the old transcript is rejected and subtitle state remains unchanged.
+- Review Focus cache integrity — PASS: after applying transcript subtitles, deleting disposable AI cache and reopening the saved `.vcut` preserves the applied subtitle text.
+- frontend review UX — PASS: generation/review is separate from explicit Apply; `SubtitlePanel` delegates through a transcription workflow contract instead of directly inventing authoritative AI edits.
+- optional real whisper integration test exists and reports an explicit SKIP unless `ZETER_TEST_WHISPER_CLI`, `ZETER_TEST_WHISPER_MODEL`, and `ZETER_TEST_SPEECH_FIXTURE` are supplied. Real whisper inference is therefore **NOT VERIFIED** in this environment; no claim is made otherwise.
+- `cargo fmt --package ai-engine --package zeter-ai-worker -- --check` — PASS; changed media/desktop Task 15 Rust files were rustfmt-formatted individually to avoid unrelated repository-wide formatting churn.
+- `cargo clippy -p ai-engine -p zeter-ai-worker --all-targets --no-deps -- -D warnings` — PASS.
+- `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace` — PASS, including Task 14 regressions, 2 transcript-parser tests, 15 media-engine unit tests, real FFmpeg export/probe/render-parity, real transcription-audio normalization, 4 worker tests (with real-whisper fixture test skipped), and 7 desktop application tests.
+- `npm.cmd --prefix apps/desktop test -- --run` — PASS, 19 test files / 38 tests.
+- `npm.cmd --prefix apps/desktop run build` — PASS.
+- `git diff --check` — PASS.
+
+Task 15 execution notes:
+- AI inference remains local and the worker never decodes source media itself; media-engine/FFmpeg owns normalization.
+- accepted transcript output becomes ordinary undoable project subtitle state; cached analysis remains disposable.
+- production sidecar/runtime-path discovery and packaging remain owned by Task 18. Task 15 proves the worker adapter and explicit fixture path; it does not silently fall back to PATH or claim a packaged whisper runtime before Task 18.
+- real whisper inference remains `NOT VERIFIED` until explicit model/speech fixtures are provided; deterministic parser/worker tests and real FFmpeg handoff are verified.
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.

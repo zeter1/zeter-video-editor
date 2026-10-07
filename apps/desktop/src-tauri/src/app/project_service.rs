@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 
+use ai_engine::TranscriptResult;
 use editor_core::{
     EditCommand, EditRequest, Editor, MediaRef, Project, ProjectRevision, RequestId,
 };
-use job_system::{JobSnapshot, JobState};
+use job_system::{JobKind, JobSnapshot, JobState};
 
 use crate::{
     contracts::{CommandResultDto, ProjectSnapshotDto},
@@ -99,6 +100,33 @@ impl ProjectService {
             expected_revision: job.context.source_revision,
             command,
         })
+    }
+
+    pub fn apply_transcript_result(
+        &mut self,
+        job: &JobSnapshot,
+        request_id: RequestId,
+        transcript: &TranscriptResult,
+    ) -> Result<CommandResultDto, AppError> {
+        if job.kind != JobKind::Transcription {
+            return Err(AppError::InvalidAnalysisJobKind { actual: job.kind });
+        }
+
+        if transcript.provenance.source_revision != job.context.source_revision {
+            return Err(AppError::AnalysisRevisionMismatch {
+                job_revision: job.context.source_revision,
+                result_revision: transcript.provenance.source_revision,
+            });
+        }
+
+        self.execute_job_result(
+            job,
+            request_id,
+            EditCommand::AddSubtitleSegments {
+                sequence_id: job.context.sequence_id,
+                segments: transcript.subtitle_segments(),
+            },
+        )
     }
 
     fn editor_mut(&mut self) -> Result<&mut Editor, AppError> {

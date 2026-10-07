@@ -22,3 +22,5 @@
 - Формат `.vcut` повышен до schema v2 для durable subtitle style; добавлена явная in-memory миграция v1→v2 без автоматической перезаписи canonical project file.
 - Реализован Task 14: versioned JSON-lines IPC для изолированного AI worker, protocol compatibility handshake/restart boundary и structured analysis contract без прямых timeline mutations.
 - Добавлен verified Model Manager: SHA-256/size/app/backend compatibility, безопасный staging publish, offline import, bounded download retry и деградация повреждённых optional models без повреждения проекта.
+- Реализован Task 15: local transcription contract с whisper.cpp segment JSON, isolated worker adapter, review-before-apply subtitle workflow и stale-revision protection через обычные editor-core команды.
+- Добавлен managed-FFmpeg transcription handoff в mono 16 kHz PCM s16le, безопасная provenance без runtime paths, cache-independence для уже применённых субтитров и optional real-whisper integration fixture.

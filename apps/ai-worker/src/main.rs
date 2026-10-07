@@ -1,5 +1,6 @@
 mod protocol;
 mod runtime;
+mod transcription;
 
 fn main() {
     if let Err(error) = runtime::run_stdio() {
@@ -10,3 +11,5 @@ fn main() {
 
 #[cfg(test)]
 mod task14_tests;
+#[cfg(test)]
+mod task15_integration_tests;

@@ -10,3 +10,5 @@ serde_json = "1.0"
 
 [dev-dependencies]
 editor-core = { path = "../../crates/editor-core" }
+media-engine = { path = "../../crates/media-engine" }
+tempfile = "3.27"

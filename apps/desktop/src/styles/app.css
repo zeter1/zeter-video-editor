@@ -919,3 +919,41 @@ button {
   color: #f2f5ff;
   background: #2a3a63;
 }
+
+.transcription-panel {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid #273447;
+  border-radius: 5px;
+  background: #0f1620;
+}
+
+.transcription-actions {
+  display: flex;
+}
+
+.transcription-actions button,
+.transcription-review button {
+  width: 100%;
+}
+
+.transcription-review {
+  display: grid;
+  gap: 6px;
+}
+
+.transcription-summary {
+  color: #b9c9ff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.transcription-preview {
+  max-height: 72px;
+  margin: 0;
+  overflow: auto;
+  color: #d7deea;
+  font-size: 11px;
+  line-height: 1.45;
+}

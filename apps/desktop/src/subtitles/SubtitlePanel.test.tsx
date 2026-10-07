@@ -84,6 +84,39 @@ describe("SubtitlePanel", () => {
     });
   });
 
+
+  it("delegates automatic subtitle generation and explicit apply through the transcription workflow", () => {
+    const onStart = vi.fn();
+    const onApply = vi.fn();
+    const result = {
+      language: "en",
+      segments: [{ start: 0, end: 1_000_000, text: "Generated line" }],
+      provenance: {
+        model_id: "whisper-base",
+        model_version: "1.0.0",
+        backend: "whisper.cpp",
+        media_identity: "fixture",
+        source_revision: 3,
+      },
+    };
+
+    render(
+      <SubtitlePanel
+        sequence={sequence()}
+        onSeek={vi.fn()}
+        onCommit={vi.fn()}
+        transcription={{ result, running: false, onStart, onApply }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate subtitles" }));
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onApply).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply subtitles" }));
+    expect(onApply).toHaveBeenCalledWith(result);
+  });
+
   it("restores confirmed subtitle text when the authoritative edit is rejected", async () => {
     const onCommit = vi.fn().mockResolvedValue(false);
     render(

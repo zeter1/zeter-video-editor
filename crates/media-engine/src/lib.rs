@@ -10,6 +10,7 @@ pub mod proxy;
 pub mod render_plan;
 pub mod runtime;
 pub mod thumbnail;
+pub mod transcription_audio;
 pub mod waveform;
 
 pub use capabilities::{detect_capabilities, EncoderCapabilities, MediaCapabilities};
@@ -26,3 +27,5 @@ mod task7_tests;
 mod task8_tests;
 #[cfg(test)]
 mod task9_tests;
+#[cfg(test)]
+mod task15_tests;
