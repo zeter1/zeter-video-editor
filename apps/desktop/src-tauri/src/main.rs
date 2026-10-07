@@ -68,6 +68,8 @@ fn main() {
             ipc::project_open_recovery,
             ipc::project_save,
             ipc::project_snapshot,
+            ipc::start_highlight_analysis,
+            ipc::get_highlight_analysis_result,
             ipc::start_silence_analysis,
             ipc::get_silence_analysis_result,
             ipc::apply_silence_analysis,

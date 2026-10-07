@@ -13,7 +13,11 @@ use media_engine::{
 use tauri::{Manager, State};
 
 use crate::{
-    app::{AppState, ai_service::run_silence_analysis, job_service::SilenceJobError},
+    app::{
+        AppState,
+        ai_service::{run_highlight_analysis, run_silence_analysis},
+        job_service::{HighlightJobError, SilenceJobError},
+    },
     contracts::{CommandResultDto, JobEventDto, ProjectSnapshotDto, RecoveryCandidateDto},
     diagnostics::{
         DiagnosticsError,
@@ -40,6 +44,22 @@ fn diagnostic_error(
 
 fn state_error(request_id: Option<RequestId>, job_id: Option<JobId>) -> AppErrorDto {
     diagnostic_error(AppError::StatePoisoned, request_id, job_id)
+}
+
+fn highlight_job_error(error: HighlightJobError) -> AppError {
+    match error {
+        HighlightJobError::Job(error) => AppError::Job(error),
+        HighlightJobError::WrongKind { actual, .. } => AppError::InvalidAnalysisJobKind { actual },
+        HighlightJobError::SourceRevisionMismatch {
+            job_revision,
+            result_revision,
+        } => AppError::AnalysisRevisionMismatch {
+            job_revision,
+            result_revision,
+        },
+        HighlightJobError::NotRunning { state } => AppError::InvalidJobState { state },
+        HighlightJobError::ResultStorePoisoned => AppError::StatePoisoned,
+    }
 }
 
 fn silence_job_error(error: SilenceJobError) -> AppError {
@@ -230,6 +250,145 @@ pub fn project_snapshot(state: State<'_, AppState>) -> Result<ProjectSnapshotDto
     project
         .snapshot()
         .map_err(|error| diagnostic_error(error, None, None))
+}
+
+#[tauri::command]
+pub fn start_highlight_analysis(
+    app: tauri::AppHandle,
+    media_id: MediaId,
+    sequence_id: SequenceId,
+) -> Result<JobEventDto, AppErrorDto> {
+    let state = app.state::<AppState>();
+    let snapshot = {
+        let project = state.project.lock().map_err(|_| state_error(None, None))?;
+        project
+            .snapshot()
+            .map_err(|error| diagnostic_error(error, None, None))?
+    };
+    if !snapshot
+        .project
+        .sequences
+        .iter()
+        .any(|sequence| sequence.id == sequence_id)
+    {
+        return Err(diagnostic_error(
+            AppError::Domain(DomainError::EntityNotFound { entity: "sequence" }),
+            None,
+            None,
+        ));
+    }
+    let media = snapshot
+        .project
+        .media
+        .iter()
+        .find(|media| media.id == media_id)
+        .cloned()
+        .ok_or_else(|| {
+            diagnostic_error(
+                AppError::Domain(DomainError::EntityNotFound { entity: "media" }),
+                None,
+                None,
+            )
+        })?;
+
+    let request_id = RequestId::new();
+    let job_id = state
+        .jobs
+        .start_job(JobSpec {
+            kind: JobKind::HighlightAnalysis,
+            request_id,
+            project_id: snapshot.project.id,
+            sequence_id,
+            source_revision: snapshot.revision,
+            cancellable: false,
+        })
+        .map_err(AppError::from)
+        .map_err(|error| diagnostic_error(error, Some(request_id), None))?;
+    let job = state
+        .jobs
+        .get_job_state(job_id)
+        .map_err(AppError::from)
+        .map_err(|error| diagnostic_error(error, Some(request_id), Some(job_id)))?;
+
+    let cache_root = app.path().app_cache_dir().map_err(|error| {
+        diagnostic_error(
+            AppError::AiAnalysis(error.to_string()),
+            Some(request_id),
+            Some(job_id),
+        )
+    })?;
+    let samples_path = cache_root
+        .join("ai")
+        .join(job_id.get().to_string())
+        .join("highlights.f32le");
+    let runtime = app.state::<ValidatedRuntime>().inner().clone();
+    let jobs = state.jobs.clone();
+    let job_for_worker = job.clone();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        match run_highlight_analysis(&runtime, &job_for_worker, &media, &samples_path) {
+            Ok(candidates) => {
+                if let Err(error) = jobs.complete_highlights(job_id, candidates) {
+                    let _ = jobs.mark_failed(
+                        job_id,
+                        JobFailure {
+                            code: "highlight_result_store_failed".into(),
+                            stage: "application".into(),
+                            retryable: true,
+                            safe_message: "Highlight analysis could not be finalized.".into(),
+                            technical_detail: sanitize_untrusted_text(&error.to_string()),
+                        },
+                    );
+                }
+            }
+            Err(error) => {
+                let _ = jobs.mark_failed(
+                    job_id,
+                    JobFailure {
+                        code: "highlight_analysis_failed".into(),
+                        stage: "ai-engine".into(),
+                        retryable: true,
+                        safe_message: "Highlight analysis failed.".into(),
+                        technical_detail: sanitize_untrusted_text(&error.to_string()),
+                    },
+                );
+            }
+        }
+    });
+
+    Ok(JobEventDto::from(job))
+}
+
+#[tauri::command]
+pub fn get_highlight_analysis_result(
+    state: State<'_, AppState>,
+    job_id: JobId,
+) -> Result<Vec<HighlightCandidate>, AppErrorDto> {
+    let job = state
+        .jobs
+        .get_job_state(job_id)
+        .map_err(AppError::from)
+        .map_err(|error| diagnostic_error(error, None, Some(job_id)))?;
+    if job.state != JobState::Completed {
+        return Err(diagnostic_error(
+            AppError::InvalidJobState { state: job.state },
+            None,
+            Some(job_id),
+        ));
+    }
+
+    state
+        .jobs
+        .highlight_result(job_id)
+        .map_err(highlight_job_error)
+        .map_err(|error| diagnostic_error(error, None, Some(job_id)))?
+        .ok_or_else(|| {
+            diagnostic_error(
+                AppError::AiAnalysis("completed highlight result is unavailable".into()),
+                None,
+                Some(job_id),
+            )
+        })
 }
 
 #[tauri::command]

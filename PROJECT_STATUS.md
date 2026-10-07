@@ -168,7 +168,7 @@ The approved Tasks 1–19 implementation plan is complete and integrated. Contin
 
 Priorities:
 1. Keep exact-`main` CI green; classify any failure from logs before changing code or workflow.
-2. Close approved-MVP runtime integration gaps before adding new scope. Production Remove Silences and Automatic subtitles are now wired through ordinary `AI tools`; the remaining highest-impact local-AI gap is highlight analysis/Create Short orchestration, with `HighlightAnalysis` still returning `analysis_backend_not_ready` in the production worker.
+2. Close approved-MVP runtime integration gaps before adding new scope. The stacked production-AI chain now covers Remove Silences, Automatic subtitles, and Highlight Analysis → Create Short; keep integration review/verification bounded and do not add new AI scope until these PRs are integrated.
 3. Address remaining bounded technical debt where it provides real value, especially warnings that reveal unconnected runtime paths; do not silence them mechanically.
 4. Keep production signing, updater signing, and tagged release work fail-closed until the real release secrets/certificate are available.
 5. Treat real whisper-model inference as **NOT VERIFIED** until an explicit model/speech fixture is available.
@@ -487,6 +487,18 @@ Verified on the stacked PR #8 code head `cc0319462a9531adaa090caa719942fdc203d1d
 - production Automatic subtitles E2E — PASS: Generate subtitles → verified offline model import when needed → production worker review → explicit Apply → Undo.
 - debug NSIS smoke — PASS: `Zeter Video Editor_0.0.1_x64-setup.exe` (~110.44 MiB).
 - real whisper model inference remains **NOT VERIFIED** because CI intentionally uses deterministic CLI output rather than a real model/speech fixture.
+
+## Post-MVP production AI orchestration — Highlight Analysis / Create Short
+
+Implemented on stacked PR #9 over PR #8:
+- ordinary `AI tools` mounts the existing Highlights review panel and keeps candidate analysis separate from project mutation;
+- managed FFmpeg remains the only media-decoding boundary and emits mono 8 kHz `f32le` samples for the production worker;
+- the production worker derives deterministic audio-only MVP signals from fixed candidate windows: speech density, pause-boundary strength and RMS loudness change. Existing `rank_highlights` performs explainable ranking with transcript/scene weights disabled when those signals are unavailable, and results are capped to the highest-ranked candidates;
+- transcript/thought-boundary and scene-change inputs are intentionally **not claimed as production signals yet**; no LLM/network dependency was added;
+- highlight candidates retain the analyzed source revision; JobService validates that revision before storing results;
+- explicit Create Short uses the existing `ProjectService::create_short_from_candidate` path, creates a 1080×1920 sequence as ordinary undoable project state, seeds a deterministic center crop, and leaves crop manually editable;
+- TDD RED is proven by Windows CI #85 / run `37641806323`: rustfmt/build/runtime staging passed, then the new worker contract failed exactly because production returned `analysis_backend_not_ready`;
+- verification authority for this stacked change is PR #9 exact-head CI plus its real Tauri/WebView2 acceptance; do not infer production readiness from the implementation alone.
 
 ## Task 19 — End-to-End MVP Workflow and Acceptance Verification
 

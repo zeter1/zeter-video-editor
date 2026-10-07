@@ -3,7 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppErrorDto,
   CommandResultDto,
+  Crop,
   EditRequest,
+  HighlightCandidate,
   JobEventDto,
   JobId,
   JobSpec,
@@ -41,6 +43,17 @@ export interface IpcClient {
   startJob(spec: JobSpec): Promise<JobEventDto>;
   cancelJob(jobId: JobId): Promise<JobEventDto>;
   getJobState(jobId: JobId): Promise<JobEventDto>;
+  startHighlightAnalysis(
+    mediaId: MediaId,
+    sequenceId: SequenceId,
+  ): Promise<JobEventDto>;
+  getHighlightAnalysisResult(jobId: JobId): Promise<HighlightCandidate[]>;
+  createShortFromCandidate(
+    sourceSequenceId: SequenceId,
+    candidate: HighlightCandidate,
+    requestId: RequestId,
+    crop: Crop,
+  ): Promise<CommandResultDto>;
   startSilenceAnalysis(
     mediaId: MediaId,
     sequenceId: SequenceId,
@@ -125,6 +138,22 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
     startJob: (spec) => call(invokeFn, "start_job", { spec }),
     cancelJob: (jobId) => call(invokeFn, "cancel_job", { jobId }),
     getJobState: (jobId) => call(invokeFn, "get_job_state", { jobId }),
+    startHighlightAnalysis: (mediaId, sequenceId) =>
+      call(invokeFn, "start_highlight_analysis", { mediaId, sequenceId }),
+    getHighlightAnalysisResult: (jobId) =>
+      call(invokeFn, "get_highlight_analysis_result", { jobId }),
+    createShortFromCandidate: (
+      sourceSequenceId,
+      candidate,
+      requestId,
+      crop,
+    ) =>
+      call(invokeFn, "create_short_from_candidate", {
+        sourceSequenceId,
+        candidate,
+        requestId,
+        crop,
+      }),
     startSilenceAnalysis: (
       mediaId,
       sequenceId,

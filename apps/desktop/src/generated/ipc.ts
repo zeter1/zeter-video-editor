@@ -170,6 +170,14 @@ export interface TimelineRange {
   end: TimeUs;
 }
 
+export interface HighlightCandidate {
+  start: TimeUs;
+  end: TimeUs;
+  score: number;
+  reasons: string[];
+  source_revision: ProjectRevision;
+}
+
 export type ChangedEntity =
   | { Media: MediaId }
   | { Sequence: SequenceId }

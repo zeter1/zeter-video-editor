@@ -3,6 +3,7 @@ use std::io::{self, BufRead, Write};
 use ai_engine::{AiError, AnalysisResult, AnalysisTask};
 
 use crate::{
+    highlights::handle_highlight_request,
     protocol::{AI_WORKER_PROTOCOL_VERSION, WorkerRequest, WorkerResponse},
     silence::handle_silence_request,
     transcription::{TranscriptionBackend, WhisperCliBackend, handle_transcription_request},
@@ -92,13 +93,15 @@ pub fn run_session_with_backend<R: BufRead, W: Write, B: TranscriptionBackend>(
                         WorkerResponse::Analysis(result)
                     }
                     AnalysisTask::HighlightAnalysis => {
-                        WorkerResponse::Analysis(AnalysisResult::Failed {
-                            job_id: request.job_id,
-                            code: "analysis_backend_not_ready".into(),
-                            message:
-                                "Highlight analysis is not wired to the production worker yet."
-                                    .into(),
-                        })
+                        let result = match handle_highlight_request(&request) {
+                            Ok(result) => result,
+                            Err(error) => AnalysisResult::Failed {
+                                job_id: request.job_id,
+                                code: "highlight_analysis_failed".into(),
+                                message: error.to_string(),
+                            },
+                        };
+                        WorkerResponse::Analysis(result)
                     }
                 }
             }

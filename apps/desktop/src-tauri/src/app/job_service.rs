@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use ai_engine::{SilenceRange, TranscriptResult};
+use ai_engine::{HighlightCandidate, SilenceRange, TranscriptResult};
 use editor_core::{JobId, ProjectRevision};
 use job_system::{
     CancellationToken, JobError, JobFailure, JobKind, JobManager, JobSnapshot, JobSpec, JobState,
@@ -48,11 +48,35 @@ pub enum SilenceJobError {
     ResultStorePoisoned,
 }
 
+#[derive(Debug, Error)]
+pub enum HighlightJobError {
+    #[error("job error: {0}")]
+    Job(#[from] JobError),
+
+    #[error("job {job_id:?} is {actual:?}, not a highlight-analysis job")]
+    WrongKind { job_id: JobId, actual: JobKind },
+
+    #[error(
+        "highlight revision {result_revision:?} does not match job source revision {job_revision:?}"
+    )]
+    SourceRevisionMismatch {
+        job_revision: ProjectRevision,
+        result_revision: ProjectRevision,
+    },
+
+    #[error("highlight-analysis job is not running; current state is {state:?}")]
+    NotRunning { state: JobState },
+
+    #[error("highlight-analysis result store lock was poisoned")]
+    ResultStorePoisoned,
+}
+
 #[derive(Clone, Default)]
 pub struct JobService {
     manager: JobManager,
     transcription_results: Arc<Mutex<HashMap<JobId, TranscriptResult>>>,
     silence_results: Arc<Mutex<HashMap<JobId, Vec<SilenceRange>>>>,
+    highlight_results: Arc<Mutex<HashMap<JobId, Vec<HighlightCandidate>>>>,
 }
 
 impl JobService {
@@ -161,6 +185,50 @@ impl JobService {
         Ok(results.get(&job_id).cloned())
     }
 
+    pub fn complete_highlights(
+        &self,
+        job_id: JobId,
+        candidates: Vec<HighlightCandidate>,
+    ) -> Result<(), HighlightJobError> {
+        let snapshot = self.manager.snapshot(job_id)?;
+        ensure_highlight_job(&snapshot)?;
+        if let Some(candidate) = candidates
+            .iter()
+            .find(|candidate| candidate.source_revision != snapshot.context.source_revision)
+        {
+            return Err(HighlightJobError::SourceRevisionMismatch {
+                job_revision: snapshot.context.source_revision,
+                result_revision: candidate.source_revision,
+            });
+        }
+        if snapshot.state != JobState::Running {
+            return Err(HighlightJobError::NotRunning {
+                state: snapshot.state,
+            });
+        }
+
+        let mut results = self
+            .highlight_results
+            .lock()
+            .map_err(|_| HighlightJobError::ResultStorePoisoned)?;
+        self.manager.complete(job_id)?;
+        results.insert(job_id, candidates);
+        Ok(())
+    }
+
+    pub fn highlight_result(
+        &self,
+        job_id: JobId,
+    ) -> Result<Option<Vec<HighlightCandidate>>, HighlightJobError> {
+        let snapshot = self.manager.snapshot(job_id)?;
+        ensure_highlight_job(&snapshot)?;
+        let results = self
+            .highlight_results
+            .lock()
+            .map_err(|_| HighlightJobError::ResultStorePoisoned)?;
+        Ok(results.get(&job_id).cloned())
+    }
+
     pub fn cancel_job(&self, job_id: JobId) -> Result<(), JobError> {
         self.manager.cancel(job_id)
     }
@@ -172,6 +240,16 @@ impl JobService {
     pub fn snapshots(&self) -> Result<Vec<JobSnapshot>, JobError> {
         self.manager.snapshots()
     }
+}
+
+fn ensure_highlight_job(snapshot: &JobSnapshot) -> Result<(), HighlightJobError> {
+    if snapshot.kind != JobKind::HighlightAnalysis {
+        return Err(HighlightJobError::WrongKind {
+            job_id: snapshot.context.job_id,
+            actual: snapshot.kind,
+        });
+    }
+    Ok(())
 }
 
 fn ensure_silence_job(snapshot: &JobSnapshot) -> Result<(), SilenceJobError> {

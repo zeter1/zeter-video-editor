@@ -76,6 +76,9 @@ describe("AppShell diagnostics", () => {
       startSilenceAnalysis: vi.fn(),
       getSilenceAnalysisResult: vi.fn(),
       applySilenceAnalysis: vi.fn(),
+      startHighlightAnalysis: vi.fn(),
+      getHighlightAnalysisResult: vi.fn(),
+      createShortFromCandidate: vi.fn(),
       exportSupportBundle,
       reconcileCommandResult: vi.fn(),
     };
@@ -213,6 +216,9 @@ describe("AppShell edit gateway", () => {
       startSilenceAnalysis: vi.fn(),
       getSilenceAnalysisResult: vi.fn(),
       applySilenceAnalysis: vi.fn(),
+      startHighlightAnalysis: vi.fn(),
+      getHighlightAnalysisResult: vi.fn(),
+      createShortFromCandidate: vi.fn(),
       exportSupportBundle: vi.fn(),
       reconcileCommandResult,
     };
@@ -302,6 +308,9 @@ describe("AppShell missing-media recovery", () => {
       startSilenceAnalysis: vi.fn(),
       getSilenceAnalysisResult: vi.fn(),
       applySilenceAnalysis: vi.fn(),
+      startHighlightAnalysis: vi.fn(),
+      getHighlightAnalysisResult: vi.fn(),
+      createShortFromCandidate: vi.fn(),
       exportSupportBundle: vi.fn(),
       reconcileCommandResult: vi.fn(),
     };

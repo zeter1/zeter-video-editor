@@ -1,3 +1,4 @@
+mod highlights;
 mod protocol;
 mod runtime;
 mod silence;
