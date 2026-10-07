@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use ai_engine::TranscriptResult;
 use editor_core::{DomainError, JobId, MediaId, RequestId, SequenceId};
@@ -109,13 +109,17 @@ pub fn start_transcription(
         })?;
 
     let runtime = app.state::<ValidatedRuntime>().inner().clone();
-    let models_root = app.path().app_data_dir().map_err(|error| {
-        model_error(
-            "model_storage_unavailable",
-            "The local AI model storage is unavailable.",
-            error.to_string(),
-        )
-    })?.join("models");
+    let models_root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| {
+            model_error(
+                "model_storage_unavailable",
+                "The local AI model storage is unavailable.",
+                error.to_string(),
+            )
+        })?
+        .join("models");
 
     let import_model = match (model_path.as_deref(), manifest_path.as_deref()) {
         (Some(model_path), Some(manifest_path)) => {
