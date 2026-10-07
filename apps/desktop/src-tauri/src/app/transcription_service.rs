@@ -73,11 +73,7 @@ pub fn run_transcription_analysis(
     );
 
     let result = (|| {
-        normalize_transcription_audio(
-            &media_runtime,
-            Path::new(&media.absolute_path),
-            audio_path,
-        )?;
+        normalize_transcription_audio(&media_runtime, Path::new(&media.absolute_path), audio_path)?;
 
         let mut parameters = AnalysisParameters::default();
         parameters.values.insert(
@@ -88,10 +84,9 @@ pub fn run_transcription_analysis(
             "model_path".into(),
             Value::String(model.path.to_string_lossy().into_owned()),
         );
-        parameters.values.insert(
-            "model_id".into(),
-            Value::String(model.manifest.id.clone()),
-        );
+        parameters
+            .values
+            .insert("model_id".into(), Value::String(model.manifest.id.clone()));
         parameters.values.insert(
             "model_version".into(),
             Value::String(model.manifest.version.clone()),
@@ -146,9 +141,7 @@ fn runtime_compatibility(
     let backend_version = identity
         .strip_prefix("whisper.cpp-")
         .filter(|version| !version.is_empty())
-        .ok_or_else(|| {
-            TranscriptionRuntimeError::RuntimeCompatibility(identity.to_owned())
-        })?;
+        .ok_or_else(|| TranscriptionRuntimeError::RuntimeCompatibility(identity.to_owned()))?;
 
     Ok(RuntimeCompatibility {
         app_version: runtime.manifest.app.version.clone(),
