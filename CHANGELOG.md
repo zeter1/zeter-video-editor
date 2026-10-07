@@ -30,3 +30,6 @@
 - Усилен fail-closed privacy boundary: diagnostics bundle принимает только managed `zeter-*.log`, неструктурированные строки полностью редактируются, а untyped frontend IPC/timeline failures не раскрывают raw exception text.
 - Реализован Task 18: Windows Tauri/NSIS packaging с current-user install, WebView2 bootstrap, managed FFmpeg/FFprobe/AI-worker sidecars и fail-closed startup runtime-manifest validation без PATH fallback.
 - Добавлен безопасный soft-update/release boundary: safe-shutdown blockers и defer, обязательные updater/Authenticode signing inputs, pinned FFmpeg checksum, version-coherence gate для package/Tauri/Cargo и immutable GitHub Release workflow; production signing остаётся NOT VERIFIED без реальных release secrets.
+
+- Реализован Task 19: real Tauri/WebView2 Playwright acceptance для полного MVP workflow — import/edit/save-reopen, deterministic local AI/Create Short, real H.264 export/cancel, crash recovery, media identity mismatch и explicit relink.
+- Усилен media-integrity/history boundary: project open fail-closed сверяет size + managed-FFprobe duration/resolution hints, explicit relink проходит через undoable `RelinkMedia`, а Inspector controls не создают дублирующие history entries после authoritative rerender.
