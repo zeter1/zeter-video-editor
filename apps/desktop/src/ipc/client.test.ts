@@ -98,3 +98,51 @@ describe("IPC synchronization", () => {
     expect(store.getState().revision).toBe(6);
   });
 });
+
+describe("IPC silence analysis", () => {
+  it("uses typed desktop commands for analyze, review and apply", async () => {
+    const invoke = vi.fn(async (command: string, args?: Record<string, unknown>) => {
+      if (command === "start_silence_analysis") {
+        expect(args).toEqual({
+          mediaId: "media-1",
+          sequenceId: "sequence-1",
+          threshold: 0.05,
+          minimumDurationMs: 200,
+          paddingMs: 50,
+        });
+        return {
+          job_id: "job-1",
+          kind: "SilenceAnalysis",
+          state: "Running",
+          progress: 0,
+          source_revision: 3,
+          failure: null,
+        };
+      }
+      if (command === "get_silence_analysis_result") {
+        expect(args).toEqual({ jobId: "job-1" });
+        return [{ start: 1_000_000, end: 2_000_000 }];
+      }
+      if (command === "apply_silence_analysis") {
+        expect(args).toEqual({ jobId: "job-1", requestId: "request-1" });
+        return result(4);
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = createIpcClient(invoke);
+
+    await client.startSilenceAnalysis(
+      "media-1",
+      "sequence-1",
+      0.05,
+      200,
+      50,
+    );
+    await expect(client.getSilenceAnalysisResult("job-1")).resolves.toEqual([
+      { start: 1_000_000, end: 2_000_000 },
+    ]);
+    await expect(
+      client.applySilenceAnalysis("job-1", "request-1"),
+    ).resolves.toEqual(result(4));
+  });
+});

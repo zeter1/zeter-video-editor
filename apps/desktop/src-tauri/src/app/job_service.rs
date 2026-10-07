@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use ai_engine::TranscriptResult;
+use ai_engine::{SilenceRange, TranscriptResult};
 use editor_core::{JobId, ProjectRevision};
 use job_system::{
     CancellationToken, JobError, JobFailure, JobKind, JobManager, JobSnapshot, JobSpec, JobState,
@@ -33,10 +33,26 @@ pub enum TranscriptionJobError {
     ResultStorePoisoned,
 }
 
+#[derive(Debug, Error)]
+pub enum SilenceJobError {
+    #[error("job error: {0}")]
+    Job(#[from] JobError),
+
+    #[error("job {job_id:?} is {actual:?}, not a silence-analysis job")]
+    WrongKind { job_id: JobId, actual: JobKind },
+
+    #[error("silence-analysis job is not running; current state is {state:?}")]
+    NotRunning { state: JobState },
+
+    #[error("silence-analysis result store lock was poisoned")]
+    ResultStorePoisoned,
+}
+
 #[derive(Clone, Default)]
 pub struct JobService {
     manager: JobManager,
     transcription_results: Arc<Mutex<HashMap<JobId, TranscriptResult>>>,
+    silence_results: Arc<Mutex<HashMap<JobId, Vec<SilenceRange>>>>,
 }
 
 impl JobService {
@@ -110,6 +126,41 @@ impl JobService {
         Ok(results.get(&job_id).cloned())
     }
 
+    pub fn complete_silence(
+        &self,
+        job_id: JobId,
+        ranges: Vec<SilenceRange>,
+    ) -> Result<(), SilenceJobError> {
+        let snapshot = self.manager.snapshot(job_id)?;
+        ensure_silence_job(&snapshot)?;
+        if snapshot.state != JobState::Running {
+            return Err(SilenceJobError::NotRunning {
+                state: snapshot.state,
+            });
+        }
+
+        let mut results = self
+            .silence_results
+            .lock()
+            .map_err(|_| SilenceJobError::ResultStorePoisoned)?;
+        self.manager.complete(job_id)?;
+        results.insert(job_id, ranges);
+        Ok(())
+    }
+
+    pub fn silence_result(
+        &self,
+        job_id: JobId,
+    ) -> Result<Option<Vec<SilenceRange>>, SilenceJobError> {
+        let snapshot = self.manager.snapshot(job_id)?;
+        ensure_silence_job(&snapshot)?;
+        let results = self
+            .silence_results
+            .lock()
+            .map_err(|_| SilenceJobError::ResultStorePoisoned)?;
+        Ok(results.get(&job_id).cloned())
+    }
+
     pub fn cancel_job(&self, job_id: JobId) -> Result<(), JobError> {
         self.manager.cancel(job_id)
     }
@@ -121,6 +172,16 @@ impl JobService {
     pub fn snapshots(&self) -> Result<Vec<JobSnapshot>, JobError> {
         self.manager.snapshots()
     }
+}
+
+fn ensure_silence_job(snapshot: &JobSnapshot) -> Result<(), SilenceJobError> {
+    if snapshot.kind != JobKind::SilenceAnalysis {
+        return Err(SilenceJobError::WrongKind {
+            job_id: snapshot.context.job_id,
+            actual: snapshot.kind,
+        });
+    }
+    Ok(())
 }
 
 fn ensure_transcription_job(snapshot: &JobSnapshot) -> Result<(), TranscriptionJobError> {

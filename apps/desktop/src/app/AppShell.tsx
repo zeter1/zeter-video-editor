@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
 
+import {
+  SilencePanel,
+  type SilenceParametersView,
+  type SilenceRangeView,
+} from "../ai/SilencePanel";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { ErrorDialog } from "../errors/ErrorDialog";
 import type { RecoveryAction } from "../errors/actions";
@@ -96,6 +101,10 @@ export function AppShell({
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null);
   const [openError, setOpenError] = useState<AppErrorDto | null>(null);
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
+  const [silenceRunning, setSilenceRunning] = useState(false);
+  const [silenceJobId, setSilenceJobId] = useState<string | null>(null);
+  const [silenceRanges, setSilenceRanges] = useState<SilenceRangeView[]>([]);
 
   const project = projectState.snapshot?.project ?? null;
   const activeSequence = project?.sequences[0] ?? null;
@@ -273,6 +282,80 @@ export function AppShell({
     }
   }
 
+  async function handleSilenceAnalyze(
+    parameters: SilenceParametersView,
+  ): Promise<void> {
+    if (!project || !activeSequence || !selectedClip?.media_id) {
+      projectStore.setError(
+        "Select a video or audio clip before analyzing silences.",
+      );
+      return;
+    }
+
+    setSilenceRunning(true);
+    setSilenceRanges([]);
+    setSilenceJobId(null);
+
+    try {
+      let job = await client.startSilenceAnalysis(
+        selectedClip.media_id,
+        activeSequence.id,
+        parameters.threshold,
+        parameters.minimumDurationMs,
+        parameters.paddingMs,
+      );
+      setSilenceJobId(job.job_id);
+
+      while (job.state === "Queued" || job.state === "Running") {
+        await new Promise((resolve) => window.setTimeout(resolve, 200));
+        job = await client.getJobState(job.job_id);
+      }
+
+      if (job.state !== "Completed") {
+        throw new Error(
+          job.failure?.safe_message ?? "Silence analysis did not complete.",
+        );
+      }
+
+      setSilenceRanges(await client.getSilenceAnalysisResult(job.job_id));
+    } catch (error) {
+      const typed = appError(error);
+      projectStore.setError(
+        typed?.message ??
+          (error instanceof Error
+            ? error.message
+            : "Silence analysis failed."),
+      );
+    } finally {
+      setSilenceRunning(false);
+    }
+  }
+
+  async function handleSilenceApply(): Promise<void> {
+    if (!silenceJobId) {
+      projectStore.setError("Analyze silences before applying removal.");
+      return;
+    }
+
+    try {
+      const result = await client.applySilenceAnalysis(
+        silenceJobId,
+        requestId(),
+      );
+      await client.reconcileCommandResult(projectStore, result);
+      setSilenceRanges([]);
+      setSilenceJobId(null);
+    } catch (error) {
+      const typed = appError(error);
+      projectStore.setError(
+        typed?.message ??
+          (error instanceof Error
+            ? error.message
+            : "Silence removal failed."),
+      );
+    }
+  }
+
   function handleUndo(): void {
     if (actions) {
       actions.undo();
@@ -310,6 +393,16 @@ export function AppShell({
         <LeftPanel
           media={project?.media ?? []}
           onImport={() => void handleImport()}
+          onAiTools={() => setAiToolsOpen((open) => !open)}
+          aiToolsOpen={aiToolsOpen}
+          aiToolsContent={
+            <SilencePanel
+              running={silenceRunning}
+              ranges={silenceRanges}
+              onAnalyze={(parameters) => void handleSilenceAnalyze(parameters)}
+              onApply={() => void handleSilenceApply()}
+            />
+          }
         />
         <PreviewPanel
           sequence={activeSequence}

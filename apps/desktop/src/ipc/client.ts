@@ -7,10 +7,13 @@ import type {
   JobEventDto,
   JobId,
   JobSpec,
+  MediaId,
   MediaRef,
   ProjectRevision,
   ProjectSnapshotDto,
   RequestId,
+  SequenceId,
+  TimelineRange,
 } from "../generated/ipc";
 import type { ProjectStore } from "../state/projectStore";
 
@@ -38,6 +41,18 @@ export interface IpcClient {
   startJob(spec: JobSpec): Promise<JobEventDto>;
   cancelJob(jobId: JobId): Promise<JobEventDto>;
   getJobState(jobId: JobId): Promise<JobEventDto>;
+  startSilenceAnalysis(
+    mediaId: MediaId,
+    sequenceId: SequenceId,
+    threshold: number,
+    minimumDurationMs: number,
+    paddingMs: number,
+  ): Promise<JobEventDto>;
+  getSilenceAnalysisResult(jobId: JobId): Promise<TimelineRange[]>;
+  applySilenceAnalysis(
+    jobId: JobId,
+    requestId: RequestId,
+  ): Promise<CommandResultDto>;
   exportSupportBundle(outputPath: string): Promise<string>;
   reconcileCommandResult(
     store: ProjectStore,
@@ -110,6 +125,24 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
     startJob: (spec) => call(invokeFn, "start_job", { spec }),
     cancelJob: (jobId) => call(invokeFn, "cancel_job", { jobId }),
     getJobState: (jobId) => call(invokeFn, "get_job_state", { jobId }),
+    startSilenceAnalysis: (
+      mediaId,
+      sequenceId,
+      threshold,
+      minimumDurationMs,
+      paddingMs,
+    ) =>
+      call(invokeFn, "start_silence_analysis", {
+        mediaId,
+        sequenceId,
+        threshold,
+        minimumDurationMs,
+        paddingMs,
+      }),
+    getSilenceAnalysisResult: (jobId) =>
+      call(invokeFn, "get_silence_analysis_result", { jobId }),
+    applySilenceAnalysis: (jobId, requestId) =>
+      call(invokeFn, "apply_silence_analysis", { jobId, requestId }),
     exportSupportBundle: (outputPath) =>
       call(invokeFn, "export_support_bundle", { outputPath }),
     reconcileCommandResult: async (store, result) => {

@@ -817,3 +817,53 @@ test("exports a sanitized support bundle through the real desktop command bounda
   expect(existsSync(outputPath)).toBe(true);
   expect(readFileSync(outputPath).byteLength).toBeGreaterThan(0);
 });
+
+test("runs Remove Silences through the production local AI worker and explicit apply", async () => {
+  test.setTimeout(60_000);
+
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  await expectRevision(page, 0);
+
+  await page.getByTestId(`clip-${AUDIO_CLIP}`).dispatchEvent("click");
+  await page.getByRole("button", { name: "AI tools" }).click();
+  await expect(
+    page.getByRole("region", { name: "Silence removal" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Analyze silences" }).click();
+  await expect(page.getByText("1 silence range", { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+
+  const before = await invokeTauri<{
+    project: {
+      sequences: Array<{
+        tracks: Array<{
+          name: string;
+          clips: Array<{ id: string; timeline_end: number }>;
+        }>;
+      }>;
+    };
+  }>(page, "project_snapshot");
+  const beforeEnd = before.project.sequences[0].tracks
+    .find((track) => track.name === "Audio")!
+    .clips.find((clip) => clip.id === AUDIO_CLIP)!.timeline_end;
+
+  await page.getByRole("button", { name: "Apply silence removal" }).click();
+  await expectRevision(page, 1);
+
+  const after = await invokeTauri<typeof before>(page, "project_snapshot");
+  const afterEnd = after.project.sequences[0].tracks
+    .find((track) => track.name === "Audio")!
+    .clips.find((clip) => clip.id === AUDIO_CLIP)!.timeline_end;
+  expect(afterEnd).toBeLessThan(beforeEnd);
+
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectRevision(page, 2);
+  const restored = await invokeTauri<typeof before>(page, "project_snapshot");
+  const restoredEnd = restored.project.sequences[0].tracks
+    .find((track) => track.name === "Audio")!
+    .clips.find((clip) => clip.id === AUDIO_CLIP)!.timeline_end;
+  expect(restoredEnd).toBe(beforeEnd);
+});

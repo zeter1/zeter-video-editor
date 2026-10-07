@@ -150,3 +150,113 @@ fn transcription_provenance_excludes_runtime_file_paths() {
         Some(&Value::String("ru".into()))
     );
 }
+
+#[test]
+fn production_worker_completes_silence_analysis_from_f32le_samples() {
+    use std::fs;
+
+    use ai_engine::{
+        AnalysisParameters, AnalysisRequest, AnalysisResult, AnalysisTask, SilenceRange,
+    };
+    use editor_core::{ProjectId, SequenceId, TimeUs};
+    use serde_json::Value;
+    use tempfile::tempdir;
+
+    use crate::{runtime::run_session_with_backend, transcription::TranscriptionBackend};
+
+    struct UnusedTranscriptionBackend;
+
+    impl TranscriptionBackend for UnusedTranscriptionBackend {
+        fn transcribe(
+            &mut self,
+            _request: &AnalysisRequest,
+        ) -> Result<ai_engine::TranscriptResult, ai_engine::AiError> {
+            panic!("silence analysis must not invoke transcription");
+        }
+    }
+
+    let dir = tempdir().unwrap();
+    let samples_path = dir.path().join("silence-samples.f32le");
+    let mut samples = [0.8_f32; 30];
+    for sample in &mut samples[10..15] {
+        *sample = 0.0;
+    }
+    let bytes = samples
+        .iter()
+        .flat_map(|sample| sample.to_le_bytes())
+        .collect::<Vec<_>>();
+    fs::write(&samples_path, bytes).unwrap();
+
+    let mut parameters = AnalysisParameters::default();
+    parameters.values.insert(
+        "samples_path".into(),
+        Value::String(samples_path.to_string_lossy().into_owned()),
+    );
+    parameters
+        .values
+        .insert("sample_rate_hz".into(), Value::from(10));
+    parameters
+        .values
+        .insert("threshold".into(), Value::from(0.05));
+    parameters
+        .values
+        .insert("minimum_duration_ms".into(), Value::from(200));
+    parameters
+        .values
+        .insert("padding_ms".into(), Value::from(0));
+
+    let request = AnalysisRequest {
+        job_id: JobId::new(),
+        project_id: ProjectId::new(),
+        sequence_id: SequenceId::new(),
+        source_revision: ProjectRevision::new(4),
+        media_identity: "fixture-media".into(),
+        task: AnalysisTask::SilenceAnalysis,
+        parameters,
+    };
+    let hello = serde_json::to_string(&WorkerRequest::Hello {
+        protocol_version: AI_WORKER_PROTOCOL_VERSION,
+    })
+    .unwrap();
+    let analyze = serde_json::to_string(&WorkerRequest::Analyze(request.clone())).unwrap();
+    let input = format!("{hello}\n{analyze}\n");
+    let mut output = Vec::new();
+
+    run_session_with_backend(
+        Cursor::new(input),
+        &mut output,
+        &mut UnusedTranscriptionBackend,
+    )
+    .unwrap();
+
+    let responses = String::from_utf8(output)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<WorkerResponse>(line).unwrap())
+        .collect::<Vec<_>>();
+
+    let WorkerResponse::Analysis(AnalysisResult::Completed {
+        job_id,
+        task: AnalysisTask::SilenceAnalysis,
+        payload,
+    }) = &responses[1]
+    else {
+        panic!(
+            "expected completed silence analysis, got {:?}",
+            responses[1]
+        );
+    };
+    assert_eq!(*job_id, request.job_id);
+
+    let ranges = serde_json::from_value::<Vec<SilenceRange>>(
+        payload.get("ranges").cloned().expect("ranges payload"),
+    )
+    .unwrap();
+    assert_eq!(
+        ranges,
+        vec![SilenceRange {
+            start: TimeUs::new(1_000_000).unwrap(),
+            end: TimeUs::new(1_500_000).unwrap(),
+        }]
+    );
+}

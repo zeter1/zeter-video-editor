@@ -1,11 +1,22 @@
+import type { ReactNode } from "react";
+
 import type { MediaRef } from "../generated/ipc";
 
 interface LeftPanelProps {
   media: MediaRef[];
   onImport?: () => void;
+  onAiTools?: () => void;
+  aiToolsOpen?: boolean;
+  aiToolsContent?: ReactNode;
 }
 
-export function LeftPanel({ media, onImport }: LeftPanelProps) {
+export function LeftPanel({
+  media,
+  onImport,
+  onAiTools,
+  aiToolsOpen = false,
+  aiToolsContent,
+}: LeftPanelProps) {
   return (
     <aside className="left-panel panel" role="region" aria-label="Media and tools" data-testid="left-panel">
       <div className="panel-heading">
@@ -16,8 +27,17 @@ export function LeftPanel({ media, onImport }: LeftPanelProps) {
         <button type="button" onClick={onImport}>Import</button>
         <button type="button">Text</button>
         <button type="button">Subtitles</button>
-        <button type="button">AI tools</button>
+        <button
+          type="button"
+          aria-pressed={aiToolsOpen}
+          onClick={onAiTools}
+        >
+          AI tools
+        </button>
       </div>
+      {aiToolsOpen && aiToolsContent ? (
+        <div className="ai-tools-panel">{aiToolsContent}</div>
+      ) : null}
       <div className="media-list">
         {media.length === 0 ? (
           <p className="empty-copy">Imported media will appear here.</p>
