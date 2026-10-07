@@ -59,6 +59,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            ipc::export_support_bundle,
             ipc::project_open,
             ipc::project_open_with_relink,
             ipc::write_recovery_snapshot,

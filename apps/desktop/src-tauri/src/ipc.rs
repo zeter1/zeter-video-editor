@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 use ai_engine::HighlightCandidate;
 use editor_core::{
@@ -14,9 +14,15 @@ use tauri::{Manager, State};
 use crate::{
     app::AppState,
     contracts::{CommandResultDto, JobEventDto, ProjectSnapshotDto, RecoveryCandidateDto},
-    diagnostics::logging::log_app_error,
+    diagnostics::{
+        DiagnosticsError,
+        bundle::{
+            SupportBundleMetadata, export_support_bundle as write_support_bundle, managed_log_paths,
+        },
+        logging::log_app_error,
+    },
     error::{AppError, AppErrorDto},
-    runtime_manifest::ValidatedRuntime,
+    runtime_manifest::{RuntimeManifest, ValidatedRuntime},
 };
 
 fn diagnostic_error(
@@ -31,6 +37,62 @@ fn diagnostic_error(
 
 fn state_error(request_id: Option<RequestId>, job_id: Option<JobId>) -> AppErrorDto {
     diagnostic_error(AppError::StatePoisoned, request_id, job_id)
+}
+
+pub(crate) fn support_bundle_metadata(manifest: &RuntimeManifest) -> SupportBundleMetadata {
+    SupportBundleMetadata {
+        app_version: manifest.app.version.clone(),
+        build_id: manifest.app.build.clone(),
+        os: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
+        runtime: BTreeMap::from([
+            ("ffmpeg".into(), manifest.ffmpeg.build_identity.clone()),
+            ("ffprobe".into(), manifest.ffprobe.build_identity.clone()),
+            (
+                "whisper_cli".into(),
+                manifest.whisper_cli.build_identity.clone(),
+            ),
+            (
+                "ai_worker".into(),
+                manifest.ai_worker.build_identity.clone(),
+            ),
+        ]),
+        capabilities: BTreeMap::from([
+            ("managed_runtime".into(), "validated".into()),
+            (
+                "ai_worker_protocol".into(),
+                manifest.ai_worker.protocol_version.to_string(),
+            ),
+        ]),
+        jobs: Vec::new(),
+        crashes: Vec::new(),
+    }
+}
+
+#[tauri::command]
+pub fn export_support_bundle(
+    app: tauri::AppHandle,
+    output_path: String,
+) -> Result<String, AppErrorDto> {
+    let runtime = app.state::<ValidatedRuntime>();
+    let metadata = support_bundle_metadata(&runtime.manifest);
+    let log_dir = app.path().app_log_dir().map_err(|error| {
+        diagnostic_error(
+            AppError::Diagnostics(DiagnosticsError::Io(std::io::Error::other(
+                error.to_string(),
+            ))),
+            None,
+            None,
+        )
+    })?;
+    let logs = managed_log_paths(&log_dir)
+        .map_err(AppError::from)
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    let output = PathBuf::from(output_path);
+
+    write_support_bundle(&output, &metadata, &logs)
+        .map(|path| path.to_string_lossy().into_owned())
+        .map_err(AppError::from)
+        .map_err(|error| diagnostic_error(error, None, None))
 }
 
 #[tauri::command]

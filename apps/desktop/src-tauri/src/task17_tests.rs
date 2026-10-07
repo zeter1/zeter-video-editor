@@ -247,6 +247,33 @@ fn support_bundle_rejects_unmanaged_logs_and_fail_closed_redacts_unstructured_li
 }
 
 #[test]
+fn support_bundle_metadata_uses_managed_runtime_identities_without_private_paths() {
+    let manifest = crate::runtime_manifest::parse_embedded_manifest().unwrap();
+    let metadata = crate::ipc::support_bundle_metadata(&manifest);
+
+    assert_eq!(metadata.app_version, manifest.app.version);
+    assert_eq!(metadata.build_id, manifest.app.build);
+    assert_eq!(
+        metadata.runtime.get("ffmpeg"),
+        Some(&manifest.ffmpeg.build_identity)
+    );
+    assert_eq!(
+        metadata.runtime.get("ffprobe"),
+        Some(&manifest.ffprobe.build_identity)
+    );
+    assert_eq!(
+        metadata.runtime.get("whisper_cli"),
+        Some(&manifest.whisper_cli.build_identity)
+    );
+    assert_eq!(
+        metadata.runtime.get("ai_worker"),
+        Some(&manifest.ai_worker.build_identity)
+    );
+    assert!(metadata.jobs.is_empty());
+    assert!(metadata.crashes.is_empty());
+}
+
+#[test]
 fn structured_error_log_preserves_correlation_ids_and_sanitizes_technical_detail() {
     let dir = tempdir().unwrap();
     let request_id = editor_core::RequestId::new();

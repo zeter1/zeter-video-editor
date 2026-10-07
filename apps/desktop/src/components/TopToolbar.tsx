@@ -6,6 +6,7 @@ interface TopToolbarProps {
   onSave: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  onExportSupportBundle: () => void;
 }
 
 export function TopToolbar({
@@ -16,6 +17,7 @@ export function TopToolbar({
   onSave,
   onUndo,
   onRedo,
+  onExportSupportBundle,
 }: TopToolbarProps) {
   const hasProject = projectName !== null;
   const canMutate = hasProject || actionsEnabled;
@@ -45,6 +47,14 @@ export function TopToolbar({
         <span className="toolbar-divider" aria-hidden="true" />
         <button type="button" onClick={onUndo} disabled={!canMutate}>Undo</button>
         <button type="button" onClick={onRedo} disabled={!canMutate}>Redo</button>
+        <span className="toolbar-divider" aria-hidden="true" />
+        <button
+          type="button"
+          aria-label="Export support bundle"
+          onClick={onExportSupportBundle}
+        >
+          Support bundle
+        </button>
       </div>
     </header>
   );
