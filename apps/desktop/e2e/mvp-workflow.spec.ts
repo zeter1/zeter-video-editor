@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Dialog } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -883,7 +883,7 @@ test("runs Automatic subtitles through the production local AI worker and explic
   await expect(transcription).toBeVisible();
 
   const modelPrompts = [state.modelPath, state.modelManifestPath];
-  const acceptModelPrompt = async (dialog: import("@playwright/test").Dialog) => {
+  const acceptModelPrompt = async (dialog: Dialog) => {
     const value = modelPrompts.shift();
     if (!value) {
       await dialog.dismiss();
