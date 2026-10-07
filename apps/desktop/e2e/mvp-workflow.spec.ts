@@ -704,6 +704,10 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
     path.dirname(state.workflowProjectPath),
     "task19-cancelled.mp4",
   );
+  const cancelledPartialPath = path.join(
+    path.dirname(cancelledPath),
+    ".task19-cancelled.zeter-partial.mp4",
+  );
   const cancelling = await invokeTauri<ExportJobView>(
     page,
     "start_export_mp4",
@@ -712,18 +716,20 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
       outputPath: cancelledPath,
     },
   );
+  await expect
+    .poll(() => existsSync(cancelledPartialPath), { timeout: 10_000 })
+    .toBe(true);
+
   const cancelled = await invokeTauri<ExportJobView>(page, "cancel_job", {
     jobId: cancelling.job_id,
   });
   expect(cancelled.state).toBe("Cancelled");
   const terminal = await waitForJob(page, cancelling.job_id);
   expect(terminal.state).toBe("Cancelled");
+  await expect
+    .poll(() => existsSync(cancelledPartialPath), { timeout: 10_000 })
+    .toBe(false);
   expect(existsSync(cancelledPath)).toBe(false);
-  expect(
-    existsSync(
-      path.join(path.dirname(cancelledPath), ".task19-cancelled.zeter-partial.mp4"),
-    ),
-  ).toBe(false);
 });
 
 

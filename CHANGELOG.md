@@ -39,5 +39,6 @@
 - Добавлен пользовательский export sanitized support bundle через обычный toolbar и реальный Tauri IPC: ZIP содержит только allowlisted managed logs, безопасные runtime identities и текущую job metadata, без project/media/transcript contents.
 
 ### Fixed
+- Устранена race-condition в real H.264 cancel acceptance: тест теперь сначала подтверждает появление in-flight partial artifact, затем отменяет export и boundedly ждёт удаления partial-файла background worker; production cancellation semantics не ослаблялись.
 - Устранён флаки Windows E2E для реального H.264 export: export acceptance теперь ждёт terminal job state до 90 секунд внутри отдельного 120-секундного test budget вместо слишком узкого 30-секундного poll timeout; сам export/cancel gate остаётся обязательным.
 - Нормализован накопившийся rustfmt drift в `media-engine` и `project-io`; Windows CI теперь запускает `cargo fmt --all -- --check` как обязательный mechanical quality gate перед build/test стадиями.
