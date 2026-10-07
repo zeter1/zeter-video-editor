@@ -111,7 +111,10 @@ fn run_whisper_fixture_cli(args: &[String]) -> bool {
     let audio = argument_value(args, "-f").expect("fixture whisper CLI requires -f");
     let output_base = argument_value(args, "-of").expect("fixture whisper CLI requires -of");
     assert!(PathBuf::from(model).is_file(), "fixture model must exist");
-    assert!(PathBuf::from(audio).is_file(), "normalized audio must exist");
+    assert!(
+        PathBuf::from(audio).is_file(),
+        "normalized audio must exist"
+    );
 
     let output_json = PathBuf::from(output_base).with_extension("json");
     fs::write(
