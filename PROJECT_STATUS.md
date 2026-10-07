@@ -124,6 +124,7 @@ Completed:
 - detailed Superpowers MVP implementation plan
 - implementation-plan self-review
 - explicit approval of the implementation plan and selection of Native execution
+- pre-implementation plan execution review on 2026-10-06 corrected invalid multi-filter Cargo commands, made the Task 1 React smoke-test file explicit, and added the root CHANGELOG gate before implementation began
 - **Task 1: Workspace, Toolchain, and First Authoritative Domain Slice**
 - **Task 2: Project/Sequence/Track/Clip Domain Model and Invariants**
 - **Task 3: Edit Command Engine, Revisioning, Undo/Redo, and Core Timeline Operations**
@@ -142,6 +143,7 @@ Completed:
 - **Task 16: Silence Removal, Highlight Ranking, Short Creation, and Simple Face-Aware Reframe**
 - **Task 17: Typed Diagnostics, Local Logs, Failure UX, and Sanitized Support Bundle**
 - **Task 18: Windows Runtime Manifest, NSIS Packaging, Signed Soft Updates, and Safe Shutdown**
+- **Task 19: End-to-End MVP Workflow and Acceptance Verification**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -158,15 +160,11 @@ Active implementation branch:
 
 ## Next step
 
-**Task 19: End-to-End MVP Workflow and Acceptance Verification**
+**Remote PR CI and integration review**
 
-Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write the initially failing Playwright MVP workflow over deterministic synthetic fixtures;
-2. cover import/edit/save/reopen plus trim/split/move/duplicate/ripple-delete, text/subtitles/music/transition and manual transform/audio/color/speed edits;
-3. extend the workflow through deterministic local AI transcription/silence/highlight/Create Short and prove accepted AI edits are normal undoable project state;
-4. cover successful H.264 export, export cancellation, managed-FFprobe output verification, and abnormal-shutdown recovery without silently replacing the canonical project;
-5. run focused E2E, full Rust/frontend/build verification and a Windows debug Tauri bundle smoke;
-6. perform whole-branch Superpowers code review and fix all Critical/Important findings before integration.
+The approved Tasks 1–19 implementation plan is complete on `ai/native-mvp-20261006`. Open/update the PR into `main`, require the existing Windows CI workflow to pass (including the real Tauri/WebView2 acceptance suite and debug NSIS smoke), review any merge conflicts or remote-only failures, and do not merge until that remote gate is green.
+
+Production signing, updater signing, and a tagged GitHub Release remain separate release operations and are **NOT VERIFIED** without production secrets/certificates.
 
 ## Verification status
 
