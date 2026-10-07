@@ -453,8 +453,23 @@ Task 18 execution notes:
 
 Known verification debt:
 - The historical repository-wide rustfmt drift is closed: `cargo fmt --all -- --check` is now an explicit Windows CI gate on the pinned Rust toolchain, and exact-`main` CI #74 passed it together with Rust/frontend/E2E/NSIS verification.
-- User-facing production AI orchestration remains incomplete despite deterministic Task 19 fixture acceptance: the ordinary desktop UI does not currently mount the AI review panels, and the production worker still returns `analysis_backend_not_ready` for silence/highlight requests. Treat the end-user local-AI workflow as **NOT VERIFIED** until it has real IPC/UI acceptance.
+- Production **Remove Silences** orchestration is now wired and verified end to end: ordinary `AI tools` mounts the review panel, Tauri creates a revision-bound `SilenceAnalysis` job, managed FFmpeg emits an 8 kHz mono `f32le` handoff, the production AI worker returns deterministic ranges, and only explicit Apply mutates authoritative project state through undoable `ApplySilenceRemoval`. Real Tauri/WebView2 acceptance verifies analysis → review → Apply → Undo.
+- Remaining production AI orchestration debt is narrower: transcription/subtitle generation and highlight/Create Short are still not mounted as complete end-user production paths; `HighlightAnalysis` still returns `analysis_backend_not_ready`, and real whisper model inference remains **NOT VERIFIED** without explicit model/speech fixtures.
 - The safe-update controller is implemented and unit-tested but is not yet wired into the ordinary Tauri updater/UI flow; production updater signing and end-user update installation remain **NOT VERIFIED**.
+
+## Post-MVP production AI orchestration — Remove Silences
+
+Verified on Windows x64 after Task 19 integration:
+- production worker RED→GREEN: a real JSON-lines `SilenceAnalysis` request reads managed `f32le` samples and delegates to the existing deterministic `ai_engine::detect_silence` implementation instead of returning `analysis_backend_not_ready`;
+- application review boundary RED→GREEN: completed silence ranges are stored outside project state and remain powerless until explicit Apply;
+- typed Tauri IPC now exposes start/review/apply for silence analysis; stale revision safety remains owned by `ProjectService::apply_silence_result` and editor-core;
+- ordinary `AI tools` mounts `SilencePanel`; selected audio/video media is analyzed with user threshold/minimum-duration/padding values and the panel polls the background job until terminal state;
+- worker/job failure details are privacy-sanitized before reaching the frontend job DTO; temporary analysis waveform cache is deleted after processing;
+- synthetic E2E audio is deterministic tone → silence → tone, allowing real production-worker acceptance without network or model dependencies;
+- focused real Tauri/WebView2 acceptance — PASS: one silence range detected, explicit Apply reduces timeline duration, Undo restores the original state.
+- final local verification — PASS: `cargo fmt --all -- --check`, `git diff --check`, `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace`, frontend 23/23 files and 54/54 tests, production build, and real Tauri/WebView2 9/9 acceptance tests.
+- worker quality gate — PASS: `cargo clippy -p zeter-ai-worker --all-targets --no-deps -- -D warnings` after fixing the two new clippy findings instead of suppressing them.
+- debug NSIS smoke with the freshly built production worker — PASS: `Zeter Video Editor_0.0.1_x64-setup.exe`, 115,788,438 bytes (~110.42 MiB).
 
 ## Task 19 — End-to-End MVP Workflow and Acceptance Verification
 

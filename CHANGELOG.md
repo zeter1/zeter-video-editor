@@ -36,6 +36,7 @@
 - Исправлен clean-runner CI runtime preflight: checksum-pinned Gyan FFmpeg 8.0.1 и AI sidecars staging-ятся явно, frontend `dist` собирается до Tauri/Rust tests, а E2E/bundle используют те же managed paths без зависимости от runner PATH или старых ignored artifacts.
 
 - Добавлен пользовательский export sanitized support bundle через обычный toolbar и реальный Tauri IPC: ZIP содержит только allowlisted managed logs, безопасные runtime identities и текущую job metadata, без project/media/transcript contents.
+- Подключён первый production local-AI пользовательский путь: `AI tools` → Remove Silences → managed FFmpeg waveform handoff → production AI worker → review ranges → explicit Apply. Применение остаётся обычной revision-checked undoable `ApplySilenceRemoval` командой; real Tauri/WebView2 acceptance проверяет Apply и Undo.
 
 ### Fixed
 - Устранён флаки Windows E2E для реального H.264 export: export acceptance теперь ждёт terminal job state до 90 секунд внутри отдельного 120-секундного test budget вместо слишком узкого 30-секундного poll timeout; сам export/cancel gate остаётся обязательным.

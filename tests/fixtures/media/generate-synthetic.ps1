@@ -20,7 +20,7 @@ $image = Join-Path $OutputDir 'synthetic-image.png'
 & $ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=1920x1080:rate=30' -f lavfi -i 'sine=frequency=1000:sample_rate=48000' -t 6 -c:v libx264 -pix_fmt yuv420p -c:a aac $video
 if ($LASTEXITCODE -ne 0) { throw "managed FFmpeg video fixture generation failed with exit code $LASTEXITCODE" }
 
-& $ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'sine=frequency=440:sample_rate=48000' -t 6 -c:a pcm_s16le $audio
+& $ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'sine=frequency=440:sample_rate=48000:duration=2' -f lavfi -i 'anullsrc=r=48000:cl=mono:d=1' -f lavfi -i 'sine=frequency=440:sample_rate=48000:duration=3' -filter_complex '[0:a][1:a][2:a]concat=n=3:v=0:a=1[out]' -map '[out]' -c:a pcm_s16le $audio
 if ($LASTEXITCODE -ne 0) { throw "managed FFmpeg audio fixture generation failed with exit code $LASTEXITCODE" }
 
 & $ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'color=c=blue:size=1280x720:rate=1' -frames:v 1 -c:v png -threads 1 $image

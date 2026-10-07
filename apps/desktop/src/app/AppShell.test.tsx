@@ -73,6 +73,9 @@ describe("AppShell diagnostics", () => {
       startJob: vi.fn(),
       cancelJob: vi.fn(),
       getJobState: vi.fn(),
+      startSilenceAnalysis: vi.fn(),
+      getSilenceAnalysisResult: vi.fn(),
+      applySilenceAnalysis: vi.fn(),
       exportSupportBundle,
       reconcileCommandResult: vi.fn(),
     };
@@ -207,6 +210,9 @@ describe("AppShell edit gateway", () => {
       startJob: vi.fn(),
       cancelJob: vi.fn(),
       getJobState: vi.fn(),
+      startSilenceAnalysis: vi.fn(),
+      getSilenceAnalysisResult: vi.fn(),
+      applySilenceAnalysis: vi.fn(),
       exportSupportBundle: vi.fn(),
       reconcileCommandResult,
     };
@@ -293,6 +299,9 @@ describe("AppShell missing-media recovery", () => {
       startJob: vi.fn(),
       cancelJob: vi.fn(),
       getJobState: vi.fn(),
+      startSilenceAnalysis: vi.fn(),
+      getSilenceAnalysisResult: vi.fn(),
+      applySilenceAnalysis: vi.fn(),
       exportSupportBundle: vi.fn(),
       reconcileCommandResult: vi.fn(),
     };
@@ -323,5 +332,20 @@ describe("AppShell missing-media recovery", () => {
     await vi.waitFor(() =>
       expect(screen.queryByRole("button", { name: "Relink media" })).toBeNull(),
     );
+  });
+});
+
+describe("AppShell AI tools", () => {
+  it("opens the Remove Silences review panel from the AI tools button", () => {
+    render(
+      <AppShell
+        projectStore={createProjectStore()}
+        transientStore={createTransientStore()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "AI tools" }));
+
+    expect(screen.getByRole("region", { name: "Silence removal" })).toBeTruthy();
   });
 });

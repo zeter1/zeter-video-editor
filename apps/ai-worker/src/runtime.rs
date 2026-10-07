@@ -4,6 +4,7 @@ use ai_engine::{AiError, AnalysisResult, AnalysisTask};
 
 use crate::{
     protocol::{AI_WORKER_PROTOCOL_VERSION, WorkerRequest, WorkerResponse},
+    silence::handle_silence_request,
     transcription::{TranscriptionBackend, WhisperCliBackend, handle_transcription_request},
 };
 
@@ -79,12 +80,24 @@ pub fn run_session_with_backend<R: BufRead, W: Write, B: TranscriptionBackend>(
                             };
                         WorkerResponse::Analysis(result)
                     }
-                    AnalysisTask::SilenceAnalysis | AnalysisTask::HighlightAnalysis => {
+                    AnalysisTask::SilenceAnalysis => {
+                        let result = match handle_silence_request(&request) {
+                            Ok(result) => result,
+                            Err(error) => AnalysisResult::Failed {
+                                job_id: request.job_id,
+                                code: "silence_analysis_failed".into(),
+                                message: error.to_string(),
+                            },
+                        };
+                        WorkerResponse::Analysis(result)
+                    }
+                    AnalysisTask::HighlightAnalysis => {
                         WorkerResponse::Analysis(AnalysisResult::Failed {
                             job_id: request.job_id,
                             code: "analysis_backend_not_ready".into(),
-                            message: "This local analysis backend is implemented by a later task."
-                                .into(),
+                            message:
+                                "Highlight analysis is not wired to the production worker yet."
+                                    .into(),
                         })
                     }
                 }

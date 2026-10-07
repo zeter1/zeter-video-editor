@@ -222,3 +222,38 @@ fn completed_silence_analysis_applies_through_editor_and_is_undoable() {
         time(60_000_000)
     );
 }
+
+#[test]
+fn completed_silence_result_is_reviewable_before_explicit_apply() {
+    let (project, source_sequence_id) = fixture();
+    let project_id = project.id;
+    let jobs = JobService::new();
+    let service = ProjectService::from_project(project, ProjectRevision::new(0)).unwrap();
+
+    let job_id = jobs
+        .start_job(JobSpec {
+            kind: JobKind::SilenceAnalysis,
+            request_id: RequestId::new(),
+            project_id,
+            sequence_id: source_sequence_id,
+            source_revision: ProjectRevision::new(0),
+            cancellable: false,
+        })
+        .unwrap();
+    let ranges = vec![SilenceRange {
+        start: time(2_000_000),
+        end: time(4_000_000),
+    }];
+
+    jobs.complete_silence(job_id, ranges.clone()).unwrap();
+
+    assert_eq!(jobs.silence_result(job_id).unwrap(), Some(ranges));
+    assert_eq!(
+        jobs.get_job_state(job_id).unwrap().state,
+        job_system::JobState::Completed
+    );
+    assert_eq!(
+        service.snapshot().unwrap().project.sequences[0].tracks[0].clips[0].timeline_end,
+        time(60_000_000),
+    );
+}

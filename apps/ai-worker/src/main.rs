@@ -1,5 +1,6 @@
 mod protocol;
 mod runtime;
+mod silence;
 mod transcription;
 
 fn main() {

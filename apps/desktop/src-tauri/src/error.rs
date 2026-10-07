@@ -57,6 +57,9 @@ pub enum AppError {
     #[error("job error: {0}")]
     Job(#[from] JobError),
 
+    #[error("local AI analysis error: {0}")]
+    AiAnalysis(String),
+
     #[error("diagnostics error: {0}")]
     Diagnostics(#[from] DiagnosticsError),
 }
@@ -237,6 +240,15 @@ impl AppError {
                     error.to_string(),
                     "job-system",
                     "job_lifecycle",
+                ),
+                Self::AiAnalysis(detail) => (
+                    ErrorCategory::Job,
+                    "ai_analysis",
+                    "Local AI analysis could not be completed.",
+                    true,
+                    detail.clone(),
+                    "ai-engine",
+                    "analysis",
                 ),
                 Self::Diagnostics(error) => (
                     ErrorCategory::Filesystem,
