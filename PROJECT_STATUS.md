@@ -451,10 +451,20 @@ Task 18 execution notes:
 - a sensitive-looking untracked temporary key/material file appeared during local packaging work; it was moved out of the repository into local quarantine and is not part of the Git diff. Its contents were not exposed or committed.
 - production updater signing, Authenticode signing, and an actual tagged GitHub Release are **NOT VERIFIED** because production secrets/certificate were not used and no release was published. The production workflow is verified only at the static/fail-closed contract level plus the unsigned debug NSIS smoke.
 
+Post-MVP safe updater integration — 2026-10-07:
+- real updater resource lifecycle uses the official Tauri v2 `check()` → `download()` → `install()` split; `Later` closes/releases the update resource instead of installing it.
+- install is fail-closed behind `get_update_install_readiness`: unsaved authoritative project revision, save failure/in-progress state, active export, active media work, or active AI/model work prevents installation.
+- updater safety IPC is isolated from the ordinary editor IPC client so timeline/editor mocks and boundaries do not depend on release plumbing.
+- focused RED→GREEN verification — PASS: Rust runtime-readiness regression 1/1; updater UI 2/2; updater IPC boundary 1/1.
+- full local verification — PASS: Rust desktop tests 30/30 inside the passing workspace, Vitest 24 files / 55 tests, TypeScript/Vite production build, real Tauri/WebView2 Playwright 8/8 scenarios, and debug NSIS bundle smoke (~110.32 MiB).
+- real updater blocker transport — PASS: WebView2 opens a clean fixture (`ready: true`), performs an authoritative edit, observes serialized `DirtyProject` from Rust (`ready: false`), saves, then observes `ready: true` again.
+- the obsolete test-only Rust `UpdateController` state machine was removed after the real Tauri updater path became authoritative, eliminating a duplicate unconnected runtime path rather than suppressing its dead-code warnings.
+- production updater signing, Authenticode signing, a tagged release, and installing an actual signed update remain **NOT VERIFIED** by design.
+
 Known verification debt:
 - The historical repository-wide rustfmt drift is closed: `cargo fmt --all -- --check` is now an explicit Windows CI gate on the pinned Rust toolchain, and exact-`main` CI #74 passed it together with Rust/frontend/E2E/NSIS verification.
 - User-facing production AI orchestration remains incomplete despite deterministic Task 19 fixture acceptance: the ordinary desktop UI does not currently mount the AI review panels, and the production worker still returns `analysis_backend_not_ready` for silence/highlight requests. Treat the end-user local-AI workflow as **NOT VERIFIED** until it has real IPC/UI acceptance.
-- The safe-update controller is implemented and unit-tested but is not yet wired into the ordinary Tauri updater/UI flow; production updater signing and end-user update installation remain **NOT VERIFIED**.
+- The ordinary desktop now exposes a user-facing Tauri updater flow with separate check/download/install stages, explicit defer, and an authoritative Rust safe-shutdown gate derived from saved project revision plus active export/media/AI jobs. Real Tauri/WebView2 IPC/UI acceptance is verified; production updater signing and an actual signed end-user update installation remain **NOT VERIFIED** until real release secrets/certificate and a signed release are used.
 
 ## Task 19 — End-to-End MVP Workflow and Acceptance Verification
 

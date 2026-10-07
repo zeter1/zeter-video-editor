@@ -957,3 +957,26 @@ button {
   font-size: 11px;
   line-height: 1.45;
 }
+
+
+.update-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-1);
+  font-size: 12px;
+}
+
+.update-status > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.update-actions {
+  display: flex;
+  gap: 8px;
+}

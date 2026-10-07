@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -10,8 +10,7 @@ use crate::{
         validate_runtime,
     },
     update::{
-        SafeShutdownDecision, SaveState, ShutdownBlocker, ShutdownContext, UpdateController,
-        UpdateInstaller, UpdateState, evaluate_safe_shutdown,
+        SafeShutdownDecision, SaveState, ShutdownBlocker, ShutdownContext, evaluate_safe_shutdown,
     },
 };
 
@@ -215,79 +214,6 @@ fn safe_shutdown_blocks_every_integrity_risk_and_user_can_defer() {
             SafeShutdownDecision::Blocked(ref blockers) if blockers.contains(&blocker)
         ));
     }
-
-    let mut controller = UpdateController::new(FakeInstaller::default());
-    controller.mark_available("0.0.2").unwrap();
-    controller.defer();
-    assert_eq!(controller.state(), &UpdateState::Idle);
-}
-
-#[derive(Default)]
-struct FakeInstaller {
-    installs: usize,
-}
-
-impl UpdateInstaller for FakeInstaller {
-    type Error = &'static str;
-
-    fn install(&mut self) -> Result<(), Self::Error> {
-        self.installs += 1;
-        Ok(())
-    }
-}
-
-#[test]
-fn update_state_machine_never_receives_or_rewrites_project_data_paths() {
-    let dir = tempfile::tempdir().unwrap();
-    let sentinels = [
-        dir.path().join("project.vcut"),
-        dir.path().join("recovery.snapshot"),
-        dir.path().join("source.mp4"),
-        dir.path().join("export.mp4"),
-    ];
-    for path in &sentinels {
-        fs::write(path, format!("sentinel:{}", path.display())).unwrap();
-    }
-    let before: BTreeMap<PathBuf, Vec<u8>> = sentinels
-        .iter()
-        .map(|path| (path.clone(), fs::read(path).unwrap()))
-        .collect();
-
-    let mut controller = UpdateController::new(FakeInstaller::default());
-    controller.mark_available("0.0.2").unwrap();
-    controller.start_download().unwrap();
-    controller.finish_download().unwrap();
-
-    let blocked = ShutdownContext {
-        dirty_project: true,
-        save_state: SaveState::Idle,
-        active_export: false,
-        active_media_jobs: 0,
-        active_ai_jobs: 0,
-    };
-    assert!(controller.install_when_safe(&blocked).is_err());
-    assert!(matches!(
-        controller.state(),
-        UpdateState::ReadyToInstall { version } if version == "0.0.2"
-    ));
-
-    let clean = ShutdownContext {
-        dirty_project: false,
-        save_state: SaveState::Idle,
-        active_export: false,
-        active_media_jobs: 0,
-        active_ai_jobs: 0,
-    };
-    controller.install_when_safe(&clean).unwrap();
-    assert!(matches!(
-        controller.state(),
-        UpdateState::Installing { version } if version == "0.0.2"
-    ));
-    assert_eq!(controller.installer().installs, 1);
-
-    for (path, expected) in before {
-        assert_eq!(fs::read(path).unwrap(), expected);
-    }
 }
 
 #[test]
@@ -365,4 +291,134 @@ fn packaging_and_release_workflows_encode_fail_closed_windows_contract() {
         frontend_build_index < rust_tests_index,
         "frontendDist must exist before cargo test expands Tauri generate_context"
     );
+}
+
+fn updater_fixture_project() -> (
+    editor_core::Project,
+    editor_core::SequenceId,
+    editor_core::TrackId,
+) {
+    use editor_core::{
+        Project, ProjectId, ProjectSettings, Sequence, SequenceId, SubtitleStyle, Track, TrackId,
+        TrackKind,
+    };
+
+    let sequence_id = SequenceId::new();
+    let track_id = TrackId::new();
+    (
+        Project {
+            id: ProjectId::new(),
+            name: "Updater fixture".into(),
+            settings: ProjectSettings::default(),
+            media: Vec::new(),
+            sequences: vec![Sequence {
+                id: sequence_id,
+                name: "Main".into(),
+                width: 1920,
+                height: 1080,
+                fps: 30.0,
+                tracks: vec![Track {
+                    id: track_id,
+                    name: "Text".into(),
+                    kind: TrackKind::Text,
+                    muted: false,
+                    locked: false,
+                    hidden: false,
+                    clips: Vec::new(),
+                }],
+                subtitle_segments: Vec::new(),
+                subtitle_style: SubtitleStyle::default(),
+                markers: Vec::new(),
+            }],
+        },
+        sequence_id,
+        track_id,
+    )
+}
+
+#[test]
+fn real_update_readiness_uses_saved_revision_and_active_job_categories() {
+    use editor_core::{
+        ClipId, EditCommand, EditRequest, ProjectRevision, RequestId, TextStyle, TimeUs,
+    };
+    use job_system::{JobKind, JobSpec};
+
+    let (project, sequence_id, track_id) = updater_fixture_project();
+    let project_id = project.id;
+    let mut projects =
+        crate::app::ProjectService::from_project(project, ProjectRevision::new(4)).unwrap();
+    assert!(!projects.is_dirty(), "freshly loaded project must be clean");
+
+    let first = EditRequest {
+        request_id: RequestId::new(),
+        expected_revision: ProjectRevision::new(4),
+        command: EditCommand::AddText {
+            sequence_id,
+            track_id,
+            clip_id: ClipId::new(),
+            timeline_start: TimeUs::new(0).unwrap(),
+            timeline_end: TimeUs::new(1_000_000).unwrap(),
+            text: "first edit".into(),
+            style: TextStyle::default(),
+        },
+    };
+    projects.execute_edit_command(first).unwrap();
+    assert!(
+        projects.is_dirty(),
+        "authoritative edit must mark project dirty"
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    projects.save(&dir.path().join("saved.vcut")).unwrap();
+    assert!(
+        !projects.is_dirty(),
+        "successful save must clear dirty state"
+    );
+
+    let second = EditRequest {
+        request_id: RequestId::new(),
+        expected_revision: ProjectRevision::new(5),
+        command: EditCommand::AddText {
+            sequence_id,
+            track_id,
+            clip_id: ClipId::new(),
+            timeline_start: TimeUs::new(1_000_000).unwrap(),
+            timeline_end: TimeUs::new(2_000_000).unwrap(),
+            text: "unsaved edit".into(),
+            style: TextStyle::default(),
+        },
+    };
+    projects.execute_edit_command(second).unwrap();
+    assert!(projects.is_dirty());
+
+    let jobs = crate::app::JobService::new();
+    for kind in [JobKind::Export, JobKind::Proxy, JobKind::Transcription] {
+        jobs.start_job(JobSpec {
+            kind,
+            request_id: RequestId::new(),
+            project_id,
+            sequence_id,
+            source_revision: ProjectRevision::new(6),
+            cancellable: true,
+        })
+        .unwrap();
+    }
+
+    let context = crate::update::shutdown_context_for_runtime(
+        projects.is_dirty(),
+        SaveState::Idle,
+        &jobs.snapshots().unwrap(),
+    );
+    assert!(context.dirty_project);
+    assert!(context.active_export);
+    assert_eq!(context.active_media_jobs, 1);
+    assert_eq!(context.active_ai_jobs, 1);
+    assert!(matches!(
+        evaluate_safe_shutdown(&context),
+        SafeShutdownDecision::Blocked(ref blockers)
+            if blockers.contains(&ShutdownBlocker::DirtyProject)
+                && blockers.contains(&ShutdownBlocker::ActiveExport)
+                && blockers.contains(&ShutdownBlocker::ActiveMediaJobs)
+                && blockers.contains(&ShutdownBlocker::ActiveAiJobs)
+    ));
 }

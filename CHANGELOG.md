@@ -30,6 +30,7 @@
 - Усилен fail-closed privacy boundary: diagnostics bundle принимает только managed `zeter-*.log`, неструктурированные строки полностью редактируются, а untyped frontend IPC/timeline failures не раскрывают raw exception text.
 - Реализован Task 18: Windows Tauri/NSIS packaging с current-user install, WebView2 bootstrap, managed FFmpeg/FFprobe/AI-worker sidecars и fail-closed startup runtime-manifest validation без PATH fallback.
 - Добавлен безопасный soft-update/release boundary: safe-shutdown blockers и defer, обязательные updater/Authenticode signing inputs, pinned FFmpeg checksum, version-coherence gate для package/Tauri/Cargo и immutable GitHub Release workflow; production signing остаётся NOT VERIFIED без реальных release secrets.
+- Подключён реальный пользовательский Tauri updater flow: отдельные check/download/install стадии, явный Later/defer, authoritative Rust safe-shutdown gate по dirty/saved revision и активным export/media/AI jobs, typed IPC и real WebView2 acceptance; production signed update installation остаётся NOT VERIFIED до реального подписанного release.
 
 - Реализован Task 19: real Tauri/WebView2 Playwright acceptance для полного MVP workflow — import/edit/save-reopen, deterministic local AI/Create Short, real H.264 export/cancel, crash recovery, media identity mismatch и explicit relink.
 - Усилен media-integrity/history boundary: project open fail-closed сверяет size + managed-FFprobe duration/resolution hints, explicit relink проходит через undoable `RelinkMedia`, а Inspector controls не создают дублирующие history entries после authoritative rerender.
@@ -38,5 +39,6 @@
 - Добавлен пользовательский export sanitized support bundle через обычный toolbar и реальный Tauri IPC: ZIP содержит только allowlisted managed logs, безопасные runtime identities и текущую job metadata, без project/media/transcript contents.
 
 ### Fixed
+- Устранена race-condition в real H.264 cancel acceptance: тест теперь сначала подтверждает появление in-flight partial artifact, затем отменяет export и boundedly ждёт удаления partial-файла background worker; production cancellation semantics не ослаблялись.
 - Устранён флаки Windows E2E для реального H.264 export: export acceptance теперь ждёт terminal job state до 90 секунд внутри отдельного 120-секундного test budget вместо слишком узкого 30-секундного poll timeout; сам export/cancel gate остаётся обязательным.
 - Нормализован накопившийся rustfmt drift в `media-engine` и `project-io`; Windows CI теперь запускает `cargo fmt --all -- --check` как обязательный mechanical quality gate перед build/test стадиями.

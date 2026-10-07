@@ -28,6 +28,19 @@ export type JobKind =
   | "ModelDownload";
 export type JobState = "Queued" | "Running" | "Completed" | "Failed" | "Cancelled";
 
+export type ShutdownBlocker =
+  | "DirtyProject"
+  | "SaveInProgress"
+  | "SaveFailed"
+  | "ActiveExport"
+  | "ActiveMediaJobs"
+  | "ActiveAiJobs";
+
+export interface UpdateInstallReadinessDto {
+  ready: boolean;
+  blockers: ShutdownBlocker[];
+}
+
 export interface Project {
   id: ProjectId;
   name: string;

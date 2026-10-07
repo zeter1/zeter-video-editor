@@ -13,11 +13,14 @@ use project_io::{RecoveryCandidate, RecoverySnapshot};
 use crate::{
     contracts::{CommandResultDto, ProjectSnapshotDto},
     error::AppError,
+    update::SaveState,
 };
 
 pub struct ProjectService {
     editor: Option<Editor>,
     project_path: Option<PathBuf>,
+    saved_revision: Option<ProjectRevision>,
+    save_state: SaveState,
 }
 
 impl ProjectService {
@@ -25,6 +28,8 @@ impl ProjectService {
         Self {
             editor: None,
             project_path: None,
+            saved_revision: None,
+            save_state: SaveState::Idle,
         }
     }
 
@@ -32,6 +37,8 @@ impl ProjectService {
         Ok(Self {
             editor: Some(Editor::from_revision(project, revision)?),
             project_path: None,
+            saved_revision: Some(revision),
+            save_state: SaveState::Idle,
         })
     }
 
@@ -99,26 +106,51 @@ impl ProjectService {
             return self.install_loaded_project(path, loaded.project, loaded.revision);
         };
 
-        let mut editor = Editor::from_revision(loaded.project, loaded.revision)?;
+        let saved_revision = loaded.revision;
+        let mut editor = Editor::from_revision(loaded.project, saved_revision)?;
         editor.execute(EditRequest {
             request_id: RequestId::new(),
-            expected_revision: loaded.revision,
+            expected_revision: saved_revision,
             command: EditCommand::RelinkMedia { media_id, media },
         })?;
         self.editor = Some(editor);
         self.project_path = Some(path.to_path_buf());
+        self.saved_revision = Some(saved_revision);
+        self.save_state = SaveState::Idle;
         self.snapshot()
     }
 
     pub fn save(&mut self, path: &Path) -> Result<ProjectSnapshotDto, AppError> {
         let snapshot = self.snapshot()?;
-        project_io::save_atomic(path, &snapshot.project, snapshot.revision)?;
-        self.project_path = Some(path.to_path_buf());
-        Ok(snapshot)
+        self.save_state = SaveState::Saving;
+        match project_io::save_atomic(path, &snapshot.project, snapshot.revision) {
+            Ok(_) => {
+                self.project_path = Some(path.to_path_buf());
+                self.saved_revision = Some(snapshot.revision);
+                self.save_state = SaveState::Idle;
+                Ok(snapshot)
+            }
+            Err(error) => {
+                self.save_state = SaveState::Failed;
+                Err(error.into())
+            }
+        }
     }
 
     pub fn current_path(&self) -> Option<&Path> {
         self.project_path.as_deref()
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        match (self.editor.as_ref(), self.saved_revision.as_ref()) {
+            (Some(editor), Some(saved_revision)) => editor.revision() != *saved_revision,
+            (Some(_), None) => true,
+            (None, _) => false,
+        }
+    }
+
+    pub fn save_state(&self) -> SaveState {
+        self.save_state
     }
 
     pub fn snapshot(&self) -> Result<ProjectSnapshotDto, AppError> {
@@ -182,6 +214,7 @@ impl ProjectService {
 
         self.editor = Some(Editor::from_revision(loaded.project, loaded.revision)?);
         self.project_path = Some(canonical_path.to_path_buf());
+        self.save_state = SaveState::Idle;
         self.snapshot()
     }
 
@@ -334,6 +367,8 @@ impl ProjectService {
         let editor = Editor::from_revision(project, revision)?;
         self.editor = Some(editor);
         self.project_path = Some(path.to_path_buf());
+        self.saved_revision = Some(revision);
+        self.save_state = SaveState::Idle;
         self.snapshot()
     }
 

@@ -67,6 +67,7 @@ fn main() {
             ipc::project_open_recovery,
             ipc::project_save,
             ipc::project_snapshot,
+            ipc::get_update_install_readiness,
             ipc::execute_edit_command,
             ipc::undo,
             ipc::redo,

@@ -11,6 +11,7 @@ import type {
   ProjectRevision,
   ProjectSnapshotDto,
   RequestId,
+  UpdateInstallReadinessDto,
 } from "../generated/ipc";
 import type { ProjectStore } from "../state/projectStore";
 
@@ -123,4 +124,18 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
   return client;
 }
 
+export interface UpdateSafetyClient {
+  getUpdateInstallReadiness(): Promise<UpdateInstallReadinessDto>;
+}
+
+export function createUpdateSafetyClient(
+  invokeFn: Invoke = invoke as Invoke,
+): UpdateSafetyClient {
+  return {
+    getUpdateInstallReadiness: () =>
+      call(invokeFn, "get_update_install_readiness"),
+  };
+}
+
 export const ipcClient = createIpcClient();
+export const updateSafetyClient = createUpdateSafetyClient();
