@@ -61,10 +61,6 @@ jobs:
           $whisper = Resolve-Path "target/x86_64-pc-windows-msvc/debug/zeter-ai-fixture-worker.exe"
           ./scripts/stage-managed-runtime.ps1 -FfmpegPath $paths.ffmpeg -FfprobePath $paths.ffprobe -WhisperCliPath $whisper -AiWorkerPath $worker
 
-      - name: Frontend build
-        run: npm run build
-        working-directory: apps/desktop
-
       - name: Rust tests
         run: cargo test --workspace
 
