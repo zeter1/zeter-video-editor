@@ -351,11 +351,18 @@ fn packaging_and_release_workflows_encode_fail_closed_windows_contract() {
     let stage_index = ci
         .find("Stage managed runtime for tests and bundle smoke")
         .expect("CI must stage managed sidecars before compiling the Tauri package");
+    let frontend_build_index = ci
+        .find("- name: Frontend build")
+        .expect("CI must build frontendDist for Tauri compile-time validation");
     let rust_tests_index = ci
         .find("- name: Rust tests")
         .expect("CI must retain the Rust workspace test gate");
     assert!(
         stage_index < rust_tests_index,
         "managed sidecars must exist before cargo test builds the Tauri package"
+    );
+    assert!(
+        frontend_build_index < rust_tests_index,
+        "frontendDist must exist before cargo test expands Tauri generate_context"
     );
 }

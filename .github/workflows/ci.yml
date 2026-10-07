@@ -42,6 +42,10 @@ jobs:
         run: npm ci
         working-directory: apps/desktop
 
+      - name: Frontend build
+        run: npm run build
+        working-directory: apps/desktop
+
       - name: Download and verify pinned FFmpeg runtime
         shell: pwsh
         run: ./scripts/fetch-ffmpeg-runtime.ps1 -Url $env:ZETER_CI_FFMPEG_ARCHIVE_URL -Sha256 $env:ZETER_CI_FFMPEG_ARCHIVE_SHA256 -OutputDir "$env:RUNNER_TEMP/ffmpeg-runtime"
@@ -57,15 +61,15 @@ jobs:
           $whisper = Resolve-Path "target/x86_64-pc-windows-msvc/debug/zeter-ai-fixture-worker.exe"
           ./scripts/stage-managed-runtime.ps1 -FfmpegPath $paths.ffmpeg -FfprobePath $paths.ffprobe -WhisperCliPath $whisper -AiWorkerPath $worker
 
+      - name: Frontend build
+        run: npm run build
+        working-directory: apps/desktop
+
       - name: Rust tests
         run: cargo test --workspace
 
       - name: Frontend tests
         run: npm test -- --run
-        working-directory: apps/desktop
-
-      - name: Frontend build
-        run: npm run build
         working-directory: apps/desktop
 
       - name: End-to-end MVP acceptance
