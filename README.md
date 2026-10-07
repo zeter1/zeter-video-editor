@@ -54,6 +54,6 @@ The editor combines a conventional multi-track timeline with local AI-assisted e
 - `AGENTS.md` — rules and architectural invariants for AI-assisted development
 - `docs/superpowers/WORKING-DESIGN.md` — chronological working record of approved brainstorming decisions
 - `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md` — approved consolidated final design specification
-- `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` — approved Superpowers MVP implementation plan; Native execution is active
+- `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` — approved Superpowers MVP implementation plan; Tasks 1–19 are implemented and integrated into `main`
 
-The final design specification and implementation plan are approved. Native execution is in progress task-by-task with TDD; `PROJECT_STATUS.md` is the source of truth for the current implementation checkpoint.
+The approved MVP implementation plan is complete and integrated into `main`. The project is now in post-MVP stabilization / release-readiness work; `PROJECT_STATUS.md` is the source of truth for the current checkpoint. New product or architectural scope requires a new Superpowers brainstorming/specification decision instead of silently extending the completed MVP plan.

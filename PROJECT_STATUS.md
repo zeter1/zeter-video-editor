@@ -4,7 +4,7 @@ Last updated: 2026-10-07
 
 ## Current phase
 
-Superpowers — **Native implementation execution**.
+Superpowers — **MVP integrated / post-MVP stabilization and release readiness**.
 
 The consolidated final design specification and detailed MVP implementation plan were explicitly approved by the user on 2026-10-06:
 
@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–19 are implemented and locally verified in the active implementation branch. Task 19 is the final planned MVP acceptance task; its implementation commit is `7a85857` (`test: verify complete mvp editing workflow`). The implementation plan is now complete. The next repository-level gate is remote branch/PR CI and integration review; production signing/tagged release remains a separate release operation and is not implied by MVP acceptance.
+Tasks 1–19 of the approved MVP implementation plan are implemented, verified, and integrated into `main`. Task 19 was the final planned MVP acceptance task; its implementation commit is `7a85857` (`test: verify complete mvp editing workflow`). PR #1 integrated the completed Native implementation, and PR #2 hardened the real export E2E timing boundary after a post-merge runner-speed failure. The implementation plan is complete; there is no next task inside that plan. Production signing/tagged release remains a separate release operation and is not implied by MVP acceptance.
 
 ## Approved decisions
 
@@ -155,16 +155,35 @@ Task 1 established:
 - read-only Windows CI for `main` pushes and pull requests
 - root `.gitignore` and `CHANGELOG.md`
 
-Active implementation branch:
-- `ai/native-mvp-20261006`
+Integration record:
+- MVP implementation branch: `ai/native-mvp-20261006`
+- PR #1 merge commit: `e76a58f2cf8ab51559daa7ff90d7b3b08077c58a`
+- export E2E timing hardening PR #2 merge commit: `5a4deb0a6eee58a1d941372dec382a58e0ca4dd2`
 
 ## Next step
 
-**Remote PR CI and integration review**
+**Post-MVP stabilization / release-readiness hardening inside the approved architecture**
 
-The approved Tasks 1–19 implementation plan is complete on `ai/native-mvp-20261006`. Open/update the PR into `main`, require the existing Windows CI workflow to pass (including the real Tauri/WebView2 acceptance suite and debug NSIS smoke), review any merge conflicts or remote-only failures, and do not merge until that remote gate is green.
+The approved Tasks 1–19 implementation plan is complete and integrated. Continue only with bounded engineering work that improves correctness, reliability, diagnostics, CI, packaging, maintainability, or release readiness without inventing new product scope.
 
-Production signing, updater signing, and a tagged GitHub Release remain separate release operations and are **NOT VERIFIED** without production secrets/certificates.
+Priorities:
+1. Keep exact-`main` CI green; classify any failure from logs before changing code or workflow.
+2. Address bounded technical debt where it provides real value (for example, existing repository-wide rustfmt drift and currently uninvoked desktop helper warnings) without mass suppression or unrelated refactoring.
+3. Keep production signing, updater signing, and tagged release work fail-closed until the real release secrets/certificate are available.
+4. Treat real whisper-model inference as **NOT VERIFIED** until an explicit model/speech fixture is available.
+5. Keep Windows platform face-analysis as **not implemented / NOT VERIFIED**; the verified MVP behavior is deterministic center fallback plus manual crop.
+6. For any new product feature or architecture outside the approved specification, start a new Superpowers brainstorming/specification decision instead of extending the completed MVP plan implicitly.
+
+### Integration verification — 2026-10-07
+
+- PR #1 head `ab7baa64447b3899c7963d1b734d32879a1bbad2`: Windows CI #67 — PASS, including Rust workspace, 23/23 Vitest files / 50 tests, 7/7 real Tauri/WebView2 E2E scenarios, and debug NSIS smoke.
+- PR #1 guarded merge produced `main` commit `e76a58f2cf8ab51559daa7ff90d7b3b08077c58a`.
+- Exact-`main` CI #68 exposed a timing-sensitive E2E harness failure: the real 1080p H.264 export was still `Running` at the test-only 30-second poll deadline. The merge and PR head had the same tree SHA, and the same export had passed on PR CI; this was classified as runner-speed test-harness debt, not a product regression.
+- PR #2 (`test: harden export E2E timing`) preserved the real export/cancel acceptance while giving that CPU-dependent export a bounded 90-second job wait inside a 120-second test budget. PR CI #69 — PASS, including 7/7 E2E and debug NSIS smoke.
+- PR #2 squash merge produced `main` commit `5a4deb0a6eee58a1d941372dec382a58e0ca4dd2`.
+- Exact-`main` CI #70 / run `37610261147` — PASS: Rust workspace, 23/23 Vitest files / 50 tests, 7/7 real Tauri/WebView2 E2E scenarios (real export/cancel included; export completed in 35.8s), and debug NSIS bundle smoke.
+
+Production updater signing, Windows Authenticode signing, real whisper-model inference, and Windows platform face-analysis are not promoted beyond their existing **NOT VERIFIED / not implemented** boundaries.
 
 ## Verification status
 
