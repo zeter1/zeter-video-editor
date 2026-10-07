@@ -13,19 +13,19 @@ pub mod thumbnail;
 pub mod transcription_audio;
 pub mod waveform;
 
-pub use capabilities::{detect_capabilities, EncoderCapabilities, MediaCapabilities};
-pub use encoder::{select_encoder, EncoderKind, EncoderSelection};
+pub use capabilities::{EncoderCapabilities, MediaCapabilities, detect_capabilities};
+pub use encoder::{EncoderKind, EncoderSelection, select_encoder};
 pub use error::MediaError;
 pub use export::{ExportJob, ExportReceipt, ExportRunner, ManagedExportRunner};
-pub use probe::{probe_media, AudioProbe, MediaProbe, VideoProbe};
+pub use probe::{AudioProbe, MediaProbe, VideoProbe, probe_media};
 pub use render_plan::{ExportContainer, ExportQuality, ExportSettings, RenderPlan, VideoCodec};
 pub use runtime::ManagedRuntime;
 
+#[cfg(test)]
+mod task15_tests;
 #[cfg(test)]
 mod task7_tests;
 #[cfg(test)]
 mod task8_tests;
 #[cfg(test)]
 mod task9_tests;
-#[cfg(test)]
-mod task15_tests;

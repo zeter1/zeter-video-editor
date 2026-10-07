@@ -3,8 +3,8 @@ use std::path::Path;
 use serde::Deserialize;
 
 use crate::{
-    process::{run, ProcessSpec},
     ManagedRuntime, MediaError,
+    process::{ProcessSpec, run},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -147,24 +147,15 @@ fn parse_frame_rate(value: Option<&str>) -> Result<Option<f64>, MediaError> {
     Ok(Some(parse_f64("stream.avg_frame_rate", value)?))
 }
 
-fn parse_optional_f64(
-    field: &'static str,
-    value: Option<&str>,
-) -> Result<Option<f64>, MediaError> {
+fn parse_optional_f64(field: &'static str, value: Option<&str>) -> Result<Option<f64>, MediaError> {
     value.map(|value| parse_f64(field, value)).transpose()
 }
 
-fn parse_optional_u64(
-    field: &'static str,
-    value: Option<&str>,
-) -> Result<Option<u64>, MediaError> {
+fn parse_optional_u64(field: &'static str, value: Option<&str>) -> Result<Option<u64>, MediaError> {
     value.map(|value| parse_u64(field, value)).transpose()
 }
 
-fn parse_optional_u32(
-    field: &'static str,
-    value: Option<&str>,
-) -> Result<Option<u32>, MediaError> {
+fn parse_optional_u32(field: &'static str, value: Option<&str>) -> Result<Option<u32>, MediaError> {
     value
         .map(|value| {
             value

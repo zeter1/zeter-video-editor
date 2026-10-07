@@ -34,9 +34,14 @@ jobs:
         shell: pwsh
         run: |
           rustup toolchain install 1.99.0 --profile minimal
+          rustup component add --toolchain 1.99.0 rustfmt
           rustup override set 1.99.0
           rustc --version
           cargo --version
+          rustfmt --version
+
+      - name: Rust format check
+        run: cargo fmt --all -- --check
 
       - name: Install frontend dependencies
         run: npm ci

@@ -19,10 +19,7 @@ pub fn cache_root(base_dir: &Path, project_id: ProjectId) -> PathBuf {
     base_dir.join("cache").join(project_id.get().to_string())
 }
 
-pub fn remove_project_cache(
-    base_dir: &Path,
-    project_id: ProjectId,
-) -> Result<(), ProjectIoError> {
+pub fn remove_project_cache(base_dir: &Path, project_id: ProjectId) -> Result<(), ProjectIoError> {
     let root = cache_root(base_dir, project_id);
     if root.exists() {
         std::fs::remove_dir_all(root)?;

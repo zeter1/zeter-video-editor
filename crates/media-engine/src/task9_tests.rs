@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     EncoderCapabilities, ManagedRuntime, MediaCapabilities, MediaError,
     encoder::EncoderKind,
-    export::{build_export_spec, ExportJob, ExportRunner},
+    export::{ExportJob, ExportRunner, build_export_spec},
     process::{ProcessOutput, ProcessSpec},
     render_plan::{ExportContainer, ExportQuality, ExportSettings, RenderPlan, VideoCodec},
 };
@@ -225,7 +225,6 @@ fn export_refuses_to_replace_any_source_media_path() {
     assert!(attempts.lock().unwrap().is_empty());
     assert_eq!(fs::read(&source).unwrap(), b"original-source");
 }
-
 
 fn time(value: i64) -> TimeUs {
     TimeUs::new(value).expect("task9 semantic time")

@@ -4,15 +4,12 @@ use crate::{
     capabilities::parse_encoder_listing,
     error::MediaError,
     probe::{build_probe_spec, parse_ffprobe_json},
-    process::{status_error, ProcessSpec},
+    process::{ProcessSpec, status_error},
     runtime::ManagedRuntime,
 };
 
 fn managed_runtime() -> ManagedRuntime {
-    ManagedRuntime::from_dir(
-        PathBuf::from(r"C:\Zeter\runtime"),
-        "ffmpeg-7.1-zeter-test",
-    )
+    ManagedRuntime::from_dir(PathBuf::from(r"C:\Zeter\runtime"), "ffmpeg-7.1-zeter-test")
 }
 
 fn args_as_strings(spec: &ProcessSpec) -> Vec<String> {
@@ -50,7 +47,10 @@ fn probe_parser_extracts_video_audio_duration_rate_and_bitrate() {
     let probe = parse_ffprobe_json(include_str!("../tests/fixtures/ffprobe_mp4.json"))
         .expect("captured ffprobe JSON should parse");
 
-    assert_eq!(probe.format_name.as_deref(), Some("mov,mp4,m4a,3gp,3g2,mj2"));
+    assert_eq!(
+        probe.format_name.as_deref(),
+        Some("mov,mp4,m4a,3gp,3g2,mj2")
+    );
     assert!((probe.duration_seconds.expect("duration") - 12.345).abs() < 0.000_001);
     assert_eq!(probe.bit_rate, Some(8_250_000));
 

@@ -8,7 +8,7 @@ use tempfile::tempdir;
 
 use crate::{
     cache_key::{
-        preview_cache_key, source_cache_key, CacheArtifactKind, PreviewQuality, PreviewRange,
+        CacheArtifactKind, PreviewQuality, PreviewRange, preview_cache_key, source_cache_key,
     },
     preview_cache::lookup_preview_cache,
     proxy::{build_proxy_spec, lookup_proxy},
@@ -40,10 +40,7 @@ fn job_context(revision: u64) -> JobContext {
 }
 
 fn runtime() -> ManagedRuntime {
-    ManagedRuntime::from_dir(
-        PathBuf::from(r"C:\Zeter\runtime"),
-        "ffmpeg-7.1-zeter-test",
-    )
+    ManagedRuntime::from_dir(PathBuf::from(r"C:\Zeter\runtime"), "ffmpeg-7.1-zeter-test")
 }
 
 fn mp4_fixture() -> Vec<u8> {

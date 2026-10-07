@@ -14,7 +14,7 @@ pub fn lookup_preview_cache(path: &Path) -> Result<Option<PathBuf>, MediaError> 
             return Err(MediaError::CacheIo {
                 path: path.to_path_buf(),
                 source,
-            })
+            });
         }
     };
 
