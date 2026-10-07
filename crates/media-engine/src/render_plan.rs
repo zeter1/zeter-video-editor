@@ -1,6 +1,6 @@
 use editor_core::{
     MediaRef, ProjectId, ProjectRevision, RenderAudio, RenderClip, RenderSnapshot, RenderSubtitle,
-    RenderText, RenderTransition, SequenceId,
+    RenderText, RenderTransition, SequenceId, SubtitleStyle,
 };
 
 use crate::MediaError;
@@ -101,6 +101,7 @@ pub struct RenderPlan {
     pub clips: Vec<RenderClip>,
     pub texts: Vec<RenderText>,
     pub subtitles: Vec<RenderSubtitle>,
+    pub subtitle_style: SubtitleStyle,
     pub audio: Vec<RenderAudio>,
     pub transitions: Vec<RenderTransition>,
 }
@@ -132,6 +133,7 @@ impl RenderPlan {
             clips: snapshot.clips.clone(),
             texts: snapshot.texts.clone(),
             subtitles: snapshot.subtitles.clone(),
+            subtitle_style: snapshot.subtitle_style.clone(),
             audio: snapshot.audio.clone(),
             transitions: snapshot.transitions.clone(),
         })

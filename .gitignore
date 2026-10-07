@@ -9,3 +9,7 @@
 /apps/desktop/src-tauri/gen/schemas/
 /apps/desktop/src-tauri/binaries/
 /release/tauri.release.generated.json
+
+# Playwright acceptance artifacts
+/apps/desktop/test-results/
+/apps/desktop/playwright-report/

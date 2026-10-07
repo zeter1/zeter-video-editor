@@ -22,6 +22,7 @@ describe("ErrorDialog", () => {
   it.each([
     ["Media", "encoder_init", "Retry with CPU encoding", "cpu-export"],
     ["Project", "missing_media", "Relink media", "relink-media"],
+    ["Project", "media_identity_mismatch", "Relink media", "relink-media"],
     ["AiModel", "model_unavailable", "Install model", "install-model"],
     ["Filesystem", "save_failed", "Save elsewhere", "save-elsewhere"],
   ] as const)(

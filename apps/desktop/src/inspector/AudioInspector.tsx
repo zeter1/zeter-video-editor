@@ -22,11 +22,12 @@ export function AudioInspector({
   normalizeGainDb = null,
 }: AudioInspectorProps) {
   const [draft, setDraft] = useState<AudioState>(clip.audio);
-  const lastSubmitted = useRef<string | null>(null);
+  const lastSubmitted = useRef<string | null>(JSON.stringify(clip.audio));
 
   useEffect(() => {
-    setDraft(clip.audio);
-    lastSubmitted.current = null;
+    const authoritative = clip.audio;
+    setDraft(authoritative);
+    lastSubmitted.current = JSON.stringify(authoritative);
   }, [clip]);
 
   function update(patch: Partial<AudioState>): AudioState {
@@ -53,7 +54,7 @@ export function AudioInspector({
 
     if (!accepted) {
       setDraft(clip.audio);
-      lastSubmitted.current = null;
+      lastSubmitted.current = JSON.stringify(clip.audio);
     }
   }
 

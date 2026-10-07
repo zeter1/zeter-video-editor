@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::{DomainError, Project};
+use crate::{ClipKind, DomainError, Project};
 
 impl Project {
     pub fn validate(&self) -> Result<(), DomainError> {
@@ -66,7 +66,8 @@ impl Project {
                             },
                         )?;
 
-                        if let Some(duration) = media.duration
+                        if matches!(clip.kind, ClipKind::Video | ClipKind::Audio)
+                            && let Some(duration) = media.duration
                             && clip.source_out > duration
                         {
                             return Err(DomainError::InvalidSourceRange { clip_id: clip.id });
@@ -237,6 +238,21 @@ mod tests {
         project.sequences[0].tracks[0].clips[0].source_out = time(20_000_001);
 
         assert!(project.validate().is_err());
+    }
+
+    #[test]
+    fn still_image_source_range_is_not_limited_by_probe_duration() {
+        let mut project = valid_project();
+        project.media[0].duration = Some(time(40_000));
+        let clip = &mut project.sequences[0].tracks[0].clips[0];
+        clip.kind = ClipKind::Image;
+        clip.source_out = time(2_000_000);
+        clip.timeline_end = time(2_000_000);
+
+        assert!(
+            project.validate().is_ok(),
+            "still images may be held on the timeline beyond FFprobe's single-frame duration"
+        );
     }
 
     #[test]

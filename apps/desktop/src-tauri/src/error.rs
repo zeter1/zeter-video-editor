@@ -1,4 +1,4 @@
-use editor_core::{DomainError, JobId, ProjectRevision, RequestId};
+use editor_core::{DomainError, JobId, MediaId, ProjectRevision, RequestId};
 use job_system::{JobError, JobKind, JobState};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -38,6 +38,21 @@ pub enum AppError {
 
     #[error("project I/O error: {0}")]
     ProjectIo(#[from] project_io::ProjectIoError),
+
+    #[error("media error: {0}")]
+    Media(#[from] media_engine::MediaError),
+
+    #[error("media filesystem error: {0}")]
+    MediaFilesystem(String),
+
+    #[error("source media is missing for {media_id:?}")]
+    MissingMedia { media_id: MediaId },
+
+    #[error("source media identity changed for {media_id:?}: {detail}")]
+    MediaIdentityMismatch { media_id: MediaId, detail: String },
+
+    #[error("invalid media metadata: {0}")]
+    InvalidMediaMetadata(&'static str),
 
     #[error("job error: {0}")]
     Job(#[from] JobError),
@@ -165,6 +180,51 @@ impl AppError {
                     project_io_detail(error),
                     "project-io",
                     "project_persistence",
+                ),
+                Self::Media(error) => (
+                    ErrorCategory::Media,
+                    "media_probe",
+                    "The media file could not be inspected.",
+                    true,
+                    error.to_string(),
+                    "media-engine",
+                    "probe_media",
+                ),
+                Self::MediaFilesystem(detail) => (
+                    ErrorCategory::Filesystem,
+                    "media_filesystem",
+                    "The media file could not be read.",
+                    true,
+                    detail.clone(),
+                    "application",
+                    "import_media",
+                ),
+                Self::MissingMedia { media_id } => (
+                    ErrorCategory::Project,
+                    "missing_media",
+                    "A source media file used by this project is missing.",
+                    true,
+                    format!("missing media id {}", media_id.get()),
+                    "application",
+                    "project_open",
+                ),
+                Self::MediaIdentityMismatch { media_id, detail } => (
+                    ErrorCategory::Project,
+                    "media_identity_mismatch",
+                    "A source file no longer matches the media used by this project.",
+                    true,
+                    format!("media id {} identity mismatch: {detail}", media_id.get()),
+                    "application",
+                    "project_open",
+                ),
+                Self::InvalidMediaMetadata(detail) => (
+                    ErrorCategory::Media,
+                    "invalid_media_metadata",
+                    "The media file reported invalid metadata.",
+                    false,
+                    (*detail).into(),
+                    "media-engine",
+                    "probe_media",
                 ),
                 Self::Job(error) => (
                     ErrorCategory::Job,

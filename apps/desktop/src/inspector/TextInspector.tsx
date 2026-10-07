@@ -20,11 +20,14 @@ export function TextInspector({
   onCommit,
 }: TextInspectorProps) {
   const [draft, setDraft] = useState<TextStyle | null>(clip.text?.style ?? null);
-  const lastSubmitted = useRef<string | null>(null);
+  const lastSubmitted = useRef<string | null>(
+    JSON.stringify(clip.text?.style ?? null),
+  );
 
   useEffect(() => {
-    setDraft(clip.text?.style ?? null);
-    lastSubmitted.current = null;
+    const authoritative = clip.text?.style ?? null;
+    setDraft(authoritative);
+    lastSubmitted.current = JSON.stringify(authoritative);
   }, [clip]);
 
   if (!draft || !clip.text) {
@@ -60,8 +63,9 @@ export function TextInspector({
     });
 
     if (!accepted) {
-      setDraft(clip.text?.style ?? null);
-      lastSubmitted.current = null;
+      const authoritative = clip.text?.style ?? null;
+      setDraft(authoritative);
+      lastSubmitted.current = JSON.stringify(authoritative);
     }
   }
 

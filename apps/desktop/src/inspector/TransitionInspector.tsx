@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   Clip,
@@ -38,16 +38,32 @@ export function TransitionInspector({
   const confirmedKind = clip.transition?.kind ?? "CrossDissolve";
   const [duration, setDuration] = useState(confirmedDuration);
   const [kind, setKind] = useState<TransitionKind>(confirmedKind);
+  const lastSubmitted = useRef(
+    JSON.stringify({ kind: confirmedKind, duration: confirmedDuration }),
+  );
 
   useEffect(() => {
     setDuration(confirmedDuration);
     setKind(confirmedKind);
+    lastSubmitted.current = JSON.stringify({
+      kind: confirmedKind,
+      duration: confirmedDuration,
+    });
   }, [clip, confirmedDuration, confirmedKind]);
 
   async function commit(
     nextKind: TransitionKind = kind,
     nextDuration = duration,
   ): Promise<void> {
+    const fingerprint = JSON.stringify({
+      kind: nextKind,
+      duration: nextDuration,
+    });
+    if (lastSubmitted.current === fingerprint) {
+      return;
+    }
+    lastSubmitted.current = fingerprint;
+
     const accepted = await requestEditCommit(onCommit, {
       AddTransition: {
         sequence_id: sequenceId,
@@ -59,6 +75,10 @@ export function TransitionInspector({
     if (!accepted) {
       setKind(confirmedKind);
       setDuration(confirmedDuration);
+      lastSubmitted.current = JSON.stringify({
+        kind: confirmedKind,
+        duration: confirmedDuration,
+      });
     }
   }
 

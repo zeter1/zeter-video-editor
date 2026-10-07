@@ -2,9 +2,10 @@ import type { MediaRef } from "../generated/ipc";
 
 interface LeftPanelProps {
   media: MediaRef[];
+  onImport?: () => void;
 }
 
-export function LeftPanel({ media }: LeftPanelProps) {
+export function LeftPanel({ media, onImport }: LeftPanelProps) {
   return (
     <aside className="left-panel panel" role="region" aria-label="Media and tools" data-testid="left-panel">
       <div className="panel-heading">
@@ -12,7 +13,7 @@ export function LeftPanel({ media }: LeftPanelProps) {
         <span className="count-badge">{media.length}</span>
       </div>
       <div className="tool-grid" aria-label="Editing tools">
-        <button type="button">Import</button>
+        <button type="button" onClick={onImport}>Import</button>
         <button type="button">Text</button>
         <button type="button">Subtitles</button>
         <button type="button">AI tools</button>

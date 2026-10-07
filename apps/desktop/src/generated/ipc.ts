@@ -178,6 +178,7 @@ export type ChangedEntity =
 
 export type EditCommand =
   | { ImportMedia: { media: MediaRef } }
+  | { RelinkMedia: { media_id: MediaId; media: MediaRef } }
   | { AddSequence: { sequence: Sequence; index: number | null } }
   | { AddClip: { sequence_id: SequenceId; track_id: TrackId; clip: Clip } }
   | { DeleteClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId } }

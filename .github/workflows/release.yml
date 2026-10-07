@@ -96,6 +96,10 @@ jobs:
           ZETER_FFMPEG_ARCHIVE_SHA256: ${{ vars.ZETER_FFMPEG_ARCHIVE_SHA256 }}
         run: ./scripts/fetch-ffmpeg-runtime.ps1 -Url $env:ZETER_FFMPEG_ARCHIVE_URL -Sha256 $env:ZETER_FFMPEG_ARCHIVE_SHA256 -OutputDir "$env:RUNNER_TEMP/ffmpeg-runtime"
 
+      - name: Build pinned whisper.cpp runtime
+        shell: pwsh
+        run: ./scripts/build-whisper-runtime.ps1 -OutputDir "$env:RUNNER_TEMP/whisper-runtime"
+
       - name: Build release AI worker
         run: cargo build -p zeter-ai-worker --release
 
@@ -107,14 +111,17 @@ jobs:
           $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
           $manifestPath = "release/runtime-manifest.json"
           $manifest = Get-Content $manifestPath | ConvertFrom-Json
+          $whisper = Get-Content "$env:RUNNER_TEMP/whisper-runtime/paths.json" | ConvertFrom-Json
           $ffmpegVersion = (& $paths.ffmpeg -version | Select-Object -First 1)
           $ffprobeVersion = (& $paths.ffprobe -version | Select-Object -First 1)
+          $whisperVersion = (& $whisper.whisper_cli --version 2>&1 | Out-String)
           if (-not $ffmpegVersion.Contains($manifest.ffmpeg.version_contains)) { throw "Pinned FFmpeg archive does not match runtime-manifest.json." }
           if (-not $ffprobeVersion.Contains($manifest.ffprobe.version_contains)) { throw "Pinned FFprobe archive does not match runtime-manifest.json." }
+          if (-not $whisperVersion.Contains($manifest.whisper_cli.version_contains)) { throw "Pinned whisper.cpp runtime does not match runtime-manifest.json." }
           $manifest.app.version = $env:RELEASE_VERSION
           $manifest.app.build = $env:GITHUB_SHA
           $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding utf8
-          ./scripts/stage-managed-runtime.ps1 -FfmpegPath $paths.ffmpeg -FfprobePath $paths.ffprobe -AiWorkerPath "target/x86_64-pc-windows-msvc/release/zeter-ai-worker.exe"
+          ./scripts/stage-managed-runtime.ps1 -FfmpegPath $paths.ffmpeg -FfprobePath $paths.ffprobe -WhisperCliPath $whisper.whisper_cli -AiWorkerPath "target/x86_64-pc-windows-msvc/release/zeter-ai-worker.exe"
 
       - name: Import Windows signing certificate and prepare release config
         shell: pwsh

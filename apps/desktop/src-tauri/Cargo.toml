@@ -8,6 +8,7 @@ rust-version.workspace = true
 ai-engine = { path = "../../../crates/ai-engine" }
 editor-core = { path = "../../../crates/editor-core" }
 job-system = { path = "../../../crates/job-system" }
+media-engine = { path = "../../../crates/media-engine" }
 project-io = { path = "../../../crates/project-io" }
 serde.workspace = true
 serde_json = "1.0"

@@ -15,7 +15,10 @@ export function recoveryChoices(error: AppErrorDto): RecoveryChoice[] {
   if (error.category === "Media" && error.code === "encoder_init") {
     return [{ action: "cpu-export", label: "Retry with CPU encoding" }];
   }
-  if (error.category === "Project" && error.code === "missing_media") {
+  if (
+    error.category === "Project" &&
+    (error.code === "missing_media" || error.code === "media_identity_mismatch")
+  ) {
     return [{ action: "relink-media", label: "Relink media" }];
   }
   if (error.category === "AiModel" && error.code === "model_unavailable") {

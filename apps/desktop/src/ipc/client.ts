@@ -16,6 +16,10 @@ import type { ProjectStore } from "../state/projectStore";
 
 export interface IpcClient {
   projectOpen(path: string): Promise<ProjectSnapshotDto>;
+  projectOpenWithRelink(
+    path: string,
+    replacementPath: string,
+  ): Promise<ProjectSnapshotDto>;
   projectSave(path: string): Promise<ProjectSnapshotDto>;
   projectSnapshot(): Promise<ProjectSnapshotDto>;
   executeEditCommand(request: EditRequest): Promise<CommandResultDto>;
@@ -25,6 +29,11 @@ export interface IpcClient {
     requestId: RequestId,
     expectedRevision: ProjectRevision,
     media: MediaRef,
+  ): Promise<CommandResultDto>;
+  importMediaPath(
+    requestId: RequestId,
+    expectedRevision: ProjectRevision,
+    path: string,
   ): Promise<CommandResultDto>;
   startJob(spec: JobSpec): Promise<JobEventDto>;
   cancelJob(jobId: JobId): Promise<JobEventDto>;
@@ -77,6 +86,8 @@ async function call<T>(
 export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient {
   const client: IpcClient = {
     projectOpen: (path) => call(invokeFn, "project_open", { path }),
+    projectOpenWithRelink: (path, replacementPath) =>
+      call(invokeFn, "project_open_with_relink", { path, replacementPath }),
     projectSave: (path) => call(invokeFn, "project_save", { path }),
     projectSnapshot: () => call(invokeFn, "project_snapshot"),
     executeEditCommand: (request) =>
@@ -88,6 +99,12 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
         requestId,
         expectedRevision,
         media,
+      }),
+    importMediaPath: (requestId, expectedRevision, path) =>
+      call(invokeFn, "import_media_path", {
+        requestId,
+        expectedRevision,
+        path,
       }),
     startJob: (spec) => call(invokeFn, "start_job", { spec }),
     cancelJob: (jobId) => call(invokeFn, "cancel_job", { jobId }),

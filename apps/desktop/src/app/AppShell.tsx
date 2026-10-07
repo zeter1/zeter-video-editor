@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 
 import { InspectorPanel } from "../components/InspectorPanel";
+import { ErrorDialog } from "../errors/ErrorDialog";
+import type { RecoveryAction } from "../errors/actions";
 import { JobStatus } from "../components/JobStatus";
 import { LeftPanel } from "../components/LeftPanel";
 import { PreviewPanel } from "../components/PreviewPanel";
 import { TimelinePanel } from "../components/TimelinePanel";
 import { TopToolbar } from "../components/TopToolbar";
 import type {
+  AppErrorDto,
   Clip,
   EditCommand,
   RequestId,
@@ -44,6 +47,22 @@ function requestId(): RequestId {
   return crypto.randomUUID();
 }
 
+function appError(error: unknown): AppErrorDto | null {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "category" in error &&
+    "code" in error &&
+    "message" in error &&
+    "technical_detail" in error &&
+    "component" in error &&
+    "operation" in error
+  ) {
+    return error as AppErrorDto;
+  }
+  return null;
+}
+
 interface SelectedClipContext {
   clip: Clip;
   trackId: TrackId;
@@ -75,6 +94,8 @@ export function AppShell({
   const projectState = useProjectStore(projectStore);
   const transient = useTransientStore(transientStore);
   const [projectPath, setProjectPath] = useState<string | null>(null);
+  const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<AppErrorDto | null>(null);
 
   const project = projectState.snapshot?.project ?? null;
   const activeSequence = project?.sequences[0] ?? null;
@@ -136,9 +157,78 @@ export function AppShell({
       projectStore.applySnapshot(await client.projectOpen(path));
       transientStore.reset();
       setProjectPath(path);
+      setPendingOpenPath(null);
+      setOpenError(null);
+    } catch (error) {
+      const typed = appError(error);
+      const canRelink =
+        typed?.category === "Project" &&
+        (typed.code === "missing_media" ||
+          typed.code === "media_identity_mismatch");
+      if (canRelink && typed) {
+        setPendingOpenPath(path);
+        setOpenError(typed);
+        projectStore.setError(typed.message);
+      } else {
+        projectStore.setError(
+          typed?.message ??
+            (error instanceof Error ? error.message : "Project open failed."),
+        );
+      }
+    }
+  }
+
+  async function handleOpenRecoveryAction(action: RecoveryAction): Promise<void> {
+    if (action !== "relink-media" || !pendingOpenPath) {
+      return;
+    }
+    const replacementPath = window.prompt("Relink source media path");
+    if (!replacementPath) {
+      return;
+    }
+
+    try {
+      const snapshot = await client.projectOpenWithRelink(
+        pendingOpenPath,
+        replacementPath,
+      );
+      projectStore.applySnapshot(snapshot);
+      transientStore.reset();
+      setProjectPath(pendingOpenPath);
+      setPendingOpenPath(null);
+      setOpenError(null);
+    } catch (error) {
+      const typed = appError(error);
+      if (typed) {
+        setOpenError(typed);
+        projectStore.setError(typed.message);
+      } else {
+        projectStore.setError(
+          error instanceof Error ? error.message : "Media relink failed.",
+        );
+      }
+    }
+  }
+
+
+  async function handleImport(): Promise<void> {
+    const revision = projectStore.getState().revision;
+    if (revision === null) {
+      projectStore.setError("Open a project before importing media.");
+      return;
+    }
+
+    const path = window.prompt("Import media path");
+    if (!path) {
+      return;
+    }
+
+    try {
+      const result = await client.importMediaPath(requestId(), revision, path);
+      await client.reconcileCommandResult(projectStore, result);
     } catch (error) {
       projectStore.setError(
-        error instanceof Error ? error.message : "Project open failed.",
+        error instanceof Error ? error.message : "Media import failed.",
       );
     }
   }
@@ -197,7 +287,10 @@ export function AppShell({
       />
 
       <div className="workspace-grid">
-        <LeftPanel media={project?.media ?? []} />
+        <LeftPanel
+          media={project?.media ?? []}
+          onImport={() => void handleImport()}
+        />
         <PreviewPanel
           sequence={activeSequence}
           selectedClip={selectedClip}
@@ -224,7 +317,16 @@ export function AppShell({
 
       <JobStatus />
 
-      {projectState.errorMessage ? (
+      {openError ? (
+        <ErrorDialog
+          error={openError}
+          onAction={(action) => void handleOpenRecoveryAction(action)}
+          onDismiss={() => {
+            setOpenError(null);
+            setPendingOpenPath(null);
+          }}
+        />
+      ) : projectState.errorMessage ? (
         <div className="error-banner" role="alert">
           {projectState.errorMessage}
         </div>

@@ -145,12 +145,14 @@ describe("AppShell edit gateway", () => {
     const reconcileCommandResult = vi.fn().mockResolvedValue("refreshed");
     const client = {
       projectOpen: vi.fn(),
+      projectOpenWithRelink: vi.fn(),
       projectSave: vi.fn(),
       projectSnapshot: vi.fn(),
       executeEditCommand,
       undo: vi.fn(),
       redo: vi.fn(),
       importMedia: vi.fn(),
+      importMediaPath: vi.fn(),
       startJob: vi.fn(),
       cancelJob: vi.fn(),
       getJobState: vi.fn(),
@@ -192,5 +194,81 @@ describe("AppShell edit gateway", () => {
       },
     });
     expect(reconcileCommandResult).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("AppShell missing-media recovery", () => {
+  it("offers explicit relink and reopens only after the verified replacement succeeds", async () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const snapshot = {
+      revision: 3,
+      project: {
+        id: "project-relinked",
+        name: "Relinked",
+        settings: {
+          default_sequence_width: 1920,
+          default_sequence_height: 1080,
+          default_sequence_fps: 30,
+        },
+        media: [],
+        sequences: [],
+      },
+    };
+    const projectOpen = vi.fn().mockRejectedValue({
+      category: "Project",
+      code: "missing_media",
+      message: "A source media file used by this project is missing.",
+      retryable: true,
+      technical_detail: "missing media id fixture",
+      component: "application",
+      operation: "project_open",
+      request_id: null,
+      job_id: null,
+    });
+    const projectOpenWithRelink = vi.fn().mockResolvedValue(snapshot);
+    const client = {
+      projectOpen,
+      projectOpenWithRelink,
+      projectSave: vi.fn(),
+      projectSnapshot: vi.fn(),
+      executeEditCommand: vi.fn(),
+      undo: vi.fn(),
+      redo: vi.fn(),
+      importMedia: vi.fn(),
+      importMediaPath: vi.fn(),
+      startJob: vi.fn(),
+      cancelJob: vi.fn(),
+      getJobState: vi.fn(),
+      reconcileCommandResult: vi.fn(),
+    };
+    vi.spyOn(window, "prompt")
+      .mockReturnValueOnce("C:\\projects\\missing.vcut")
+      .mockReturnValueOnce("D:\\media\\replacement.mp4");
+
+    render(
+      <AppShell
+        client={client}
+        projectStore={projectStore}
+        transientStore={transientStore}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open project" }));
+
+    const relink = await screen.findByRole("button", { name: "Relink media" });
+    fireEvent.click(relink);
+
+    await vi.waitFor(() =>
+      expect(projectOpenWithRelink).toHaveBeenCalledWith(
+        "C:\\projects\\missing.vcut",
+        "D:\\media\\replacement.mp4",
+      ),
+    );
+    expect(projectStore.getState().snapshot).toEqual(snapshot);
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Relink media" })).toBeNull(),
+    );
   });
 });

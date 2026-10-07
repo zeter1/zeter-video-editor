@@ -41,11 +41,12 @@ export function ColorInspector({
   onCommit,
 }: ColorInspectorProps) {
   const [draft, setDraft] = useState<ColorAdjustments>(clip.color);
-  const lastSubmitted = useRef<string | null>(null);
+  const lastSubmitted = useRef<string | null>(JSON.stringify(clip.color));
 
   useEffect(() => {
-    setDraft(clip.color);
-    lastSubmitted.current = null;
+    const authoritative = clip.color;
+    setDraft(authoritative);
+    lastSubmitted.current = JSON.stringify(authoritative);
   }, [clip]);
 
   async function commit(): Promise<void> {
@@ -66,7 +67,7 @@ export function ColorInspector({
 
     if (!accepted) {
       setDraft(clip.color);
-      lastSubmitted.current = null;
+      lastSubmitted.current = JSON.stringify(clip.color);
     }
   }
 

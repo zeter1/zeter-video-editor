@@ -4,6 +4,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$FfprobePath,
     [Parameter(Mandatory = $true)]
+    [string]$WhisperCliPath,
+    [Parameter(Mandatory = $true)]
     [string]$AiWorkerPath,
     [string]$TargetTriple = "x86_64-pc-windows-msvc"
 )
@@ -13,6 +15,7 @@ $ErrorActionPreference = "Stop"
 $inputs = @{
     "ffmpeg" = (Resolve-Path -LiteralPath $FfmpegPath).Path
     "ffprobe" = (Resolve-Path -LiteralPath $FfprobePath).Path
+    "whisper-cli" = (Resolve-Path -LiteralPath $WhisperCliPath).Path
     "zeter-ai-worker" = (Resolve-Path -LiteralPath $AiWorkerPath).Path
 }
 

@@ -14,6 +14,7 @@ pub struct RuntimeManifest {
     pub app: AppRuntimeManifest,
     pub ffmpeg: ExecutableRuntimeManifest,
     pub ffprobe: ExecutableRuntimeManifest,
+    pub whisper_cli: ExecutableRuntimeManifest,
     pub ai_worker: AiWorkerRuntimeManifest,
     pub models: ModelRuntimeManifest,
 }
@@ -58,6 +59,7 @@ pub struct WorkerRuntimeIdentity {
 pub struct ValidatedRuntime {
     pub ffmpeg_path: PathBuf,
     pub ffprobe_path: PathBuf,
+    pub whisper_cli_path: PathBuf,
     pub ai_worker_path: PathBuf,
     pub manifest: RuntimeManifest,
 }
@@ -88,6 +90,10 @@ pub enum RuntimeValidationError {
 
 pub trait RuntimeProbe {
     fn version_line(&mut self, path: &Path) -> Result<String, RuntimeValidationError>;
+
+    fn whisper_version_line(&mut self, path: &Path) -> Result<String, RuntimeValidationError> {
+        self.version_line(path)
+    }
 
     fn worker_identity(
         &mut self,
@@ -125,6 +131,37 @@ impl RuntimeProbe for ProcessRuntimeProbe {
         stdout.lines().next().map(str::to_owned).ok_or_else(|| {
             RuntimeValidationError::ProbeFailed {
                 component: component_from_path(path),
+                detail: "version output was empty".into(),
+            }
+        })
+    }
+
+    fn whisper_version_line(&mut self, path: &Path) -> Result<String, RuntimeValidationError> {
+        if !path.is_file() {
+            return Err(RuntimeValidationError::MissingComponent {
+                component: "whisper_cli".into(),
+                path: path.to_path_buf(),
+            });
+        }
+
+        let output = Command::new(path)
+            .arg("--version")
+            .output()
+            .map_err(|error| RuntimeValidationError::ProbeFailed {
+                component: "whisper_cli".into(),
+                detail: error.to_string(),
+            })?;
+        if !output.status.success() {
+            return Err(RuntimeValidationError::ProbeFailed {
+                component: "whisper_cli".into(),
+                detail: format!("exit status {}", output.status),
+            });
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        stdout.lines().next().map(str::to_owned).ok_or_else(|| {
+            RuntimeValidationError::ProbeFailed {
+                component: "whisper_cli".into(),
                 detail: "version output was empty".into(),
             }
         })
@@ -197,6 +234,7 @@ pub fn validate_runtime(
 
     let ffmpeg_path = root.join(&manifest.ffmpeg.file);
     let ffprobe_path = root.join(&manifest.ffprobe.file);
+    let whisper_cli_path = root.join(&manifest.whisper_cli.file);
     let ai_worker_path = root.join(&manifest.ai_worker.file);
 
     let ffmpeg_version = probe.version_line(&ffmpeg_path)?;
@@ -207,6 +245,13 @@ pub fn validate_runtime(
         "ffprobe",
         &manifest.ffprobe.version_contains,
         &ffprobe_version,
+    )?;
+
+    let whisper_version = probe.whisper_version_line(&whisper_cli_path)?;
+    ensure_version(
+        "whisper_cli",
+        &manifest.whisper_cli.version_contains,
+        &whisper_version,
     )?;
 
     let worker = probe.worker_identity(&ai_worker_path)?;
@@ -227,6 +272,7 @@ pub fn validate_runtime(
     Ok(ValidatedRuntime {
         ffmpeg_path,
         ffprobe_path,
+        whisper_cli_path,
         ai_worker_path,
         manifest: manifest.clone(),
     })
@@ -262,6 +308,7 @@ fn validate_manifest_shape(manifest: &RuntimeManifest) -> Result<(), RuntimeVali
     for (name, file) in [
         ("ffmpeg", manifest.ffmpeg.file.as_str()),
         ("ffprobe", manifest.ffprobe.file.as_str()),
+        ("whisper_cli", manifest.whisper_cli.file.as_str()),
         ("ai_worker", manifest.ai_worker.file.as_str()),
     ] {
         let path = Path::new(file);

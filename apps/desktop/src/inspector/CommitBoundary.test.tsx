@@ -36,6 +36,38 @@ describe("inspector commit boundaries", () => {
     });
   });
 
+
+  it("does not recommit a color value when the authoritative snapshot rerenders before blur", async () => {
+    const onCommit = vi.fn().mockResolvedValue(true);
+    const { rerender } = render(
+      <ColorInspector
+        sequenceId="sequence-1"
+        trackId="track-1"
+        clip={clipFixture()}
+        onCommit={onCommit}
+      />,
+    );
+
+    const exposure = screen.getByRole("slider", { name: "Exposure" });
+    fireEvent.change(exposure, { target: { value: "1.25" } });
+    fireEvent.pointerUp(exposure);
+    await vi.waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
+
+    const authoritative = clipFixture();
+    authoritative.color.exposure = 1.25;
+    rerender(
+      <ColorInspector
+        sequenceId="sequence-1"
+        trackId="track-1"
+        clip={authoritative}
+        onCommit={onCommit}
+      />,
+    );
+
+    fireEvent.blur(screen.getByRole("slider", { name: "Exposure" }));
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
   it("commits an audio volume slider gesture exactly once across pointer-up and blur", () => {
     const onCommit = vi.fn().mockResolvedValue(true);
     render(

@@ -119,6 +119,19 @@ impl Editor {
                 items.push(media.clone());
                 Ok(vec![ChangedEntity::Media(media.id)])
             }),
+            EditCommand::RelinkMedia { media_id, media } => self.mutate_project_media(|items| {
+                if media.id != *media_id {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "relinked media must preserve media identity",
+                    });
+                }
+                let current = items
+                    .iter_mut()
+                    .find(|item| item.id == *media_id)
+                    .ok_or(DomainError::EntityNotFound { entity: "media" })?;
+                *current = media.clone();
+                Ok(vec![ChangedEntity::Media(*media_id)])
+            }),
             EditCommand::AddSequence { sequence, index } => {
                 self.mutate_project_sequences(|sequences| {
                     let insert_at = index.unwrap_or(sequences.len());

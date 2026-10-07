@@ -6,7 +6,8 @@
   "scripts": {
     "test": "vitest",
     "build": "tsc --noEmit && vite build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:e2e": "playwright test -c playwright.config.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.1",
@@ -15,6 +16,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tauri-apps/cli": "^2.12.1",
     "@testing-library/react": "16.3.3",
     "@types/react": "^19.2.0",

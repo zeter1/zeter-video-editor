@@ -30,6 +30,10 @@ pub enum EditCommand {
     ImportMedia {
         media: MediaRef,
     },
+    RelinkMedia {
+        media_id: MediaId,
+        media: MediaRef,
+    },
     AddSequence {
         sequence: Sequence,
         index: Option<usize>,

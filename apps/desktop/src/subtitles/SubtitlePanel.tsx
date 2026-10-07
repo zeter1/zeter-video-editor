@@ -32,11 +32,13 @@ export function SubtitlePanel({
   transcription,
 }: SubtitlePanelProps) {
   const [segments, setSegments] = useState<SubtitleSegment[]>(sequence.subtitle_segments);
-  const lastSubmitted = useRef<string | null>(null);
+  const lastSubmitted = useRef<string | null>(
+    JSON.stringify(sequence.subtitle_segments),
+  );
 
   useEffect(() => {
     setSegments(sequence.subtitle_segments);
-    lastSubmitted.current = null;
+    lastSubmitted.current = JSON.stringify(sequence.subtitle_segments);
   }, [sequence]);
 
   function replaceText(index: number, text: string): void {
@@ -63,7 +65,7 @@ export function SubtitlePanel({
 
     if (!accepted) {
       setSegments(sequence.subtitle_segments);
-      lastSubmitted.current = null;
+      lastSubmitted.current = JSON.stringify(sequence.subtitle_segments);
     }
   }
 

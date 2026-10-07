@@ -18,6 +18,12 @@
     "version_contains": "ffprobe version 8.0.1-full_build-www.gyan.dev",
     "build_identity": "8.0.1-full_build-www.gyan.dev"
   },
+  "whisper_cli": {
+    "file": "whisper-cli.exe",
+    "version_contains": "whisper.cpp version: 1.9.4",
+    "build_identity": "whisper.cpp-1.9.4",
+    "license": "MIT; source pinned to https://github.com/ggml-org/whisper.cpp/tree/v1.9.4"
+  },
   "ai_worker": {
     "file": "zeter-ai-worker.exe",
     "protocol_version": 1,

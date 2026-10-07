@@ -54,6 +54,7 @@ fn manifest() -> RuntimeManifest {
       "app": { "version": "0.0.1", "build": "fixture", "project_schema_min": 1, "project_schema_max": 2 },
       "ffmpeg": { "file": "ffmpeg.exe", "version_contains": "ffmpeg version 8.0", "build_identity": "ffmpeg-8.0-zeter", "license": "LGPL/GPL build metadata required" },
       "ffprobe": { "file": "ffprobe.exe", "version_contains": "ffprobe version 8.0", "build_identity": "ffprobe-8.0-zeter" },
+      "whisper_cli": { "file": "whisper-cli.exe", "version_contains": "whisper.cpp version: 1.9.4", "build_identity": "whisper.cpp-1.9.4" },
       "ai_worker": { "file": "zeter-ai-worker.exe", "protocol_version": 1, "build_identity": "0.0.1" },
       "models": { "backend": "whisper.cpp", "compatibility": ">=1.7,<2.0" }
     }"#).unwrap()
@@ -64,11 +65,13 @@ fn runtime_manifest_uses_only_explicit_managed_paths_and_fails_closed() {
     let root = PathBuf::from(r"C:\Program Files\Zeter-runtime");
     let ffmpeg = root.join("ffmpeg.exe");
     let ffprobe = root.join("ffprobe.exe");
+    let whisper_cli = root.join("whisper-cli.exe");
     let worker = root.join("zeter-ai-worker.exe");
     let mut probe = FakeRuntimeProbe {
         versions: HashMap::from([
             (ffmpeg.clone(), "ffmpeg version 8.0-zeter".into()),
             (ffprobe.clone(), "ffprobe version 8.0-zeter".into()),
+            (whisper_cli.clone(), "whisper.cpp version: 1.9.4".into()),
         ]),
         worker: Some(WorkerRuntimeIdentity {
             protocol_version: 1,
@@ -80,12 +83,14 @@ fn runtime_manifest_uses_only_explicit_managed_paths_and_fails_closed() {
     let validated = validate_runtime(&manifest(), &root, &mut probe).unwrap();
     assert_eq!(validated.ffmpeg_path, ffmpeg);
     assert_eq!(validated.ffprobe_path, ffprobe);
+    assert_eq!(validated.whisper_cli_path, whisper_cli);
     assert_eq!(validated.ai_worker_path, worker);
     assert_eq!(
         probe.probed,
         vec![
             root.join("ffmpeg.exe"),
             root.join("ffprobe.exe"),
+            root.join("whisper-cli.exe"),
             root.join("zeter-ai-worker.exe"),
         ],
         "runtime validation must never consult PATH or alternate system locations",
@@ -134,6 +139,10 @@ fn runtime_manifest_rejects_incompatible_ffmpeg_ffprobe_and_worker() {
     probe
         .versions
         .insert(root.join("ffprobe.exe"), "ffprobe version 8.0-zeter".into());
+    probe.versions.insert(
+        root.join("whisper-cli.exe"),
+        "whisper.cpp version: 1.9.4".into(),
+    );
     assert!(matches!(
         validate_runtime(&manifest(), &root, &mut probe),
         Err(RuntimeValidationError::WorkerProtocolMismatch {
@@ -306,6 +315,7 @@ fn packaging_and_release_workflows_encode_fail_closed_windows_contract() {
         serde_json::json!([
             "binaries/ffmpeg",
             "binaries/ffprobe",
+            "binaries/whisper-cli",
             "binaries/zeter-ai-worker"
         ])
     );

@@ -30,6 +30,7 @@
     "externalBin": [
       "binaries/ffmpeg",
       "binaries/ffprobe",
+      "binaries/whisper-cli",
       "binaries/zeter-ai-worker"
     ],
     "resources": [

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { Clip, SequenceId, TrackId } from "../generated/ipc";
 import {
@@ -20,9 +20,18 @@ export function SpeedInspector({
   onCommit,
 }: SpeedInspectorProps) {
   const [speed, setSpeed] = useState(clip.speed);
-  useEffect(() => setSpeed(clip.speed), [clip]);
+  const lastSubmitted = useRef(clip.speed);
+
+  useEffect(() => {
+    setSpeed(clip.speed);
+    lastSubmitted.current = clip.speed;
+  }, [clip]);
 
   async function commit(): Promise<void> {
+    if (lastSubmitted.current === speed) {
+      return;
+    }
+    lastSubmitted.current = speed;
     const accepted = await requestEditCommit(onCommit, {
       SetSpeed: {
         sequence_id: sequenceId,
@@ -33,6 +42,7 @@ export function SpeedInspector({
     });
     if (!accepted) {
       setSpeed(clip.speed);
+      lastSubmitted.current = clip.speed;
     }
   }
 

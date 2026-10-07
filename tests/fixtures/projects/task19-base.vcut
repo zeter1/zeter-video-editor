@@ -1,0 +1,87 @@
+{
+  "schema_version": 2,
+  "revision": 0,
+  "project": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "Task 19 E2E",
+    "settings": {
+      "default_sequence_width": 1920,
+      "default_sequence_height": 1080,
+      "default_sequence_fps": 30.0
+    },
+    "media": [],
+    "sequences": [
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "name": "Main",
+        "width": 1920,
+        "height": 1080,
+        "fps": 30.0,
+        "tracks": [
+          {
+            "id": "33333333-3333-4333-8333-333333333331",
+            "name": "Video",
+            "kind": "Video",
+            "muted": false,
+            "locked": false,
+            "hidden": false,
+            "clips": []
+          },
+          {
+            "id": "33333333-3333-4333-8333-333333333332",
+            "name": "Overlay",
+            "kind": "Overlay",
+            "muted": false,
+            "locked": false,
+            "hidden": false,
+            "clips": []
+          },
+          {
+            "id": "33333333-3333-4333-8333-333333333333",
+            "name": "Audio",
+            "kind": "Audio",
+            "muted": false,
+            "locked": false,
+            "hidden": false,
+            "clips": []
+          },
+          {
+            "id": "33333333-3333-4333-8333-333333333334",
+            "name": "Text",
+            "kind": "Text",
+            "muted": false,
+            "locked": false,
+            "hidden": false,
+            "clips": []
+          },
+          {
+            "id": "33333333-3333-4333-8333-333333333335",
+            "name": "Subtitles",
+            "kind": "Subtitle",
+            "muted": false,
+            "locked": false,
+            "hidden": false,
+            "clips": []
+          }
+        ],
+        "subtitle_segments": [],
+        "subtitle_style": {
+          "text_style": {
+            "font_family": "Arial",
+            "font_size": 48.0,
+            "weight": 400,
+            "alignment": "Center",
+            "color": "#FFFFFF",
+            "stroke_color": "#000000",
+            "stroke_width": 0.0,
+            "shadow": false,
+            "background": null,
+            "opacity": 1.0
+          },
+          "active_word_color": null
+        },
+        "markers": []
+      }
+    ]
+  }
+}

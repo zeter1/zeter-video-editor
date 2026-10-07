@@ -20,11 +20,12 @@ export function TransformInspector({
   onCommit,
 }: TransformInspectorProps) {
   const [draft, setDraft] = useState<Transform>(clip.transform);
-  const lastSubmitted = useRef<string | null>(null);
+  const lastSubmitted = useRef<string | null>(JSON.stringify(clip.transform));
 
   useEffect(() => {
-    setDraft(clip.transform);
-    lastSubmitted.current = null;
+    const authoritative = clip.transform;
+    setDraft(authoritative);
+    lastSubmitted.current = JSON.stringify(authoritative);
   }, [clip]);
 
   function update(patch: Partial<Transform>): void {
@@ -56,7 +57,7 @@ export function TransformInspector({
 
     if (!accepted) {
       setDraft(clip.transform);
-      lastSubmitted.current = null;
+      lastSubmitted.current = JSON.stringify(clip.transform);
     }
   }
 

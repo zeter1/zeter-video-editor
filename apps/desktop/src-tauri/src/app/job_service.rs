@@ -5,7 +5,9 @@ use std::{
 
 use ai_engine::TranscriptResult;
 use editor_core::{JobId, ProjectRevision};
-use job_system::{JobError, JobKind, JobManager, JobSnapshot, JobSpec, JobState};
+use job_system::{
+    CancellationToken, JobError, JobFailure, JobKind, JobManager, JobSnapshot, JobSpec, JobState,
+};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -50,6 +52,17 @@ impl JobService {
 
     pub fn mark_completed(&self, job_id: JobId) -> Result<(), JobError> {
         self.manager.complete(job_id)
+    }
+
+    pub fn mark_failed(&self, job_id: JobId, failure: JobFailure) -> Result<(), JobError> {
+        if self.manager.snapshot(job_id)?.state == JobState::Cancelled {
+            return Ok(());
+        }
+        self.manager.fail(job_id, failure)
+    }
+
+    pub fn cancellation_token(&self, job_id: JobId) -> Result<CancellationToken, JobError> {
+        self.manager.cancellation_token(job_id)
     }
 
     pub fn complete_transcription(

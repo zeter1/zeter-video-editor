@@ -4,7 +4,7 @@
   "title": "Zeter Video Editor Runtime Manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["manifest_version", "app", "ffmpeg", "ffprobe", "ai_worker", "models"],
+  "required": ["manifest_version", "app", "ffmpeg", "ffprobe", "whisper_cli", "ai_worker", "models"],
   "properties": {
     "manifest_version": { "const": 1 },
     "app": {
@@ -20,6 +20,7 @@
     },
     "ffmpeg": { "$ref": "#/$defs/executable" },
     "ffprobe": { "$ref": "#/$defs/executable" },
+    "whisper_cli": { "$ref": "#/$defs/executable" },
     "ai_worker": {
       "type": "object",
       "additionalProperties": false,
