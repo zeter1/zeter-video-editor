@@ -66,6 +66,20 @@ describe("IPC synchronization", () => {
     });
   });
 
+  it("exports a support bundle through the typed desktop command", async () => {
+    const invoke = vi.fn(async (command: string, args?: Record<string, unknown>) => {
+      expect(command).toBe("export_support_bundle");
+      expect(args).toEqual({ outputPath: "C:\\support\\zeter-support.zip" });
+      return "C:\\support\\zeter-support.zip";
+    });
+    const client = createIpcClient(invoke);
+
+    await expect(
+      client.exportSupportBundle("C:\\support\\zeter-support.zip"),
+    ).resolves.toBe("C:\\support\\zeter-support.zip");
+    expect(invoke).toHaveBeenCalledOnce();
+  });
+
   it("refreshes from Rust after a contiguous result because changed IDs carry no guessed values", async () => {
     const invoke = vi.fn(async (command: string) => {
       if (command === "project_snapshot") {

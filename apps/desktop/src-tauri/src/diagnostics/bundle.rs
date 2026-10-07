@@ -39,6 +39,18 @@ pub struct CrashMetadata {
     pub timestamp_unix_ms: u64,
 }
 
+pub fn managed_log_paths(log_dir: &Path) -> Result<Vec<PathBuf>, DiagnosticsError> {
+    let mut paths = Vec::new();
+    for entry in fs::read_dir(log_dir)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file() && is_allowed_log(&entry.path()) {
+            paths.push(entry.path());
+        }
+    }
+    paths.sort();
+    Ok(paths)
+}
+
 pub fn export_support_bundle(
     output: &Path,
     metadata: &SupportBundleMetadata,

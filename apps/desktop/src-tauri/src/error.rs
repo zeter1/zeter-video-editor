@@ -3,7 +3,7 @@ use job_system::{JobError, JobKind, JobState};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::diagnostics::redaction::sanitize_untrusted_text;
+use crate::diagnostics::{DiagnosticsError, redaction::sanitize_untrusted_text};
 
 #[derive(Debug, Error)]
 pub enum AppError {
@@ -56,6 +56,9 @@ pub enum AppError {
 
     #[error("job error: {0}")]
     Job(#[from] JobError),
+
+    #[error("diagnostics error: {0}")]
+    Diagnostics(#[from] DiagnosticsError),
 }
 
 impl From<DomainError> for AppError {
@@ -234,6 +237,15 @@ impl AppError {
                     error.to_string(),
                     "job-system",
                     "job_lifecycle",
+                ),
+                Self::Diagnostics(error) => (
+                    ErrorCategory::Filesystem,
+                    "diagnostics_export",
+                    "The support bundle could not be exported.",
+                    true,
+                    error.to_string(),
+                    "diagnostics",
+                    "export_support_bundle",
                 ),
             };
 

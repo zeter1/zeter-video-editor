@@ -254,6 +254,25 @@ export function AppShell({
     }
   }
 
+  async function handleExportSupportBundle(): Promise<void> {
+    const outputPath = window.prompt("Save support bundle (.zip) path");
+    if (!outputPath) {
+      return;
+    }
+
+    try {
+      await client.exportSupportBundle(outputPath);
+    } catch (error) {
+      const typed = appError(error);
+      projectStore.setError(
+        typed?.message ??
+          (error instanceof Error
+            ? error.message
+            : "Support bundle export failed."),
+      );
+    }
+  }
+
   function handleUndo(): void {
     if (actions) {
       actions.undo();
@@ -284,6 +303,7 @@ export function AppShell({
         onSave={() => void handleSave()}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        onExportSupportBundle={() => void handleExportSupportBundle()}
       />
 
       <div className="workspace-grid">

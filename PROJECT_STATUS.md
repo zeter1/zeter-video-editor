@@ -168,11 +168,12 @@ The approved Tasks 1–19 implementation plan is complete and integrated. Contin
 
 Priorities:
 1. Keep exact-`main` CI green; classify any failure from logs before changing code or workflow.
-2. Address bounded technical debt where it provides real value (for example, existing repository-wide rustfmt drift and currently uninvoked desktop helper warnings) without mass suppression or unrelated refactoring.
-3. Keep production signing, updater signing, and tagged release work fail-closed until the real release secrets/certificate are available.
-4. Treat real whisper-model inference as **NOT VERIFIED** until an explicit model/speech fixture is available.
-5. Keep Windows platform face-analysis as **not implemented / NOT VERIFIED**; the verified MVP behavior is deterministic center fallback plus manual crop.
-6. For any new product feature or architecture outside the approved specification, start a new Superpowers brainstorming/specification decision instead of extending the completed MVP plan implicitly.
+2. Close approved-MVP runtime integration gaps before adding new scope. The current highest-impact gap is the user-facing local-AI path: standalone AI panels exist, but `AppShell` does not mount them, the `AI tools` button is not wired, and the production worker currently handles transcription only while silence/highlight requests return `analysis_backend_not_ready`.
+3. Address remaining bounded technical debt where it provides real value, especially warnings that reveal unconnected runtime paths; do not silence them mechanically.
+4. Keep production signing, updater signing, and tagged release work fail-closed until the real release secrets/certificate are available.
+5. Treat real whisper-model inference as **NOT VERIFIED** until an explicit model/speech fixture is available.
+6. Keep Windows platform face-analysis as **not implemented / NOT VERIFIED**; the verified MVP behavior is deterministic center fallback plus manual crop.
+7. For any new product feature or architecture outside the approved specification, start a new Superpowers brainstorming/specification decision instead of extending the completed MVP plan implicitly.
 
 ### Integration verification — 2026-10-07
 
@@ -182,6 +183,8 @@ Priorities:
 - PR #2 (`test: harden export E2E timing`) preserved the real export/cancel acceptance while giving that CPU-dependent export a bounded 90-second job wait inside a 120-second test budget. PR CI #69 — PASS, including 7/7 E2E and debug NSIS smoke.
 - PR #2 squash merge produced `main` commit `5a4deb0a6eee58a1d941372dec382a58e0ca4dd2`.
 - Exact-`main` CI #70 / run `37610261147` — PASS: Rust workspace, 23/23 Vitest files / 50 tests, 7/7 real Tauri/WebView2 E2E scenarios (real export/cancel included; export completed in 35.8s), and debug NSIS bundle smoke.
+- Rustfmt stabilization PR #3 normalized the documented media/project formatting drift and added `cargo fmt --all -- --check` to Windows CI with an explicit `rustfmt` component on Rust 1.99.0. Exact-`main` CI #74 on `aeea1c4de836e3bae8aaf7333aeabf7ee708227a` — PASS.
+- Sanitized support-bundle export is now connected to the real Tauri command boundary and the ordinary project toolbar. The command exports only allowlisted managed logs plus sanitized runtime metadata; the real Tauri/WebView2 acceptance suite covers ZIP creation.
 
 Production updater signing, Windows Authenticode signing, real whisper-model inference, and Windows platform face-analysis are not promoted beyond their existing **NOT VERIFIED / not implemented** boundaries.
 
@@ -449,7 +452,9 @@ Task 18 execution notes:
 - production updater signing, Authenticode signing, and an actual tagged GitHub Release are **NOT VERIFIED** because production secrets/certificate were not used and no release was published. The production workflow is verified only at the static/fail-closed contract level plus the unsigned debug NSIS smoke.
 
 Known verification debt:
-- repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.
+- The historical repository-wide rustfmt drift is closed: `cargo fmt --all -- --check` is now an explicit Windows CI gate on the pinned Rust toolchain, and exact-`main` CI #74 passed it together with Rust/frontend/E2E/NSIS verification.
+- User-facing production AI orchestration remains incomplete despite deterministic Task 19 fixture acceptance: the ordinary desktop UI does not currently mount the AI review panels, and the production worker still returns `analysis_backend_not_ready` for silence/highlight requests. Treat the end-user local-AI workflow as **NOT VERIFIED** until it has real IPC/UI acceptance.
+- The safe-update controller is implemented and unit-tested but is not yet wired into the ordinary Tauri updater/UI flow; production updater signing and end-user update installation remain **NOT VERIFIED**.
 
 ## Task 19 — End-to-End MVP Workflow and Acceptance Verification
 

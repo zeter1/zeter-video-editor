@@ -38,6 +38,7 @@ export interface IpcClient {
   startJob(spec: JobSpec): Promise<JobEventDto>;
   cancelJob(jobId: JobId): Promise<JobEventDto>;
   getJobState(jobId: JobId): Promise<JobEventDto>;
+  exportSupportBundle(outputPath: string): Promise<string>;
   reconcileCommandResult(
     store: ProjectStore,
     result: CommandResultDto,
@@ -109,6 +110,8 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
     startJob: (spec) => call(invokeFn, "start_job", { spec }),
     cancelJob: (jobId) => call(invokeFn, "cancel_job", { jobId }),
     getJobState: (jobId) => call(invokeFn, "get_job_state", { jobId }),
+    exportSupportBundle: (outputPath) =>
+      call(invokeFn, "export_support_bundle", { outputPath }),
     reconcileCommandResult: async (store, result) => {
       const outcome = store.applyCommandResult(result);
       const fresh = await client.projectSnapshot();

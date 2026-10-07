@@ -801,3 +801,19 @@ test("recovers confirmed edits after abnormal shutdown without silently overwrit
     readFileSync(restarted.state.recoveryProjectPath).equals(canonicalBefore),
   ).toBe(false);
 });
+
+test("exports a sanitized support bundle through the real desktop command boundary", async () => {
+  const { page, state } = await connectTauri();
+  const outputPath = path.join(
+    path.dirname(state.workflowProjectPath),
+    "task19-support.zip",
+  );
+
+  const exported = await invokeTauri<string>(page, "export_support_bundle", {
+    outputPath,
+  });
+
+  expect(exported).toBe(outputPath);
+  expect(existsSync(outputPath)).toBe(true);
+  expect(readFileSync(outputPath).byteLength).toBeGreaterThan(0);
+});

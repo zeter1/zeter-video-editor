@@ -1,9 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./AppShell";
 import { createProjectStore } from "../state/projectStore";
 import { createTransientStore } from "../state/transientStore";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("AppShell", () => {
   it("renders the approved dark editor workspace regions", () => {
@@ -49,6 +53,53 @@ describe("AppShell", () => {
     expect(redo).toHaveBeenCalledOnce();
   });
 });
+describe("AppShell diagnostics", () => {
+  it("exports a support bundle from the project toolbar", async () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const exportSupportBundle = vi
+      .fn()
+      .mockResolvedValue("C:\\support\\zeter-support.zip");
+    const client = {
+      projectOpen: vi.fn(),
+      projectOpenWithRelink: vi.fn(),
+      projectSave: vi.fn(),
+      projectSnapshot: vi.fn(),
+      executeEditCommand: vi.fn(),
+      undo: vi.fn(),
+      redo: vi.fn(),
+      importMedia: vi.fn(),
+      importMediaPath: vi.fn(),
+      startJob: vi.fn(),
+      cancelJob: vi.fn(),
+      getJobState: vi.fn(),
+      exportSupportBundle,
+      reconcileCommandResult: vi.fn(),
+    };
+    vi.spyOn(window, "prompt").mockReturnValueOnce(
+      "C:\\support\\zeter-support.zip",
+    );
+
+    render(
+      <AppShell
+        client={client}
+        projectStore={projectStore}
+        transientStore={transientStore}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Export support bundle" }),
+    );
+
+    await vi.waitFor(() =>
+      expect(exportSupportBundle).toHaveBeenCalledWith(
+        "C:\\support\\zeter-support.zip",
+      ),
+    );
+  });
+});
+
 describe("AppShell edit gateway", () => {
   it("routes inspector commit through the current Rust revision and reconciles once", async () => {
     const projectStore = createProjectStore();
@@ -156,6 +207,7 @@ describe("AppShell edit gateway", () => {
       startJob: vi.fn(),
       cancelJob: vi.fn(),
       getJobState: vi.fn(),
+      exportSupportBundle: vi.fn(),
       reconcileCommandResult,
     };
 
@@ -241,6 +293,7 @@ describe("AppShell missing-media recovery", () => {
       startJob: vi.fn(),
       cancelJob: vi.fn(),
       getJobState: vi.fn(),
+      exportSupportBundle: vi.fn(),
       reconcileCommandResult: vi.fn(),
     };
     vi.spyOn(window, "prompt")
