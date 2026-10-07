@@ -542,14 +542,14 @@
 - Consumes: all prior tasks.
 - Produces: one reproducible acceptance workflow covering import → edit → save/reopen → local AI analysis/application → create Short → export.
 
-- [ ] **Step 1: Write an initially failing Playwright smoke workflow using synthetic 1080p fixtures: create/open project, import video/audio/image, perform trim/split/move/duplicate/ripple-delete, add text/subtitles/music/transition, adjust transform/audio/color/speed, save and reopen.**
-- [ ] **Step 2: Extend the failing workflow to run stubbed/deterministic local AI fixture paths for transcription, silence candidates, highlight candidate, and create a 1080x1920 Short; verify all accepted edits are normal undoable project state.**
-- [ ] **Step 3: Extend the failing workflow to export MP4/H.264, cancel an export, and verify successful output metadata via managed FFprobe.**
-- [ ] **Step 4: Add recovery smoke: simulate abnormal shutdown after confirmed edits, reopen, choose recovery, and verify canonical save was not silently overwritten.**
-- [ ] **Step 5: Run focused E2E until it passes, then run full verification: `cargo test --workspace`; `npm --prefix apps/desktop test -- --run`; `npm --prefix apps/desktop run build`; `npm --prefix apps/desktop run test:e2e`; Windows debug Tauri bundle smoke.**
-- [ ] **Step 6: Use Superpowers `verification-before-completion`; record exact commands/results in `PROJECT_STATUS.md`. Do not declare MVP complete if any required check is skipped/failing.**
-- [ ] **Step 7: Use Superpowers `requesting-code-review` for a whole-branch review and fix all Critical/Important findings before integration.**
-- [ ] **Step 8: Commit: `test: verify complete mvp editing workflow`.**
+- [x] **Step 1: Write an initially failing Playwright smoke workflow using synthetic 1080p fixtures: create/open project, import video/audio/image, perform trim/split/move/duplicate/ripple-delete, add text/subtitles/music/transition, adjust transform/audio/color/speed, save and reopen.**
+- [x] **Step 2: Extend the failing workflow to run stubbed/deterministic local AI fixture paths for transcription, silence candidates, highlight candidate, and create a 1080x1920 Short; verify all accepted edits are normal undoable project state.**
+- [x] **Step 3: Extend the failing workflow to export MP4/H.264, cancel an export, and verify successful output metadata via managed FFprobe.**
+- [x] **Step 4: Add recovery smoke: simulate abnormal shutdown after confirmed edits, reopen, choose recovery, and verify canonical save was not silently overwritten.**
+- [x] **Step 5: Run focused E2E until it passes, then run full verification: `cargo test --workspace`; `npm --prefix apps/desktop test -- --run`; `npm --prefix apps/desktop run build`; `npm --prefix apps/desktop run test:e2e`; Windows debug Tauri bundle smoke.**
+- [x] **Step 6: Use Superpowers `verification-before-completion`; record exact commands/results in `PROJECT_STATUS.md`. Do not declare MVP complete if any required check is skipped/failing.**
+- [x] **Step 7: Use Superpowers `requesting-code-review` for a whole-branch review and fix all Critical/Important findings before integration.**
+- [x] **Step 8: Commit: `test: verify complete mvp editing workflow`.**
 
 ## Execution Order and Gates
 

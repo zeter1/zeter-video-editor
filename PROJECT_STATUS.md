@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–18 are implemented in the active implementation branch. Task 18 passed managed-runtime/update TDD, startup fail-closed validation, safe-shutdown/update-boundary verification, full Windows Rust/frontend regression verification, managed-FFmpeg integration, and a real debug NSIS bundle smoke. The next planned task is Task 19: End-to-End MVP Workflow and Acceptance Verification.
+Tasks 1–19 are implemented and locally verified in the active implementation branch. Task 19 is the final planned MVP acceptance task; its implementation commit is `7a85857` (`test: verify complete mvp editing workflow`). The implementation plan is now complete. The next repository-level gate is remote branch/PR CI and integration review; production signing/tagged release remains a separate release operation and is not implied by MVP acceptance.
 
 ## Approved decisions
 
@@ -433,3 +433,35 @@ Task 18 execution notes:
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.
+
+## Task 19 — End-to-End MVP Workflow and Acceptance Verification
+
+Implementation commit: `7a85857` — `test: verify complete mvp editing workflow`.
+
+Task 19 acceptance on Windows x64:
+- Real Tauri/WebView2 Playwright harness — PASS. Playwright attaches to the actual desktop WebView2 shell over a test-process-only CDP endpoint; application IPC is the real Tauri invoke bridge.
+- Import/edit/save/reopen — PASS. Synthetic video/audio/image fixtures exercise import through managed FFprobe, trim/split/move/duplicate/ripple-delete, text/subtitles/music/transition, transform/audio/color/speed, undo/redo, save, close/reopen, and authoritative revision synchronization.
+- Inspector history regression RED→GREEN — PASS. Real WebView2 exposed duplicate commits caused by late blur/pointer events after authoritative rerender. Color/transform/audio/text/speed/transition/subtitle controls now treat the authoritative fingerprint as already committed, so one user gesture creates one history entry.
+- Media identity Review Focus RED→GREEN — PASS. Project open validates saved file size plus managed-FFprobe duration/resolution hints before installing authoritative state. Same-size materially different media is rejected instead of silently accepted; a valid project-relative candidate may recover a moved project.
+- Explicit relink Review Focus RED→GREEN — PASS. Missing/mismatched media surfaces typed `missing_media` / `media_identity_mismatch` recovery UX. A verified replacement is applied through ordinary `EditCommand::RelinkMedia`, preserves `MediaId`, advances revision once, and is undoable/redoable.
+- Deterministic local AI acceptance — PASS. The test-only versioned JSON-lines fixture worker exercises transcription, silence candidates, highlight ranking and 1080×1920 Short creation. Accepted AI changes are ordinary revision-checked, undoable project state; the fixture worker is not a production sidecar.
+- Real export/cancel — PASS. MP4/H.264 export runs through the desktop job boundary and managed FFmpeg; managed FFprobe verifies successful output metadata. Cancellation never publishes a partial final output.
+- Recovery smoke — PASS. The acceptance workflow simulates abnormal application termination after confirmed edits, reopens, explicitly chooses recovery, and verifies the previous canonical `.vcut` was not silently overwritten.
+- Whole-branch Superpowers review — PASS for Critical/Important findings. Review rechecked moved/mismatched media, stale async results, rebuildable-cache behavior, hardware-export fallback, and persistence/update crash boundaries. The media-identity/relink-history gaps found during review were fixed before completion.
+- CI coverage — PASS by workflow contract. The existing single Windows CI job now runs the same `test:e2e` acceptance suite before the debug NSIS bundle smoke; no additional workflow or release trigger was introduced.
+
+Final fresh verification after all review fixes:
+- `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace` — PASS.
+- `npm.cmd --prefix apps/desktop test -- --run` — PASS, 23 test files / 50 tests.
+- `npm.cmd --prefix apps/desktop run build` — PASS.
+- `npm.cmd --prefix apps/desktop run test:e2e` — PASS, 7/7 real Tauri/WebView2 acceptance tests.
+- `cargo test -p zeter-desktop-tauri generated_typescript_contract_matches_committed_file_byte_for_byte` — PASS.
+- `cargo fmt -p zeter-desktop-tauri -p zeter-ai-worker -p editor-core -p job-system -- --check` — PASS.
+- `git diff --check` — PASS; only Windows CRLF conversion warnings were emitted.
+- Final-code Windows debug bundle smoke — PASS: `npm.cmd run tauri -- build --debug --bundles nsis --config ../../release/tauri.debug.conf.json` produced `Zeter Video Editor_0.0.1_x64-setup.exe`, 116,429,916 bytes (~111.04 MiB), with managed FFmpeg, FFprobe, pinned whisper.cpp CLI and production AI worker sidecars staged.
+
+Task 19 execution notes:
+- Pinned whisper.cpp `1.9.4` at commit `927cfce34f31707e17f2bff35c349632fb9e2c3a` was built locally for the final packaging proof using the repository build script and Visual Studio CMake.
+- Real whisper model inference remains **NOT VERIFIED** because no model/speech fixture was supplied; deterministic worker/parser/application acceptance is verified, and the real pinned whisper CLI packaging/startup identity boundary is verified.
+- Windows platform face-analysis remains **NOT VERIFIED / not implemented** as already recorded in Task 16; deterministic center fallback and manual crop remain the approved verified MVP behavior.
+- Production updater signing, Windows Authenticode signing and an actual tagged GitHub Release remain **NOT VERIFIED** because production secrets/certificate were intentionally not used during MVP acceptance.
