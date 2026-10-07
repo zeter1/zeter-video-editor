@@ -7,10 +7,7 @@ use ai_engine::{
 use editor_core::{JobId, ProjectId, ProjectRevision, SequenceId};
 use serde_json::Value;
 
-use crate::{
-    runtime::run_session_with_backend,
-    transcription::TranscriptionBackend,
-};
+use crate::{runtime::run_session_with_backend, transcription::TranscriptionBackend};
 
 struct UnusedTranscriptionBackend;
 
@@ -98,7 +95,10 @@ fn production_worker_returns_ranked_highlights_from_managed_waveform_samples() {
         response => panic!("expected completed production highlight analysis, got {response:?}"),
     };
     let candidates = serde_json::from_value::<Vec<HighlightCandidate>>(
-        payload.get("candidates").cloned().expect("candidates payload"),
+        payload
+            .get("candidates")
+            .cloned()
+            .expect("candidates payload"),
     )
     .unwrap();
 
