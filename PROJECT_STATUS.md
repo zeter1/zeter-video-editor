@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–13 are implemented in the active implementation branch. Task 13 passed manual-editing TDD, full Windows Rust/frontend regression verification, managed-FFmpeg integration, project-schema migration coverage, and production-build verification. The next planned task is Task 14: AI Worker Protocol and Verified Model Manager.
+Tasks 1–14 are implemented in the active implementation branch. Task 14 passed protocol/model-manager TDD, package-scoped rustfmt/clippy, full Windows Rust/frontend regression verification, real AI-worker stdio smoke verification, and managed-FFmpeg integration. The next planned task is Task 15: Local Transcription and Editable Automatic Subtitles.
 
 ## Approved decisions
 
@@ -137,6 +137,7 @@ Completed:
 - **Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI**
 - **Task 12: Timeline Interaction UI, Snapping, Markers, and Commit-on-Release Editing**
 - **Task 13: Preview/Inspector Manual Editing — Transform, Color, Speed, Audio, Text, Subtitles, Transitions**
+- **Task 14: AI Worker Protocol and Verified Model Manager**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -153,15 +154,15 @@ Active implementation branch:
 
 ## Next step
 
-**Task 14: AI Worker Protocol and Verified Model Manager**
+**Task 15: Local Transcription and Editable Automatic Subtitles**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write failing protocol-version compatibility tests;
-2. write failing model checksum/app/backend compatibility and offline-import tests;
-3. write the bounded 3-attempt download retry test with injected 1s/2s/4s backoff;
-4. prove worker crash/cancellation cannot mutate project state and a later worker can restart;
-5. implement local versioned stdio IPC and verified model lifecycle with no network inference path;
-6. run `cargo test -p ai-engine -p zeter-ai-worker` plus affected regressions.
+1. write failing structured-output tests using deterministic worker fixture output;
+2. prove transcription completion at an old revision is reviewable but cannot silently mutate current timeline state;
+3. prove deleting cached transcript analysis does not remove subtitle segments already applied to the project;
+4. implement the whisper.cpp worker adapter and FFmpeg audio-normalization handoff behind the Task 14 worker protocol;
+5. add the optional Windows integration test using an explicitly configured tiny speech/model fixture and a visible skip when absent;
+6. run affected AI/application/core/frontend tests plus production build.
 
 ## Verification status
 
@@ -306,6 +307,26 @@ Task 13 execution notes:
 - `SetAudioState`, `SetSubtitleSegments`, and `SetSubtitleStyle` were added because Task 13 UI must commit those already-approved states through the same Rust command/undo model rather than keeping authoritative state in React.
 - exact subtitle preset styling values are implementation parameters pinned by tests; changing their visual defaults later does not change project architecture.
 - approved MVP `detach audio` semantics and the loudness-analysis source for a fully operational Normalize button are not specified by the current implementation plan. They remain explicit pre-acceptance product/technical debt and must not be silently invented or counted as complete.
+
+Task 14 TDD/verification on Windows x64:
+- RED: `cargo test -p ai-engine -p zeter-ai-worker` failed on intentionally missing protocol/model-manager/worker APIs.
+- protocol compatibility — PASS: a worker protocol mismatch is rejected during Hello before any analysis request reaches the worker transport.
+- worker isolation/recovery — PASS: worker crash invalidates the client; a later analysis request spawns a fresh worker, while project revision remains outside worker ownership. Malformed/cancelled worker sessions are restartable.
+- local IPC — PASS: versioned JSON-lines over stdin/stdout; real `zeter-ai-worker.exe` smoke returned protocol 1 Hello and matching cancellation JobId. Task 14 worker has no network inference path.
+- model verification — PASS: exact file size + SHA-256 + application SemVer + backend/runtime compatibility are checked before a model is available.
+- model publication safety — PASS: offline import/download publish through staging; failed reinstall does not overwrite a verified model; staging/partial/corrupt optional model directories are not returned by `available_models()`.
+- on-demand model download — PASS: injected fake client proves at most 3 total attempts. Because 3 attempts contain only 2 retry gaps, waits are 1s then 2s; the 4s third policy slot is retained but no sleep occurs after terminal failure.
+- `cargo fmt --package ai-engine --package zeter-ai-worker -- --check` — PASS.
+- `cargo clippy -p ai-engine -p zeter-ai-worker --all-targets --no-deps -- -D warnings` — PASS. An initial dependency-inclusive run surfaced existing `editor-core` lints rather than Task 14 defects, so the bounded Task 14 lint gate intentionally uses `--no-deps`.
+- `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace` — PASS, including real managed-FFmpeg export/probe/render-parity integration and 8 Task 14 AI contract tests + worker session test.
+- `npm.cmd --prefix apps/desktop test -- --run` — PASS, 18 test files / 36 tests.
+- `npm.cmd --prefix apps/desktop run build` — PASS.
+- `git diff --check` — PASS.
+
+Task 14 execution notes:
+- the worker returns structured analysis results only; it cannot mutate the project/timeline directly. Accepted AI edits remain an application-layer responsibility translated into ordinary editor-core commands.
+- corrupted optional model installs degrade model availability only; they do not invalidate projects or hide other verified models.
+- the live model downloader is represented by an injected `DownloadClient` boundary in Task 14; a concrete HTTP client remains application/runtime integration work and must preserve the same verify-before-publish contract.
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.

@@ -20,3 +20,5 @@
 - Реализован Task 12: интерактивный multi-track timeline с commit-on-release drag/trim, snapping, playhead/zoom/scroll, markers, track controls и typed move/split/duplicate/delete/ripple-delete командами.
 - Реализован Task 13: manual preview/Inspector editing для transform/color/speed/audio/text/subtitles/transitions, transient preview controls, single-command commit boundaries и rollback при rejected authoritative edits.
 - Формат `.vcut` повышен до schema v2 для durable subtitle style; добавлена явная in-memory миграция v1→v2 без автоматической перезаписи canonical project file.
+- Реализован Task 14: versioned JSON-lines IPC для изолированного AI worker, protocol compatibility handshake/restart boundary и structured analysis contract без прямых timeline mutations.
+- Добавлен verified Model Manager: SHA-256/size/app/backend compatibility, безопасный staging publish, offline import, bounded download retry и деградация повреждённых optional models без повреждения проекта.

@@ -20,6 +20,15 @@ dependencies = [
 [[package]]
 name = "ai-engine"
 version = "0.0.1"
+dependencies = [
+ "editor-core",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "android_system_properties"
@@ -3959,6 +3968,11 @@ dependencies = [
 [[package]]
 name = "zeter-ai-worker"
 version = "0.0.1"
+dependencies = [
+ "ai-engine",
+ "editor-core",
+ "serde_json",
+]
 
 [[package]]
 name = "zeter-desktop-tauri"
