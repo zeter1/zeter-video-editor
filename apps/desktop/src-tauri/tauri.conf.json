@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Zeter Video Editor",
+  "version": "0.0.1",
+  "identifier": "com.zeter.videoeditor",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Zeter Video Editor",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1100,
+        "minHeight": 700,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "externalBin": [
+      "binaries/ffmpeg",
+      "binaries/ffprobe",
+      "binaries/zeter-ai-worker"
+    ],
+    "resources": [
+      "../../../release/runtime-manifest.json"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "RELEASE_WORKFLOW_INJECTS_TAURI_UPDATER_PUBLIC_KEY",
+      "endpoints": [
+        "https://github.com/zeter1/zeter-video-editor/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

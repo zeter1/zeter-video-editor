@@ -5,14 +5,17 @@
   "type": "module",
   "scripts": {
     "test": "vitest",
-    "build": "tsc --noEmit && vite build"
+    "build": "tsc --noEmit && vite build",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.1",
+    "@tauri-apps/plugin-updater": "^2.13.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1",
     "@testing-library/react": "16.3.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

@@ -4,3 +4,8 @@
 .superpowers/
 .tooling/
 .worktrees/
+
+# Generated Tauri build metadata / bundle inputs / release overrides
+/apps/desktop/src-tauri/gen/schemas/
+/apps/desktop/src-tauri/binaries/
+/release/tauri.release.generated.json

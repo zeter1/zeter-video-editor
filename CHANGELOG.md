@@ -28,3 +28,5 @@
 - Добавлен capability-gated face/reframe boundary с гарантированным center-crop fallback и ручной корректировкой crop; platform-specific Windows face detector пока не заявляется реализованным.
 - Реализован Task 17: typed diagnostics/error taxonomy, correlation-aware structured local logging, bounded retention, privacy-first redaction, sanitized support bundle и typed recovery UX.
 - Усилен fail-closed privacy boundary: diagnostics bundle принимает только managed `zeter-*.log`, неструктурированные строки полностью редактируются, а untyped frontend IPC/timeline failures не раскрывают raw exception text.
+- Реализован Task 18: Windows Tauri/NSIS packaging с current-user install, WebView2 bootstrap, managed FFmpeg/FFprobe/AI-worker sidecars и fail-closed startup runtime-manifest validation без PATH fallback.
+- Добавлен безопасный soft-update/release boundary: safe-shutdown blockers и defer, обязательные updater/Authenticode signing inputs, pinned FFmpeg checksum, version-coherence gate для package/Tauri/Cargo и immutable GitHub Release workflow; production signing остаётся NOT VERIFIED без реальных release secrets.

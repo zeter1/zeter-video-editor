@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zeter1/zeter-video-editor/release/runtime-manifest.schema.json",
+  "title": "Zeter Video Editor Runtime Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "app", "ffmpeg", "ffprobe", "ai_worker", "models"],
+  "properties": {
+    "manifest_version": { "const": 1 },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "build", "project_schema_min", "project_schema_max"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1 },
+        "build": { "type": "string", "minLength": 1 },
+        "project_schema_min": { "type": "integer", "minimum": 1 },
+        "project_schema_max": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "ffmpeg": { "$ref": "#/$defs/executable" },
+    "ffprobe": { "$ref": "#/$defs/executable" },
+    "ai_worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "protocol_version", "build_identity"],
+      "properties": {
+        "file": { "type": "string", "pattern": "^[^/\\\\]+\\.exe$" },
+        "protocol_version": { "type": "integer", "minimum": 1 },
+        "build_identity": { "type": "string", "minLength": 1 }
+      }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "compatibility"],
+      "properties": {
+        "backend": { "type": "string", "minLength": 1 },
+        "compatibility": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "executable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "version_contains", "build_identity"],
+      "properties": {
+        "file": { "type": "string", "pattern": "^[^/\\\\]+\\.exe$" },
+        "version_contains": { "type": "string", "minLength": 1 },
+        "build_identity": { "type": "string", "minLength": 1 },
+        "license": { "type": "string" }
+      }
+    }
+  }
+}

@@ -14,7 +14,7 @@ The consolidated final design specification and detailed MVP implementation plan
 
 Execution method: **Native**.
 
-Tasks 1–17 are implemented in the active implementation branch. Task 17 passed diagnostics/privacy TDD, typed-error contract parity, structured-log correlation and bounded-retention verification, sanitized support-bundle review, full Windows Rust/frontend regression verification, managed-FFmpeg integration, and production-build verification. The next planned task is Task 18: Windows Runtime Manifest, NSIS Packaging, Signed Soft Updates, and Safe Shutdown.
+Tasks 1–18 are implemented in the active implementation branch. Task 18 passed managed-runtime/update TDD, startup fail-closed validation, safe-shutdown/update-boundary verification, full Windows Rust/frontend regression verification, managed-FFmpeg integration, and a real debug NSIS bundle smoke. The next planned task is Task 19: End-to-End MVP Workflow and Acceptance Verification.
 
 ## Approved decisions
 
@@ -141,6 +141,7 @@ Completed:
 - **Task 15: Local Transcription and Editable Automatic Subtitles**
 - **Task 16: Silence Removal, Highlight Ranking, Short Creation, and Simple Face-Aware Reframe**
 - **Task 17: Typed Diagnostics, Local Logs, Failure UX, and Sanitized Support Bundle**
+- **Task 18: Windows Runtime Manifest, NSIS Packaging, Signed Soft Updates, and Safe Shutdown**
 
 Task 1 established:
 - Cargo workspace with `editor-core`, `media-engine`, `ai-engine`, `project-io`, and `job-system`
@@ -157,15 +158,15 @@ Active implementation branch:
 
 ## Next step
 
-**Task 18: Windows Runtime Manifest, NSIS Packaging, Signed Soft Updates, and Safe Shutdown**
+**Task 19: End-to-End MVP Workflow and Acceptance Verification**
 
 Follow `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md`:
-1. write failing runtime-manifest validation tests for missing/incompatible managed FFmpeg, FFprobe, and AI worker; no PATH fallback;
-2. write safe-shutdown tests proving dirty project, save in progress/failure, active export, and active AI/media jobs block immediate installation while allowing defer;
-3. prove updater code never opens or rewrites `.vcut`, recovery snapshots, source media, or exports;
-4. add fail-closed release-workflow validation for missing updater/code-signing inputs;
-5. configure Tauri NSIS/current-user/updater/sidecars and implement startup/runtime/update validation;
-6. run Windows Rust/frontend verification plus a debug Tauri bundle smoke build before declaring packaging complete.
+1. write the initially failing Playwright MVP workflow over deterministic synthetic fixtures;
+2. cover import/edit/save/reopen plus trim/split/move/duplicate/ripple-delete, text/subtitles/music/transition and manual transform/audio/color/speed edits;
+3. extend the workflow through deterministic local AI transcription/silence/highlight/Create Short and prove accepted AI edits are normal undoable project state;
+4. cover successful H.264 export, export cancellation, managed-FFprobe output verification, and abnormal-shutdown recovery without silently replacing the canonical project;
+5. run focused E2E, full Rust/frontend/build verification and a Windows debug Tauri bundle smoke;
+6. perform whole-branch Superpowers code review and fix all Critical/Important findings before integration.
 
 ## Verification status
 
@@ -402,10 +403,33 @@ Task 17 TDD/verification on Windows x64:
 - `git diff --check` — PASS.
 
 Task 17 execution notes:
-- `init_local_logging(log_dir)` and the rotating/sanitizing writer are implemented, but actual Tauri app-data startup initialization remains intentionally owned by Task 18 runtime/bootstrap wiring; startup logging is therefore **NOT VERIFIED** yet.
+- `init_local_logging(log_dir)` and the rotating/sanitizing writer are implemented; Task 18 now wires this into the real Tauri startup path before managed-runtime validation.
 - the typed `ErrorDialog` is reusable and tested, but concrete recovery buttons are not wired to fake/no-op actions where the corresponding export/relink/model frontend command does not yet exist.
 - external telemetry/crash SaaS was not added; diagnostics remain local by default.
 - repository-wide `cargo fmt --all -- --check` debt from earlier media/project files remains intentionally outside this bounded task.
+
+Task 18 TDD/verification on Windows x64:
+- managed runtime contract — PASS: runtime manifest validates explicit managed FFmpeg/FFprobe/AI-worker paths only; missing/incompatible binaries fail closed and no PATH fallback is consulted.
+- startup wiring — PASS by code/runtime build review: the Tauri entrypoint initializes private local diagnostics, registers the updater and typed IPC commands, then validates the managed runtime before opening the application. Runtime validation failure aborts startup.
+- safe update boundary — PASS: dirty project, save-in-progress/save-failed, active export, active media jobs, and active AI jobs block immediate install; defer remains available. The updater state machine receives no project/media paths and sentinel `.vcut`, recovery, source-media, and export files remain byte-identical.
+- packaging contract — PASS: NSIS current-user installer, WebView2 download bootstrapper, updater artifacts, and managed FFmpeg/FFprobe/AI-worker sidecars are encoded in Tauri configuration.
+- release fail-closed gate — PASS: production release requires updater signing key/password/public key, Windows Authenticode certificate/password, and pinned FFmpeg HTTPS URL + SHA-256 before publication.
+- release version coherence review RED→GREEN: a regression first proved the workflow did not cross-check all application version sources. The release job now requires the requested version to match `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`, and the `zeter-desktop-tauri` Cargo package from `cargo metadata --no-deps --format-version 1`.
+- runtime provenance — PASS locally with managed `C:\\ffmpeg\\bin`: FFmpeg/FFprobe both report `8.0.1-full_build-www.gyan.dev`, matching the committed runtime manifest.
+- sidecar staging — PASS: the staging script copied target-triple-suffixed FFmpeg, FFprobe, and AI-worker build inputs; generated Tauri NSIS script installs them as unsuffixed `ffmpeg.exe`, `ffprobe.exe`, and `zeter-ai-worker.exe` beside the application.
+- real debug bundle smoke — PASS: `npm.cmd run tauri build -- --debug --bundles nsis --config ../../release/tauri.debug.conf.json` produced `Zeter Video Editor_0.0.1_x64-setup.exe` (115,687,876 bytes / ~110.3 MiB).
+- `cargo test -p zeter-desktop-tauri task18` — PASS, 5/5.
+- `ZETER_TEST_FFMPEG_DIR=C:\\ffmpeg\\bin cargo test --workspace` — PASS, including real managed-FFmpeg export/probe/render-parity/transcription-audio integration and all prior AI/application regressions.
+- `npm.cmd --prefix apps/desktop test -- --run` — PASS, 23 test files / 47 tests.
+- `npm.cmd --prefix apps/desktop run build` — PASS.
+- `cargo fmt --package zeter-desktop-tauri -- --check` — PASS.
+- `git diff --check` — PASS.
+
+Task 18 execution notes:
+- local PowerShell policy blocked direct execution of the staging `.ps1`; explicit `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ...` succeeded. This is an environment-policy issue, not an application/runtime failure.
+- generated Tauri schemas and staged sidecar binaries are ignored build artifacts; capability config, runtime manifest/schema, release docs/workflows, and Windows bundle icons are repository inputs.
+- a sensitive-looking untracked temporary key/material file appeared during local packaging work; it was moved out of the repository into local quarantine and is not part of the Git diff. Its contents were not exposed or committed.
+- production updater signing, Authenticode signing, and an actual tagged GitHub Release are **NOT VERIFIED** because production secrets/certificate were not used and no release was published. The production workflow is verified only at the static/fail-closed contract level plus the unsigned debug NSIS smoke.
 
 Known verification debt:
 - repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.
