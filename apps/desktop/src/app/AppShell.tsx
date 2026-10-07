@@ -8,6 +8,7 @@ import { LeftPanel } from "../components/LeftPanel";
 import { PreviewPanel } from "../components/PreviewPanel";
 import { TimelinePanel } from "../components/TimelinePanel";
 import { TopToolbar } from "../components/TopToolbar";
+import { UpdateStatus } from "../components/UpdateStatus";
 import type {
   AppErrorDto,
   Clip,
@@ -336,6 +337,7 @@ export function AppShell({
       </div>
 
       <JobStatus />
+      <UpdateStatus />
 
       {openError ? (
         <ErrorDialog

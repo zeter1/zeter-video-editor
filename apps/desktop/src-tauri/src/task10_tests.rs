@@ -204,3 +204,31 @@ fn generated_typescript_contract_matches_committed_file_byte_for_byte() {
 
     assert_eq!(fs::read(generated).unwrap(), expected);
 }
+
+#[test]
+fn project_dirty_state_tracks_the_last_successful_save_revision() {
+    let (project, sequence_id, track_id) = fixture_project();
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("dirty-state.vcut");
+    project_io::save_atomic(&path, &project, ProjectRevision::new(4)).unwrap();
+
+    let mut service = ProjectService::empty();
+    service.open(&path).expect("open fixture");
+    assert!(!service.is_dirty());
+
+    service
+        .execute_edit_command(add_text_request(
+            ProjectRevision::new(4),
+            sequence_id,
+            track_id,
+            "dirty",
+        ))
+        .expect("edit project");
+    assert!(service.is_dirty());
+
+    service.save(&path).expect("save edited project");
+    assert!(!service.is_dirty());
+
+    service.undo(RequestId::new()).expect("undo after save");
+    assert!(service.is_dirty());
+}

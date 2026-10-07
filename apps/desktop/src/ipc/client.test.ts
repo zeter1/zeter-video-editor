@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { CommandResultDto, ProjectSnapshotDto } from "../generated/ipc";
 import { createProjectStore } from "../state/projectStore";
-import { createIpcClient } from "./client";
+import { createIpcClient, createUpdateSafetyClient } from "./client";
 
 function snapshot(revision: number): ProjectSnapshotDto {
   return {
@@ -96,5 +96,23 @@ describe("IPC synchronization", () => {
     expect(outcome).toBe("refreshed");
     expect(invoke).toHaveBeenCalledWith("project_snapshot");
     expect(store.getState().revision).toBe(6);
+  });
+});
+
+
+describe("Updater IPC safety boundary", () => {
+  it("requests authoritative install readiness from Rust without widening the editor client", async () => {
+    const invoke = vi.fn(async (command: string, args?: Record<string, unknown>) => {
+      expect(command).toBe("get_update_install_readiness");
+      expect(args).toBeUndefined();
+      return { ready: false, blockers: ["ActiveExport"] };
+    });
+    const safetyClient = createUpdateSafetyClient(invoke);
+
+    await expect(safetyClient.getUpdateInstallReadiness()).resolves.toEqual({
+      ready: false,
+      blockers: ["ActiveExport"],
+    });
+    expect(invoke).toHaveBeenCalledOnce();
   });
 });

@@ -13,7 +13,10 @@ use tauri::{Manager, State};
 
 use crate::{
     app::AppState,
-    contracts::{CommandResultDto, JobEventDto, ProjectSnapshotDto, RecoveryCandidateDto},
+    contracts::{
+        CommandResultDto, JobEventDto, ProjectSnapshotDto, RecoveryCandidateDto,
+        UpdateInstallReadinessDto,
+    },
     diagnostics::{
         DiagnosticsError,
         bundle::{
@@ -24,6 +27,7 @@ use crate::{
     },
     error::{AppError, AppErrorDto},
     runtime_manifest::{RuntimeManifest, ValidatedRuntime},
+    update::{evaluate_safe_shutdown, shutdown_context_for_runtime},
 };
 
 fn diagnostic_error(
@@ -219,6 +223,23 @@ pub fn project_snapshot(state: State<'_, AppState>) -> Result<ProjectSnapshotDto
     project
         .snapshot()
         .map_err(|error| diagnostic_error(error, None, None))
+}
+
+#[tauri::command]
+pub fn get_update_install_readiness(
+    state: State<'_, AppState>,
+) -> Result<UpdateInstallReadinessDto, AppErrorDto> {
+    let (dirty_project, save_state) = {
+        let project = state.project.lock().map_err(|_| state_error(None, None))?;
+        (project.is_dirty(), project.save_state())
+    };
+    let jobs = state
+        .jobs
+        .snapshots()
+        .map_err(AppError::from)
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    let context = shutdown_context_for_runtime(dirty_project, save_state, &jobs);
+    Ok(evaluate_safe_shutdown(&context).into())
 }
 
 #[tauri::command]
