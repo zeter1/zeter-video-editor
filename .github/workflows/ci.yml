@@ -39,6 +39,18 @@ jobs:
         run: npm ci
         working-directory: apps/desktop
 
+      - name: Build AI worker and fixture whisper probe for tests and bundle smoke
+        run: cargo build -p zeter-ai-worker --bin zeter-ai-worker --bin zeter-ai-fixture-worker
+
+      - name: Stage managed runtime for tests and bundle smoke
+        shell: pwsh
+        run: |
+          $ffmpeg = (Get-Command ffmpeg.exe -ErrorAction Stop).Source
+          $ffprobe = (Get-Command ffprobe.exe -ErrorAction Stop).Source
+          $worker = Resolve-Path "target/x86_64-pc-windows-msvc/debug/zeter-ai-worker.exe"
+          $whisper = Resolve-Path "target/x86_64-pc-windows-msvc/debug/zeter-ai-fixture-worker.exe"
+          ./scripts/stage-managed-runtime.ps1 -FfmpegPath $ffmpeg -FfprobePath $ffprobe -WhisperCliPath $whisper -AiWorkerPath $worker
+
       - name: Rust tests
         run: cargo test --workspace
 
@@ -57,18 +69,6 @@ jobs:
           $ffmpeg = (Get-Command ffmpeg.exe -ErrorAction Stop).Source
           $env:ZETER_TEST_FFMPEG_DIR = Split-Path $ffmpeg -Parent
           npm run test:e2e
-
-      - name: Build AI worker and fixture whisper probe for bundle smoke
-        run: cargo build -p zeter-ai-worker --bin zeter-ai-worker --bin zeter-ai-fixture-worker
-
-      - name: Stage managed runtime for bundle smoke
-        shell: pwsh
-        run: |
-          $ffmpeg = (Get-Command ffmpeg.exe -ErrorAction Stop).Source
-          $ffprobe = (Get-Command ffprobe.exe -ErrorAction Stop).Source
-          $worker = Resolve-Path "target/x86_64-pc-windows-msvc/debug/zeter-ai-worker.exe"
-          $whisper = Resolve-Path "target/x86_64-pc-windows-msvc/debug/zeter-ai-fixture-worker.exe"
-          ./scripts/stage-managed-runtime.ps1 -FfmpegPath $ffmpeg -FfprobePath $ffprobe -WhisperCliPath $whisper -AiWorkerPath $worker
 
       - name: Tauri debug bundle smoke
         working-directory: apps/desktop
