@@ -1,0 +1,12 @@
+[package]
+name = "job-system"
+version = "0.0.1"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+editor-core = { path = "../editor-core" }
+serde.workspace = true
+thiserror.workspace = true
+tokio = { version = "1.53", features = ["sync"] }
+tokio-util = { version = "0.7", features = ["rt"] }

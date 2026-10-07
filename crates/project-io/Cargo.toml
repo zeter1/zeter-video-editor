@@ -1,0 +1,17 @@
+[package]
+name = "project-io"
+version = "0.0.1"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+editor-core = { path = "../editor-core" }
+serde.workspace = true
+serde_json = "1.0"
+thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+tempfile = "3.27"

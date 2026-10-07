@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    env:
+      ZETER_CI_FFMPEG_ARCHIVE_URL: https://github.com/GyanD/codexffmpeg/releases/download/8.0.1/ffmpeg-8.0.1-full_build.zip
+      ZETER_CI_FFMPEG_ARCHIVE_SHA256: 467cde100a47ed4b03a897988aeb4a296890c1e2b2d2864204657d002bc5fb90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Select Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          rustup override set 1.99.0
+          rustc --version
+          cargo --version
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: apps/desktop
+
+      - name: Frontend build
+        run: npm run build
+        working-directory: apps/desktop
+
+      - name: Download and verify pinned FFmpeg runtime
+        shell: pwsh
+        run: ./scripts/fetch-ffmpeg-runtime.ps1 -Url $env:ZETER_CI_FFMPEG_ARCHIVE_URL -Sha256 $env:ZETER_CI_FFMPEG_ARCHIVE_SHA256 -OutputDir "$env:RUNNER_TEMP/ffmpeg-runtime"
+
+      - name: Build AI worker and fixture whisper probe for tests and bundle smoke
+        run: cargo build -p zeter-ai-worker --bin zeter-ai-worker --bin zeter-ai-fixture-worker
+
+      - name: Stage managed runtime for tests and bundle smoke
+        shell: pwsh
+        run: |
+          $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
+          $worker = Resolve-Path "target/x86_64-pc-windows-msvc/debug/zeter-ai-worker.exe"
+          $whisper = Resolve-Path "target/x86_64-pc-windows-msvc/debug/zeter-ai-fixture-worker.exe"
+          ./scripts/stage-managed-runtime.ps1 -FfmpegPath $paths.ffmpeg -FfprobePath $paths.ffprobe -WhisperCliPath $whisper -AiWorkerPath $worker
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Frontend tests
+        run: npm test -- --run
+        working-directory: apps/desktop
+
+      - name: End-to-end MVP acceptance
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
+          $env:ZETER_TEST_FFMPEG_DIR = Split-Path $paths.ffmpeg -Parent
+          npm run test:e2e
+
+      - name: Tauri debug bundle smoke
+        working-directory: apps/desktop
+        run: npm run tauri build -- --debug --bundles nsis --config ../../release/tauri.debug.conf.json

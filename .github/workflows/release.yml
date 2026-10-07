@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer release version without the leading v"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    name: Signed Windows release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Select Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          rustup override set 1.99.0
+          rustc --version
+          cargo --version
+
+      - name: Verify production signing inputs
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          ZETER_FFMPEG_ARCHIVE_URL: ${{ vars.ZETER_FFMPEG_ARCHIVE_URL }}
+          ZETER_FFMPEG_ARCHIVE_SHA256: ${{ vars.ZETER_FFMPEG_ARCHIVE_SHA256 }}
+        run: |
+          $required = @("TAURI_SIGNING_PRIVATE_KEY","TAURI_SIGNING_PRIVATE_KEY_PASSWORD","TAURI_UPDATER_PUBLIC_KEY","WINDOWS_CERTIFICATE","WINDOWS_CERTIFICATE_PASSWORD","ZETER_FFMPEG_ARCHIVE_URL","ZETER_FFMPEG_ARCHIVE_SHA256")
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) { throw "Required production release input is missing: $name" }
+          }
+          if (-not $env:ZETER_FFMPEG_ARCHIVE_URL.StartsWith("https://")) { throw "ZETER_FFMPEG_ARCHIVE_URL must use HTTPS." }
+          if ($env:ZETER_FFMPEG_ARCHIVE_SHA256 -notmatch "^[0-9A-Fa-f]{64}$") { throw "ZETER_FFMPEG_ARCHIVE_SHA256 must be a 64-character SHA-256." }
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: apps/desktop
+
+      - name: Resolve release version
+        id: version
+        shell: pwsh
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq "tag") { $version = $env:GITHUB_REF_NAME.TrimStart("v") } else { $version = $env:DISPATCH_VERSION }
+          if ($version -notmatch "^\d+\.\d+\.\d+([+-][0-9A-Za-z.-]+)?$") { throw "Release version must be SemVer." }
+
+          $package = Get-Content "apps/desktop/package.json" | ConvertFrom-Json
+          $tauri = Get-Content "apps/desktop/src-tauri/tauri.conf.json" | ConvertFrom-Json
+          $cargoMetadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+          $desktopPackage = $cargoMetadata.packages | Where-Object { $_.name -eq "zeter-desktop-tauri" } | Select-Object -First 1
+          if (-not $desktopPackage) { throw "cargo metadata did not contain zeter-desktop-tauri." }
+
+          $declared = [ordered]@{
+            "apps/desktop/package.json" = $package.version
+            "apps/desktop/src-tauri/tauri.conf.json" = $tauri.version
+            "zeter-desktop-tauri" = $desktopPackage.version
+          }
+          foreach ($entry in $declared.GetEnumerator()) {
+            if ($entry.Value -ne $version) {
+              throw "$($entry.Key) version $($entry.Value) does not match requested release $version"
+            }
+          }
+
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Download and verify pinned FFmpeg runtime
+        shell: pwsh
+        env:
+          ZETER_FFMPEG_ARCHIVE_URL: ${{ vars.ZETER_FFMPEG_ARCHIVE_URL }}
+          ZETER_FFMPEG_ARCHIVE_SHA256: ${{ vars.ZETER_FFMPEG_ARCHIVE_SHA256 }}
+        run: ./scripts/fetch-ffmpeg-runtime.ps1 -Url $env:ZETER_FFMPEG_ARCHIVE_URL -Sha256 $env:ZETER_FFMPEG_ARCHIVE_SHA256 -OutputDir "$env:RUNNER_TEMP/ffmpeg-runtime"
+
+      - name: Build pinned whisper.cpp runtime
+        shell: pwsh
+        run: ./scripts/build-whisper-runtime.ps1 -OutputDir "$env:RUNNER_TEMP/whisper-runtime"
+
+      - name: Build release AI worker
+        run: cargo build -p zeter-ai-worker --release
+
+      - name: Verify runtime manifest and stage managed sidecars
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
+          $manifestPath = "release/runtime-manifest.json"
+          $manifest = Get-Content $manifestPath | ConvertFrom-Json
+          $whisper = Get-Content "$env:RUNNER_TEMP/whisper-runtime/paths.json" | ConvertFrom-Json
+          $ffmpegVersion = (& $paths.ffmpeg -version | Select-Object -First 1)
+          $ffprobeVersion = (& $paths.ffprobe -version | Select-Object -First 1)
+          $whisperVersion = (& $whisper.whisper_cli --version 2>&1 | Out-String)
+          if (-not $ffmpegVersion.Contains($manifest.ffmpeg.version_contains)) { throw "Pinned FFmpeg archive does not match runtime-manifest.json." }
+          if (-not $ffprobeVersion.Contains($manifest.ffprobe.version_contains)) { throw "Pinned FFprobe archive does not match runtime-manifest.json." }
+          if (-not $whisperVersion.Contains($manifest.whisper_cli.version_contains)) { throw "Pinned whisper.cpp runtime does not match runtime-manifest.json." }
+          $manifest.app.version = $env:RELEASE_VERSION
+          $manifest.app.build = $env:GITHUB_SHA
+          $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding utf8
+          ./scripts/stage-managed-runtime.ps1 -FfmpegPath $paths.ffmpeg -FfprobePath $paths.ffprobe -WhisperCliPath $whisper.whisper_cli -AiWorkerPath "target/x86_64-pc-windows-msvc/release/zeter-ai-worker.exe"
+
+      - name: Import Windows signing certificate and prepare release config
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+        run: |
+          $pfxPath = Join-Path $env:RUNNER_TEMP "zeter-release.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $certificate = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          if (-not $certificate.Thumbprint) { throw "Windows signing certificate import did not return a thumbprint." }
+          $override = @{ bundle = @{ windows = @{ certificateThumbprint = $certificate.Thumbprint; digestAlgorithm = "sha256"; timestampUrl = "http://timestamp.digicert.com" } }; plugins = @{ updater = @{ pubkey = $env:TAURI_UPDATER_PUBLIC_KEY } } }
+          $override | ConvertTo-Json -Depth 20 | Set-Content "release/tauri.release.generated.json" -Encoding utf8
+
+      - name: Build signed NSIS installer and updater artifact
+        working-directory: apps/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri build -- --bundles nsis --config ../../release/tauri.release.generated.json
+
+      - name: Verify installer and updater signatures
+        id: artifacts
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $setup = Get-ChildItem target -Recurse -Filter "*-setup.exe" -File | Select-Object -First 1
+          if (-not $setup) { throw "NSIS setup.exe was not produced." }
+          $authenticode = Get-AuthenticodeSignature -FilePath $setup.FullName
+          if ($authenticode.Status -ne "Valid") { throw "Installer Authenticode signature is not valid: $($authenticode.Status)" }
+          $sigPath = "$($setup.FullName).sig"
+          if (-not (Test-Path $sigPath -PathType Leaf)) { throw "Tauri updater signature file was not produced." }
+          $signature = (Get-Content $sigPath -Raw).Trim()
+          if ([string]::IsNullOrWhiteSpace($signature)) { throw "Tauri updater signature is empty." }
+          $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$env:RELEASE_VERSION/$($setup.Name)"
+          $latest = @{ version = $env:RELEASE_VERSION; notes = "Zeter Video Editor $env:RELEASE_VERSION"; pub_date = (Get-Date).ToUniversalTime().ToString("o"); platforms = @{ "windows-x86_64" = @{ signature = $signature; url = $url } } }
+          $latest | ConvertTo-Json -Depth 20 | Set-Content latest.json -Encoding utf8
+          "setup=$($setup.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sig=$sigPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Publish immutable GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          SETUP_PATH: ${{ steps.artifacts.outputs.setup }}
+          SIG_PATH: ${{ steps.artifacts.outputs.sig }}
+        run: |
+          if (gh release view $env:RELEASE_TAG 2>$null) { throw "Release $env:RELEASE_TAG already exists; production releases are immutable." }
+          gh release create $env:RELEASE_TAG $env:SETUP_PATH $env:SIG_PATH latest.json --target $env:GITHUB_SHA --title "Zeter Video Editor $env:RELEASE_TAG" --notes "Signed Windows release."

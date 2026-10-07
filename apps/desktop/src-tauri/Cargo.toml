@@ -1,0 +1,27 @@
+[package]
+name = "zeter-desktop-tauri"
+version = "0.0.1"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ai-engine = { path = "../../../crates/ai-engine" }
+editor-core = { path = "../../../crates/editor-core" }
+job-system = { path = "../../../crates/job-system" }
+media-engine = { path = "../../../crates/media-engine" }
+project-io = { path = "../../../crates/project-io" }
+serde.workspace = true
+serde_json = "1.0"
+tauri = { version = "2.12.1", features = ["wry"] }
+tauri-plugin-updater = "2"
+thiserror.workspace = true
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.23", features = ["fmt", "json"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dev-dependencies]
+tempfile = "3.27"
+uuid.workspace = true

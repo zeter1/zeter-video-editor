@@ -1,6 +1,6 @@
 # Zeter Video Editor MVP Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the approved Windows-only Zeter Video Editor MVP from an empty implementation repository into a testable desktop editor that can import local media, edit multi-track projects non-destructively, use local AI tools, recover safely, and export finished YouTube/Short-form video.
 
@@ -92,13 +92,13 @@
 - Produces: `ProjectId`, `SequenceId`, `TrackId`, `ClipId`, `MediaId`, `JobId`, `RequestId` UUID newtypes; `TimeUs(i64)`; workspace crates and desktop/worker binaries.
 - Consumes: none.
 
-- [ ] **Step 1: Scaffold only the manifests/build entry points required for tests to compile.**
-- [ ] **Step 2: Write failing Rust tests `ids_round_trip_through_serde` and `time_rejects_negative_duration` in `crates/editor-core/src/ids.rs` and `time.rs`.**
-- [ ] **Step 3: Run `cargo test -p editor-core ids_round_trip_through_serde` and `cargo test -p editor-core time_rejects_negative_duration`; verify both fail because the types/validation are missing.**
-- [ ] **Step 4: Implement the ID newtypes plus `TimeUs::new(value: i64) -> Result<TimeUs, DomainError>`, `TimeUs::get(self) -> i64`, and checked add/sub helpers.**
-- [ ] **Step 5: Create `apps/desktop/src/App.test.tsx` with a minimal React smoke test and verify `App` renders “Zeter Video Editor” without owning project state.**
-- [ ] **Step 6: Run `cargo test --workspace`, `npm --prefix apps/desktop test -- --run`, and `npm --prefix apps/desktop run build`; all must pass.**
-- [ ] **Step 7: Commit: `chore: scaffold desktop editor workspace`.**
+- [x] **Step 1: Scaffold only the manifests/build entry points required for tests to compile.**
+- [x] **Step 2: Write failing Rust tests `ids_round_trip_through_serde` and `time_rejects_negative_duration` in `crates/editor-core/src/ids.rs` and `time.rs`.**
+- [x] **Step 3: Run `cargo test -p editor-core ids_round_trip_through_serde` and `cargo test -p editor-core time_rejects_negative_duration`; verify both fail because the types/validation are missing.**
+- [x] **Step 4: Implement the ID newtypes plus `TimeUs::new(value: i64) -> Result<TimeUs, DomainError>`, `TimeUs::get(self) -> i64`, and checked add/sub helpers.**
+- [x] **Step 5: Create `apps/desktop/src/App.test.tsx` with a minimal React smoke test and verify `App` renders “Zeter Video Editor” without owning project state.**
+- [x] **Step 6: Run `cargo test --workspace`, `npm --prefix apps/desktop test -- --run`, and `npm --prefix apps/desktop run build`; all must pass.**
+- [x] **Step 7: Commit: `chore: scaffold desktop editor workspace`.**
 
 ### Task 2: Project/Sequence/Track/Clip Domain Model and Invariants
 
@@ -112,12 +112,12 @@
 - Consumes: ID and time types from Task 1.
 - Produces: `Project`, `ProjectSettings`, `Sequence`, `Track`, `TrackKind`, `Clip`, `ClipKind`, `MediaRef`, `Transform`, `ColorAdjustments`, `AudioState`, `Transition`, `SubtitleSegment`; `Project::validate() -> Result<(), DomainError>`.
 
-- [ ] **Step 1: Write failing tests for multiple sequences, legal media references, non-overlapping source ranges, unique IDs, valid sequence dimensions/FPS, and non-destructive clip source references.**
-- [ ] **Step 2: Add a proptest that generates valid clip timing and asserts `source_in < source_out`, `timeline_start <= timeline_end`, and validation never panics.**
-- [ ] **Step 3: Run `cargo test -p editor-core`; verify the newly added model/validation tests fail.**
-- [ ] **Step 4: Implement the domain structs/enums and `Project::validate` with no Tauri/FFmpeg/AI dependencies.**
-- [ ] **Step 5: Run `cargo test -p editor-core`; all domain/property tests pass.**
-- [ ] **Step 6: Commit: `feat(core): add project timeline domain model`.**
+- [x] **Step 1: Write failing tests for multiple sequences, legal media references, non-overlapping source ranges, unique IDs, valid sequence dimensions/FPS, and non-destructive clip source references.**
+- [x] **Step 2: Add a proptest that generates valid clip timing and asserts `source_in < source_out`, `timeline_start <= timeline_end`, and validation never panics.**
+- [x] **Step 3: Run `cargo test -p editor-core`; verify the newly added model/validation tests fail.**
+- [x] **Step 4: Implement the domain structs/enums and `Project::validate` with no Tauri/FFmpeg/AI dependencies.**
+- [x] **Step 5: Run `cargo test -p editor-core`; all domain/property tests pass.**
+- [x] **Step 6: Commit: `feat(core): add project timeline domain model`.**
 
 ### Task 3: Edit Command Engine, Revisioning, Undo/Redo, and Core Timeline Operations
 
@@ -138,13 +138,13 @@
   - `EditRequest { request_id, expected_revision, command }`
   - `CommandResult { request_id, revision, changed_entities }`
 
-- [ ] **Step 1: Write failing tests proving one successful command increments revision exactly once; rejected commands do not; undo and redo each increment revision once.**
-- [ ] **Step 2: Write failing behavioral tests for split, trim, move, duplicate, ripple delete, copy-equivalent duplicate semantics, snapping-independent core operations, track lock protection, and source media immutability.**
-- [ ] **Step 3: Write failing stale-revision test that returns a typed `DomainError::StaleRevision { expected, actual }`.**
-- [ ] **Step 4: Run `cargo test -p editor-core`; verify the newly added command/history/editor tests fail.**
-- [ ] **Step 5: Implement command application with inverse history entries and explicit changed-entity sets; do not add event sourcing.**
-- [ ] **Step 6: Run `cargo test -p editor-core`; all tests pass.**
-- [ ] **Step 7: Commit: `feat(core): add revisioned edit command engine`.**
+- [x] **Step 1: Write failing tests proving one successful command increments revision exactly once; rejected commands do not; undo and redo each increment revision once.**
+- [x] **Step 2: Write failing behavioral tests for split, trim, move, duplicate, ripple delete, copy-equivalent duplicate semantics, snapping-independent core operations, track lock protection, and source media immutability.**
+- [x] **Step 3: Write failing stale-revision test that returns a typed `DomainError::StaleRevision { expected, actual }`.**
+- [x] **Step 4: Run `cargo test -p editor-core`; verify the newly added command/history/editor tests fail.**
+- [x] **Step 5: Implement command application with inverse history entries and explicit changed-entity sets; do not add event sourcing.**
+- [x] **Step 6: Run `cargo test -p editor-core`; all tests pass.**
+- [x] **Step 7: Commit: `feat(core): add revisioned edit command engine`.**
 
 ### Task 4: Immutable RenderSnapshot and Shared Render Semantics
 
@@ -156,12 +156,12 @@
 - Consumes: Project/Sequence state from Tasks 2–3.
 - Produces: `RenderSnapshot::from_sequence(project: &Project, sequence_id: SequenceId, revision: ProjectRevision) -> Result<RenderSnapshot, DomainError>`; normalized `RenderClip`, `RenderText`, `RenderSubtitle`, `RenderAudio`, `RenderTransition`.
 
-- [ ] **Step 1: Write failing tests asserting snapshot immutability and exact preservation of source ranges, timing, transforms, opacity, color, speed, text/subtitle timing, audio gain/fades, dimensions, and FPS.**
-- [ ] **Step 2: Write a test proving later project edits do not mutate an already-created snapshot.**
-- [ ] **Step 3: Run `cargo test -p editor-core render`; verify failure.**
-- [ ] **Step 4: Implement deterministic snapshot normalization with no FFmpeg-specific strings inside `editor-core`.**
-- [ ] **Step 5: Run `cargo test -p editor-core render`; pass.**
-- [ ] **Step 6: Commit: `feat(core): add immutable render snapshots`.**
+- [x] **Step 1: Write failing tests asserting snapshot immutability and exact preservation of source ranges, timing, transforms, opacity, color, speed, text/subtitle timing, audio gain/fades, dimensions, and FPS.**
+- [x] **Step 2: Write a test proving later project edits do not mutate an already-created snapshot.**
+- [x] **Step 3: Run `cargo test -p editor-core render`; verify failure.**
+- [x] **Step 4: Implement deterministic snapshot normalization with no FFmpeg-specific strings inside `editor-core`.**
+- [x] **Step 5: Run `cargo test -p editor-core render`; pass.**
+- [x] **Step 6: Commit: `feat(core): add immutable render snapshots`.**
 
 ### Task 5: Background Job System and Stale-Result Safety
 
@@ -181,12 +181,12 @@
   - `JobManager::cancel(job_id: JobId) -> Result<(), JobError>`
   - progress/event subscription API.
 
-- [ ] **Step 1: Write failing lifecycle tests for queued→running→completed, failed, and cancelled transitions; terminal states cannot transition again.**
-- [ ] **Step 2: Write failing tests that preserve `source_revision` and stable `job_id` through completion/failure and mark results stale when compared against a newer authoritative revision.**
-- [ ] **Step 3: Run `cargo test -p job-system`; verify failure.**
-- [ ] **Step 4: Implement the Tokio-based manager with cooperative cancellation tokens and typed stage failures.**
-- [ ] **Step 5: Run `cargo test -p job-system`; pass.**
-- [ ] **Step 6: Commit: `feat(jobs): add cancellable background job lifecycle`.**
+- [x] **Step 1: Write failing lifecycle tests for queued→running→completed, failed, and cancelled transitions; terminal states cannot transition again.**
+- [x] **Step 2: Write failing tests that preserve `source_revision` and stable `job_id` through completion/failure and mark results stale when compared against a newer authoritative revision.**
+- [x] **Step 3: Run `cargo test -p job-system`; verify failure.**
+- [x] **Step 4: Implement the Tokio-based manager with cooperative cancellation tokens and typed stage failures.**
+- [x] **Step 5: Run `cargo test -p job-system`; pass.**
+- [x] **Step 6: Commit: `feat(jobs): add cancellable background job lifecycle`.**
 
 ### Task 6: .vcut Persistence, Atomic Save, Migration, Recovery, Relinking, and Cache Boundary
 
@@ -203,7 +203,7 @@
 **Interfaces:**
 - Consumes: `Project`, `ProjectRevision`, `MediaRef`.
 - Produces:
-  - `CURRENT_SCHEMA_VERSION: u32 = 1`
+  - `CURRENT_SCHEMA_VERSION: u32 = 1` at Task 6; Task 13 advances it to `2` with an explicit v1→v2 migration when durable subtitle style is added.
   - `save_atomic(path: &Path, project: &Project, revision: ProjectRevision) -> Result<SaveReceipt, ProjectIoError>`
   - `load(path: &Path) -> Result<LoadedProject, ProjectIoError>`
   - `write_recovery(project_dir: &Path, ...) -> Result<RecoverySnapshot, ProjectIoError>`
@@ -211,16 +211,16 @@
   - `resolve_media(entry: &MediaRef, project_dir: &Path) -> MediaResolution`
   - `CacheKey` including project/source/revision/settings identity.
 
-- [ ] **Step 1: Write failing round-trip and corruption tests; unsupported newer schema must fail without rewriting the file.**
-- [ ] **Step 2: Write failing atomic-save fault-injection test: failure before replace preserves the previous canonical `.vcut`.**
-- [ ] **Step 3: Write failing autosave policy tests for 2s debounce, 30s safety interval, newest-20/7-day/1-GiB retention. Use an injected clock; do not sleep in tests.**
-- [ ] **Step 4: Write failing recovery test: newer valid recovery is discovered but never silently overwrites canonical save.**
-- [ ] **Step 5: Write failing Review Focus test for moved/missing media and same-path materially different media; resolver returns `Missing` or `IdentityMismatch`, never silently `Resolved`.**
-- [ ] **Step 6: Write failing cache test: deleting `cache/<project-id>/` cannot prevent project load and applied AI edits remain in project data.**
-- [ ] **Step 7: Run `cargo test -p project-io`; verify failure.**
-- [ ] **Step 8: Implement versioned JSON codec, atomic temp+flush+replace flow, explicit migration chain, recovery retention, relative/absolute media resolution, inexpensive identity checks, and disposable cache helpers.**
-- [ ] **Step 9: Run `cargo test -p project-io`; pass.**
-- [ ] **Step 10: Commit: `feat(project): add safe vcut persistence and recovery`.**
+- [x] **Step 1: Write failing round-trip and corruption tests; unsupported newer schema must fail without rewriting the file.**
+- [x] **Step 2: Write failing atomic-save fault-injection test: failure before replace preserves the previous canonical `.vcut`.**
+- [x] **Step 3: Write failing autosave policy tests for 2s debounce, 30s safety interval, newest-20/7-day/1-GiB retention. Use an injected clock; do not sleep in tests.**
+- [x] **Step 4: Write failing recovery test: newer valid recovery is discovered but never silently overwrites canonical save.**
+- [x] **Step 5: Write failing Review Focus test for moved/missing media and same-path materially different media; resolver returns `Missing` or `IdentityMismatch`, never silently `Resolved`.**
+- [x] **Step 6: Write failing cache test: deleting `cache/<project-id>/` cannot prevent project load and applied AI edits remain in project data.**
+- [x] **Step 7: Run `cargo test -p project-io`; verify failure.**
+- [x] **Step 8: Implement versioned JSON codec, atomic temp+flush+replace flow, explicit migration chain, recovery retention, relative/absolute media resolution, inexpensive identity checks, and disposable cache helpers.**
+- [x] **Step 9: Run `cargo test -p project-io`; pass.**
+- [x] **Step 10: Commit: `feat(project): add safe vcut persistence and recovery`.**
 
 ### Task 7: Managed FFmpeg/FFprobe Runtime, Media Probe, and Capability Detection
 
@@ -241,14 +241,14 @@
   - encoder capability values for NVENC/QSV/AMF/software H.264/H.265.
 - Constraint: runtime resolution must never choose an arbitrary `PATH` binary when the managed runtime is configured.
 
-- [ ] **Step 1: Write failing command-construction/parsing tests using captured ffprobe JSON fixtures.**
-- [ ] **Step 2: Write failing test proving a fake `PATH` ffmpeg is ignored when managed paths exist.**
-- [ ] **Step 3: Write capability parser tests covering software-only and representative NVENC/QSV/AMF outputs.**
-- [ ] **Step 4: Run `cargo test -p media-engine`; verify the newly added probe/capabilities/runtime tests fail.**
-- [ ] **Step 5: Implement managed process invocation and typed translation of exit/status/stderr into `MediaError`.**
-- [ ] **Step 6: Add a Windows-only real-FFmpeg integration test gated by `ZETER_TEST_FFMPEG_DIR`; CI may skip it until sidecars are provisioned.**
-- [ ] **Step 7: Run `cargo test -p media-engine`; unit tests pass and integration test either passes with sidecar or reports explicit skip.**
-- [ ] **Step 8: Commit: `feat(media): add managed ffmpeg runtime and probing`.**
+- [x] **Step 1: Write failing command-construction/parsing tests using captured ffprobe JSON fixtures.**
+- [x] **Step 2: Write failing test proving a fake `PATH` ffmpeg is ignored when managed paths exist.**
+- [x] **Step 3: Write capability parser tests covering software-only and representative NVENC/QSV/AMF outputs.**
+- [x] **Step 4: Run `cargo test -p media-engine`; verify the newly added probe/capabilities/runtime tests fail.**
+- [x] **Step 5: Implement managed process invocation and typed translation of exit/status/stderr into `MediaError`.**
+- [x] **Step 6: Add a Windows-only real-FFmpeg integration test gated by `ZETER_TEST_FFMPEG_DIR`; CI may skip it until sidecars are provisioned.**
+- [x] **Step 7: Run `cargo test -p media-engine`; unit tests pass and integration test either passes with sidecar or reports explicit skip.**
+- [x] **Step 8: Commit: `feat(media): add managed ffmpeg runtime and probing`.**
 
 ### Task 8: Thumbnails, Waveforms, Proxies, Preview Cache, and Regeneration
 
@@ -264,13 +264,13 @@
 - Consumes: Task 7 runtime/probe; Task 5 job context.
 - Produces: deterministic cache keys and job functions `generate_thumbnail`, `generate_waveform`, `generate_proxy`, `lookup_preview_cache`.
 
-- [ ] **Step 1: Write failing cache-key tests for source identity, revision/range, preview quality, and render-settings hash.**
-- [ ] **Step 2: Write failing Review Focus tests: missing or corrupt thumbnail/waveform/proxy/preview files return cache miss and can be regenerated without changing project data.**
-- [ ] **Step 3: Write proxy test proving original media identity remains authoritative and proxy path is never written back as source media.**
-- [ ] **Step 4: Run `cargo test -p media-engine`; verify the newly added cache/proxy/thumbnail/waveform/preview-cache tests fail.**
-- [ ] **Step 5: Implement FFmpeg command builders and disposable artifact validation.**
-- [ ] **Step 6: Run `cargo test -p media-engine`; pass.**
-- [ ] **Step 7: Commit: `feat(media): add rebuildable editing caches`.**
+- [x] **Step 1: Write failing cache-key tests for source identity, revision/range, preview quality, and render-settings hash.**
+- [x] **Step 2: Write failing Review Focus tests: missing or corrupt thumbnail/waveform/proxy/preview files return cache miss and can be regenerated without changing project data.**
+- [x] **Step 3: Write proxy test proving original media identity remains authoritative and proxy path is never written back as source media.**
+- [x] **Step 4: Run `cargo test -p media-engine`; verify failure.**
+- [x] **Step 5: Implement FFmpeg command builders and disposable artifact validation.**
+- [x] **Step 6: Run `cargo test -p media-engine`; pass.**
+- [x] **Step 7: Commit: `feat(media): add rebuildable editing caches`.**
 
 ### Task 9: Render Planner and Revision-Isolated Export with CPU Fallback
 
@@ -289,14 +289,14 @@
   - `ExportJob::run(plan: RenderPlan, output: &Path, cancel: CancellationToken) -> Result<ExportReceipt, JobFailure>`
   - encoder selection order with explicit software fallback.
 
-- [ ] **Step 1: Write failing parity tests for clip ranges, transforms, opacity, transitions, subtitles, audio gain/fades, dimensions, and FPS in the compiled plan.**
-- [ ] **Step 2: Write failing test proving export holds the captured revision even if the editor later advances.**
-- [ ] **Step 3: Write failing Review Focus test: simulated NVENC/QSV/AMF initialization failure yields one explicit software fallback using the same immutable plan; no fallback loop.**
-- [ ] **Step 4: Write cancellation test that removes/marks incomplete temporary output and never reports success.**
-- [ ] **Step 5: Run `cargo test -p media-engine` and `cargo test --test render_parity`; verify the newly added export/encoder/render-plan/parity tests fail.**
-- [ ] **Step 6: Implement FFmpeg filtergraph/export argument compilation and typed fallback.**
-- [ ] **Step 7: Run the same tests and a synthetic 2-second export integration fixture; pass.**
-- [ ] **Step 8: Commit: `feat(export): add revision-isolated ffmpeg export`.**
+- [x] **Step 1: Write failing parity tests for clip ranges, transforms, opacity, transitions, subtitles, audio gain/fades, dimensions, and FPS in the compiled plan.**
+- [x] **Step 2: Write failing test proving export holds the captured revision even if the editor later advances.**
+- [x] **Step 3: Write failing Review Focus test: simulated NVENC/QSV/AMF initialization failure yields one explicit software fallback using the same immutable plan; no fallback loop.**
+- [x] **Step 4: Write cancellation test that removes/marks incomplete temporary output and never reports success.**
+- [x] **Step 5: Run `cargo test -p media-engine` and `cargo test -p media-engine --test render_parity`; verify the newly added export/encoder/render-plan/parity tests fail.**
+- [x] **Step 6: Implement FFmpeg filtergraph/export argument compilation and typed fallback.**
+- [x] **Step 7: Run the same tests and a synthetic 2-second export integration fixture; pass.**
+- [x] **Step 8: Commit: `feat(export): add revision-isolated ffmpeg export`.**
 
 ### Task 10: Tauri Application Orchestration, Typed IPC, Contracts, and Synchronization
 
@@ -315,13 +315,13 @@
 - Produces typed Tauri commands: `project_open`, `project_save`, `project_snapshot`, `execute_edit_command`, `undo`, `redo`, `import_media`, `start_job`, `cancel_job`, `get_job_state`.
 - DTOs: `ProjectSnapshotDto { revision, project }`, `CommandResultDto`, `AppErrorDto`, `JobEventDto`.
 
-- [ ] **Step 1: Write failing Rust application-service tests showing authoritative mutations pass through `Editor`, stale expected revision is typed distinctly, and job completion alone never mutates the timeline.**
-- [ ] **Step 2: Write failing stale-async Review Focus test: highlight/transcription result captured at revision N cannot be applied directly at N+k; application must revalidate through an edit command.**
-- [ ] **Step 3: Add failing contract drift test that regenerates `apps/desktop/src/generated/ipc.ts` to a temp location and compares bytes.**
-- [ ] **Step 4: Run `cargo test -p zeter-desktop-tauri`; verify failure.**
-- [ ] **Step 5: Implement thin command handlers and orchestration; no timeline business logic in Tauri command functions.**
-- [ ] **Step 6: Generate/commit TypeScript contracts and run `cargo test -p zeter-desktop-tauri`; pass.**
-- [ ] **Step 7: Commit: `feat(ipc): add typed authoritative application API`.**
+- [x] **Step 1: Write failing Rust application-service tests showing authoritative mutations pass through `Editor`, stale expected revision is typed distinctly, and job completion alone never mutates the timeline.**
+- [x] **Step 2: Write failing stale-async Review Focus test: highlight/transcription result captured at revision N cannot be applied directly at N+k; application must revalidate through an edit command.**
+- [x] **Step 3: Add failing contract drift test that regenerates `apps/desktop/src/generated/ipc.ts` to a temp location and compares bytes.**
+- [x] **Step 4: Run `cargo test -p zeter-desktop-tauri`; verify failure.**
+- [x] **Step 5: Implement thin command handlers and orchestration; no timeline business logic in Tauri command functions.**
+- [x] **Step 6: Generate/commit TypeScript contracts and run `cargo test -p zeter-desktop-tauri`; pass.**
+- [x] **Step 7: Commit: `feat(ipc): add typed authoritative application API`.**
 
 ### Task 11: React Workspace Shell, Authoritative Read Model, and Project Lifecycle UI
 
@@ -343,13 +343,13 @@
 - Consumes: generated IPC types from Task 10.
 - Produces: `projectStore.applySnapshot(snapshot)`, `projectStore.applyCommandResult(result)`, transient selection/zoom/hover/drag state, project open/save/undo/redo toolbar actions.
 
-- [ ] **Step 1: Write failing component/store tests proving transient drag/selection state is separate from committed project revision.**
-- [ ] **Step 2: Write failing resync test: if incremental result revision is not the expected next confirmed revision, request `project_snapshot` rather than guessing.**
-- [ ] **Step 3: Write failing layout tests for top toolbar, left tools/media panel, center preview, bottom timeline, right inspector, and background jobs area in dark default UI.**
-- [ ] **Step 4: Run `npm --prefix apps/desktop test -- --run`; verify failure.**
-- [ ] **Step 5: Implement stores, IPC client, and shell.**
-- [ ] **Step 6: Run unit tests and `npm --prefix apps/desktop run build`; pass.**
-- [ ] **Step 7: Commit: `feat(ui): add editor workspace and revisioned read model`.**
+- [x] **Step 1: Write failing component/store tests proving transient drag/selection state is separate from committed project revision.**
+- [x] **Step 2: Write failing resync test: if incremental result revision is not the expected next confirmed revision, request `project_snapshot` rather than guessing.**
+- [x] **Step 3: Write failing layout tests for top toolbar, left tools/media panel, center preview, bottom timeline, right inspector, and background jobs area in dark default UI.**
+- [x] **Step 4: Run `npm --prefix apps/desktop test -- --run`; verify failure.**
+- [x] **Step 5: Implement stores, IPC client, and shell.**
+- [x] **Step 6: Run unit tests and `npm --prefix apps/desktop run build`; pass.**
+- [x] **Step 7: Commit: `feat(ui): add editor workspace and revisioned read model`.**
 
 ### Task 12: Timeline Interaction UI, Snapping, Markers, and Commit-on-Release Editing
 
@@ -367,13 +367,13 @@
 - Consumes: Task 11 state/IPC and Task 3 commands.
 - Produces: drag/trim/split/move/delete/ripple-delete/duplicate actions, track reorder/mute/lock/hide, playhead, zoom/scroll, snapping and markers; one authoritative command at interaction commit boundary.
 
-- [ ] **Step 1: Write failing pure tests for time↔pixel conversion and snapping precedence (playhead, clip edges, markers within threshold).**
-- [ ] **Step 2: Write failing interaction test: 100 pointer-move events during a drag update transient preview only; pointer-up sends exactly one `MoveClip` command.**
-- [ ] **Step 3: Write failing rejection test: stale/invalid command restores last confirmed clip position and surfaces typed error.**
-- [ ] **Step 4: Run timeline tests; verify failure.**
-- [ ] **Step 5: Implement timeline virtualization only if fixture performance shows it necessary; otherwise keep MVP rendering simple.**
-- [ ] **Step 6: Run timeline tests and frontend build; pass.**
-- [ ] **Step 7: Commit: `feat(ui): add multi-track timeline editing interactions`.**
+- [x] **Step 1: Write failing pure tests for time↔pixel conversion and snapping precedence (playhead, clip edges, markers within threshold).**
+- [x] **Step 2: Write failing interaction test: 100 pointer-move events during a drag update transient preview only; pointer-up sends exactly one `MoveClip` command.**
+- [x] **Step 3: Write failing rejection test: stale/invalid command restores last confirmed clip position and surfaces typed error.**
+- [x] **Step 4: Run timeline tests; verify failure.**
+- [x] **Step 5: Implement timeline virtualization only if fixture performance shows it necessary; otherwise keep MVP rendering simple.**
+- [x] **Step 6: Run timeline tests and frontend build; pass.**
+- [x] **Step 7: Commit: `feat(ui): add multi-track timeline editing interactions`.**
 
 ### Task 13: Preview/Inspector Manual Editing — Transform, Color, Speed, Audio, Text, Subtitles, Transitions
 
@@ -395,13 +395,13 @@
 - Consumes: core commands and preview media/cache availability.
 - Produces UI for crop/scale/position/rotation/opacity, exposure/contrast/highlights/shadows/saturation/temperature/tint, speed, volume/gain/mute/normalize/fades, text styles, subtitle edits/presets, Cross Dissolve/Fade/Dip to Black/Dip to White, clickable transcript seeking.
 
-- [ ] **Step 1: Write failing inspector tests proving slider/drag changes are transient until commit and then send the correct single typed command.**
-- [ ] **Step 2: Write failing tests for exact subtitle preset values and transcript-click seeking.**
-- [ ] **Step 3: Write failing transition/type tests that expose only the four approved MVP transitions.**
-- [ ] **Step 4: Run frontend tests; verify failure.**
-- [ ] **Step 5: Implement UI plus preview quality selector Full/1/2/1/4 and Fit/100%; preview quality must never mutate export settings.**
-- [ ] **Step 6: Run frontend tests/build and Task 4 render semantics tests; pass.**
-- [ ] **Step 7: Commit: `feat(ui): add manual editing inspector and preview controls`.**
+- [x] **Step 1: Write failing inspector tests proving slider/drag changes are transient until commit and then send the correct single typed command.**
+- [x] **Step 2: Write failing tests for exact subtitle preset values and transcript-click seeking.**
+- [x] **Step 3: Write failing transition/type tests that expose only the four approved MVP transitions.**
+- [x] **Step 4: Run frontend tests; verify failure.**
+- [x] **Step 5: Implement UI plus preview quality selector Full/1/2/1/4 and Fit/100%; preview quality must never mutate export settings.**
+- [x] **Step 6: Run frontend tests/build and Task 4 render semantics tests; pass.**
+- [x] **Step 7: Commit: `feat(ui): add manual editing inspector and preview controls`.**
 
 ### Task 14: AI Worker Protocol and Verified Model Manager
 
@@ -424,14 +424,14 @@
   - `ModelManifest { id, version, backend_compatibility, source, expected_size, sha256, license, app_compatibility }`
   - `ModelManager::install_downloaded`, `import_offline`, `verify`, `available_models`.
 
-- [ ] **Step 1: Write failing protocol compatibility tests; mismatched worker protocol must be rejected before analysis starts.**
-- [ ] **Step 2: Write failing model verification tests for correct SHA-256, wrong checksum, incompatible app/backend, and offline import.**
-- [ ] **Step 3: Write failing retry test: downloads use at most 3 attempts with 1s/2s/4s injected backoff; tests use fake clock/client.**
-- [ ] **Step 4: Write worker crash/cancel test proving project state is untouched and a later worker can restart.**
-- [ ] **Step 5: Run `cargo test -p ai-engine -p zeter-ai-worker`; verify failure.**
-- [ ] **Step 6: Implement JSON-lines or length-prefixed local stdio IPC with explicit protocol version and no network inference path.**
-- [ ] **Step 7: Run tests; pass.**
-- [ ] **Step 8: Commit: `feat(ai): add isolated worker protocol and model manager`.**
+- [x] **Step 1: Write failing protocol compatibility tests; mismatched worker protocol must be rejected before analysis starts.**
+- [x] **Step 2: Write failing model verification tests for correct SHA-256, wrong checksum, incompatible app/backend, and offline import.**
+- [x] **Step 3: Write failing retry test: downloads use at most 3 attempts with 1s/2s/4s injected backoff; tests use fake clock/client.**
+- [x] **Step 4: Write worker crash/cancel test proving project state is untouched and a later worker can restart.**
+- [x] **Step 5: Run `cargo test -p ai-engine -p zeter-ai-worker`; verify failure.**
+- [x] **Step 6: Implement JSON-lines or length-prefixed local stdio IPC with explicit protocol version and no network inference path.**
+- [x] **Step 7: Run tests; pass.**
+- [x] **Step 8: Commit: `feat(ai): add isolated worker protocol and model manager`.**
 
 ### Task 15: Local Transcription and Editable Automatic Subtitles
 
@@ -446,14 +446,14 @@
 - Consumes: normalized audio produced by `media-engine`, verified whisper.cpp model, job system.
 - Produces: `TranscriptResult { language, segments, provenance }`, each segment with start/end/text; applying result produces ordinary `AddSubtitleSegments` core command after current-revision validation.
 
-- [ ] **Step 1: Write failing structured-output tests using deterministic worker fixture output; no full inference required for unit test.**
-- [ ] **Step 2: Write failing test that transcription completion at old revision is reviewable but cannot silently mutate current timeline.**
-- [ ] **Step 3: Write failing Review Focus cache test: deleting cached transcript analysis does not remove already-applied subtitle segments.**
-- [ ] **Step 4: Run AI/application/frontend tests; verify failure.**
-- [ ] **Step 5: Implement whisper.cpp worker adapter and FFmpeg audio normalization handoff.**
-- [ ] **Step 6: Add optional Windows integration test using a tiny synthetic speech fixture/model fixture path; skip explicitly when model fixture is absent.**
-- [ ] **Step 7: Run tests; pass.**
-- [ ] **Step 8: Commit: `feat(ai): add local transcription and subtitle workflow`.**
+- [x] **Step 1: Write failing structured-output tests using deterministic worker fixture output; no full inference required for unit test.**
+- [x] **Step 2: Write failing test that transcription completion at old revision is reviewable but cannot silently mutate current timeline.**
+- [x] **Step 3: Write failing Review Focus cache test: deleting cached transcript analysis does not remove already-applied subtitle segments.**
+- [x] **Step 4: Run AI/application/frontend tests; verify failure.**
+- [x] **Step 5: Implement whisper.cpp worker adapter and FFmpeg audio normalization handoff.**
+- [x] **Step 6: Add optional Windows integration test using a tiny synthetic speech fixture/model fixture path; skip explicitly when model fixture is absent.**
+- [x] **Step 7: Run tests; pass.**
+- [x] **Step 8: Commit: `feat(ai): add local transcription and subtitle workflow`.**
 
 ### Task 16: Silence Removal, Highlight Ranking, Short Creation, and Simple Face-Aware Reframe
 
@@ -474,14 +474,14 @@
   - `FaceLocator` trait; Windows MVP implementation may use Windows face-analysis APIs; fallback is centered crop.
   - `create_short_from_candidate(candidate, current_revision, reframe) -> EditCommand batch/new 1080x1920 sequence`.
 
-- [ ] **Step 1: Write failing deterministic silence tests for threshold, minimum duration, and padding boundaries.**
-- [ ] **Step 2: Write failing highlight scoring tests showing score/reasons are explainable and deterministic with no LLM/network dependency.**
-- [ ] **Step 3: Write failing stale-candidate test: candidate from old revision requires validation and cannot directly edit current state.**
-- [ ] **Step 4: Write failing short-creation test for a new 1080x1920 sequence and manual reframe values; face result changes initial crop only and remains editable.**
-- [ ] **Step 5: Run AI/core/application tests; verify failure.**
-- [ ] **Step 6: Implement silence and highlight analysis, Windows face locator behind capability detection, center-crop fallback, and ordinary core commands for accepted changes.**
-- [ ] **Step 7: Run tests; pass.**
-- [ ] **Step 8: Commit: `feat(ai): add silence highlights and short workflow`.**
+- [x] **Step 1: Write failing deterministic silence tests for threshold, minimum duration, and padding boundaries.**
+- [x] **Step 2: Write failing highlight scoring tests showing score/reasons are explainable and deterministic with no LLM/network dependency.**
+- [x] **Step 3: Write failing stale-candidate test: candidate from old revision requires validation and cannot directly edit current state.**
+- [x] **Step 4: Write failing short-creation test for a new 1080x1920 sequence and manual reframe values; face result changes initial crop only and remains editable.**
+- [x] **Step 5: Run AI/core/application tests; verify failure.**
+- [x] **Step 6: Implement silence and highlight analysis, Windows face locator behind capability detection, center-crop fallback, and ordinary core commands for accepted changes.**
+- [x] **Step 7: Run tests; pass.**
+- [x] **Step 8: Commit: `feat(ai): add silence highlights and short workflow`.**
 
 ### Task 17: Typed Diagnostics, Local Logs, Failure UX, and Sanitized Support Bundle
 
@@ -497,14 +497,14 @@
 **Interfaces:**
 - Produces typed categories `Domain`, `Project`, `Media`, `AiModel`, `Job`, `Filesystem`, `Capability`, `Internal`; correlation IDs; sanitized support bundle export.
 
-- [ ] **Step 1: Write failing redaction tests for transcript text, secrets/tokens, environment credentials, full project JSON, raw FFmpeg arguments, and filesystem path sanitization.**
-- [ ] **Step 2: Write failing rotation policy test for 10×10 MiB and 14-day pruning using injected filesystem metadata/clock.**
-- [ ] **Step 3: Write failing support-bundle test proving it contains build/runtime/capability/log/job/crash metadata but excludes source media, `.vcut`, transcript text, extracted audio, frames, credentials.**
-- [ ] **Step 4: Write UI tests for actionable recovery choices such as CPU export fallback, relink, model install, save elsewhere, and technical details.**
-- [ ] **Step 5: Run desktop Rust/frontend tests; verify failure.**
-- [ ] **Step 6: Implement `tracing` structured local logging, bounded rotation, correlation propagation, and bundle creation.**
-- [ ] **Step 7: Run tests; pass.**
-- [ ] **Step 8: Commit: `feat(diagnostics): add private local support diagnostics`.**
+- [x] **Step 1: Write failing redaction tests for transcript text, secrets/tokens, environment credentials, full project JSON, raw FFmpeg arguments, and filesystem path sanitization.**
+- [x] **Step 2: Write failing rotation policy test for 10×10 MiB and 14-day pruning using injected filesystem metadata/clock.**
+- [x] **Step 3: Write failing support-bundle test proving it contains build/runtime/capability/log/job/crash metadata but excludes source media, `.vcut`, transcript text, extracted audio, frames, credentials.**
+- [x] **Step 4: Write UI tests for actionable recovery choices such as CPU export fallback, relink, model install, save elsewhere, and technical details.**
+- [x] **Step 5: Run desktop Rust/frontend tests; verify failure.**
+- [x] **Step 6: Implement `tracing` structured local logging, bounded rotation, correlation propagation, and bundle creation.**
+- [x] **Step 7: Run tests; pass.**
+- [x] **Step 8: Commit: `feat(diagnostics): add private local support diagnostics`.**
 
 ### Task 18: Windows Runtime Manifest, NSIS Packaging, Signed Soft Updates, and Safe Shutdown
 
@@ -523,14 +523,14 @@
 - Installer: signed NSIS `setup.exe`, current-user default, WebView2 Evergreen bootstrap behavior.
 - Secrets/signing keys are CI-protected and never committed.
 
-- [ ] **Step 1: Write failing runtime-manifest validation tests for missing/incompatible managed FFmpeg/FFprobe/AI worker; must return typed installation/runtime error and never use `PATH` fallback.**
-- [ ] **Step 2: Write failing safe-shutdown Review Focus tests: dirty project, save in progress/failure, active export, active AI/media job prevent immediate installation; user may defer.**
-- [ ] **Step 3: Write failing update-boundary test proving updater code never opens/rewrites `.vcut`, recovery snapshots, source media, or exports.**
-- [ ] **Step 4: Add release-workflow validation that fails closed when required updater signing or Windows code-signing inputs are absent in production release jobs.**
-- [ ] **Step 5: Run Rust tests and workflow/config validation; verify failure before implementation.**
-- [ ] **Step 6: Configure Tauri NSIS/currentUser/updater/sidecars and implement startup/runtime/update checks.**
-- [ ] **Step 7: On Windows CI run `npm --prefix apps/desktop run build`, `cargo test --workspace`, and a debug Tauri bundle smoke build; all pass.**
-- [ ] **Step 8: Commit: `build(windows): add managed runtime packaging and safe updates`.**
+- [x] **Step 1: Write failing runtime-manifest validation tests for missing/incompatible managed FFmpeg/FFprobe/AI worker; must return typed installation/runtime error and never use `PATH` fallback.**
+- [x] **Step 2: Write failing safe-shutdown Review Focus tests: dirty project, save in progress/failure, active export, active AI/media job prevent immediate installation; user may defer.**
+- [x] **Step 3: Write failing update-boundary test proving updater code never opens/rewrites `.vcut`, recovery snapshots, source media, or exports.**
+- [x] **Step 4: Add release-workflow validation that fails closed when required updater signing or Windows code-signing inputs are absent in production release jobs.**
+- [x] **Step 5: Run Rust tests and workflow/config validation; verify failure before implementation.**
+- [x] **Step 6: Configure Tauri NSIS/currentUser/updater/sidecars and implement startup/runtime/update checks.**
+- [x] **Step 7: On Windows CI run `npm --prefix apps/desktop run build`, `cargo test --workspace`, and a debug Tauri bundle smoke build; all pass.**
+- [x] **Step 8: Commit: `build(windows): add managed runtime packaging and safe updates`.**
 
 ### Task 19: End-to-End MVP Workflow and Acceptance Verification
 
@@ -545,14 +545,14 @@
 - Consumes: all prior tasks.
 - Produces: one reproducible acceptance workflow covering import → edit → save/reopen → local AI analysis/application → create Short → export.
 
-- [ ] **Step 1: Write an initially failing Playwright smoke workflow using synthetic 1080p fixtures: create/open project, import video/audio/image, perform trim/split/move/duplicate/ripple-delete, add text/subtitles/music/transition, adjust transform/audio/color/speed, save and reopen.**
-- [ ] **Step 2: Extend the failing workflow to run stubbed/deterministic local AI fixture paths for transcription, silence candidates, highlight candidate, and create a 1080x1920 Short; verify all accepted edits are normal undoable project state.**
-- [ ] **Step 3: Extend the failing workflow to export MP4/H.264, cancel an export, and verify successful output metadata via managed FFprobe.**
-- [ ] **Step 4: Add recovery smoke: simulate abnormal shutdown after confirmed edits, reopen, choose recovery, and verify canonical save was not silently overwritten.**
-- [ ] **Step 5: Run focused E2E until it passes, then run full verification: `cargo test --workspace`; `npm --prefix apps/desktop test -- --run`; `npm --prefix apps/desktop run build`; `npm --prefix apps/desktop run test:e2e`; Windows debug Tauri bundle smoke.**
-- [ ] **Step 6: Use Superpowers `verification-before-completion`; record exact commands/results in `PROJECT_STATUS.md`. Do not declare MVP complete if any required check is skipped/failing.**
-- [ ] **Step 7: Use Superpowers `requesting-code-review` for a whole-branch review and fix all Critical/Important findings before integration.**
-- [ ] **Step 8: Commit: `test: verify complete mvp editing workflow`.**
+- [x] **Step 1: Write an initially failing Playwright smoke workflow using synthetic 1080p fixtures: create/open project, import video/audio/image, perform trim/split/move/duplicate/ripple-delete, add text/subtitles/music/transition, adjust transform/audio/color/speed, save and reopen.**
+- [x] **Step 2: Extend the failing workflow to run stubbed/deterministic local AI fixture paths for transcription, silence candidates, highlight candidate, and create a 1080x1920 Short; verify all accepted edits are normal undoable project state.**
+- [x] **Step 3: Extend the failing workflow to export MP4/H.264, cancel an export, and verify successful output metadata via managed FFprobe.**
+- [x] **Step 4: Add recovery smoke: simulate abnormal shutdown after confirmed edits, reopen, choose recovery, and verify canonical save was not silently overwritten.**
+- [x] **Step 5: Run focused E2E until it passes, then run full verification: `cargo test --workspace`; `npm --prefix apps/desktop test -- --run`; `npm --prefix apps/desktop run build`; `npm --prefix apps/desktop run test:e2e`; Windows debug Tauri bundle smoke.**
+- [x] **Step 6: Use Superpowers `verification-before-completion`; record exact commands/results in `PROJECT_STATUS.md`. Do not declare MVP complete if any required check is skipped/failing.**
+- [x] **Step 7: Use Superpowers `requesting-code-review` for a whole-branch review and fix all Critical/Important findings before integration.**
+- [x] **Step 8: Commit: `test: verify complete mvp editing workflow`.**
 
 ## Execution Order and Gates
 
@@ -575,4 +575,4 @@ Before implementation begins, the human partner must review and approve this pla
 - **Type consistency:** ID/time/revision types originate in Tasks 1/3; `RenderSnapshot` in Task 4; jobs in Task 5; application DTOs in Task 10; later tasks consume those names rather than redefine them.
 - **Review Focus:** All five high-risk failure classes have owning tests in the named tasks.
 - **Proportion:** The plan records interfaces, exact behavior, test intent, and commands without embedding full implementation bodies.
-- **Execution correctness re-review (2026-10-06):** invalid multi-filter Cargo test commands were replaced with valid invocations; Task 1 now names the React smoke-test file explicitly; the repository-wide changelog gate from the GitHub operations runbook is included without changing product or architecture scope.
+- **Execution correctness re-review (2026-10-06):** invalid multi-filter Cargo test commands were replaced with valid invocations; Task 1 names the React smoke-test file explicitly; the repository-wide changelog gate from the GitHub operations runbook is included without changing product or architecture scope.
