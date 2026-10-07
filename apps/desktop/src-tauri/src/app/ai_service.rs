@@ -1,8 +1,8 @@
 use std::{fs, path::Path};
 
 use ai_engine::{
-    AiError, AnalysisParameters, AnalysisRequest, AnalysisResult, AnalysisTask,
-    HighlightCandidate, ProcessWorkerFactory, SilenceRange, WorkerSupervisor,
+    AiError, AnalysisParameters, AnalysisRequest, AnalysisResult, AnalysisTask, HighlightCandidate,
+    ProcessWorkerFactory, SilenceRange, WorkerSupervisor,
 };
 use job_system::JobSnapshot;
 use media_engine::{ManagedRuntime, MediaError, waveform::generate_waveform};
@@ -116,7 +116,6 @@ pub fn run_silence_analysis(
     }
     result
 }
-
 
 pub fn run_highlight_analysis(
     runtime: &ValidatedRuntime,

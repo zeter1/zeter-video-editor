@@ -99,8 +99,11 @@ fn audio_highlight_signals(
         return Ok(Vec::new());
     }
 
-    let candidate_samples =
-        duration_to_samples(candidate_duration_ms, sample_rate_hz, PARAM_CANDIDATE_DURATION_MS)?;
+    let candidate_samples = duration_to_samples(
+        candidate_duration_ms,
+        sample_rate_hz,
+        PARAM_CANDIDATE_DURATION_MS,
+    )?;
     let hop_samples = duration_to_samples(hop_duration_ms, sample_rate_hz, PARAM_HOP_DURATION_MS)?;
     let boundary_samples =
         duration_to_samples(BOUNDARY_WINDOW_MS, sample_rate_hz, "boundary_window_ms")?;
@@ -150,18 +153,27 @@ fn sample_index_to_time(index: usize, sample_rate_hz: u32) -> Result<TimeUs, AiE
         .checked_mul(1_000_000)
         .map(|value| value / u128::from(sample_rate_hz))
         .and_then(|value| i64::try_from(value).ok())
-        .ok_or_else(|| AiError::InvalidAnalysisOutput("highlight timestamp exceeds supported range".into()))?;
+        .ok_or_else(|| {
+            AiError::InvalidAnalysisOutput("highlight timestamp exceeds supported range".into())
+        })?;
     TimeUs::new(micros).map_err(|error| AiError::InvalidAnalysisOutput(error.to_string()))
 }
 
 fn density_above_threshold(samples: &[f32], threshold: f32) -> f32 {
-    if samples.is_empty() { return 0.0; }
-    let voiced = samples.iter().filter(|sample| sample.abs() >= threshold).count();
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let voiced = samples
+        .iter()
+        .filter(|sample| sample.abs() >= threshold)
+        .count();
     voiced as f32 / samples.len() as f32
 }
 
 fn boundary_pause_score(samples: &[f32], boundary_samples: usize, threshold: f32) -> f32 {
-    if samples.is_empty() { return 0.0; }
+    if samples.is_empty() {
+        return 0.0;
+    }
     let edge = boundary_samples.min(samples.len()).max(1);
     let leading_pause = 1.0 - density_above_threshold(&samples[..edge], threshold);
     let trailing_pause = 1.0 - density_above_threshold(&samples[samples.len() - edge..], threshold);
@@ -169,7 +181,9 @@ fn boundary_pause_score(samples: &[f32], boundary_samples: usize, threshold: f32
 }
 
 fn loudness_change_score(samples: &[f32], floor: f32) -> f32 {
-    if samples.len() < 2 { return 0.0; }
+    if samples.len() < 2 {
+        return 0.0;
+    }
     let midpoint = samples.len() / 2;
     let first_rms = rms(&samples[..midpoint]);
     let second_rms = rms(&samples[midpoint..]);
@@ -178,25 +192,50 @@ fn loudness_change_score(samples: &[f32], floor: f32) -> f32 {
 }
 
 fn rms(samples: &[f32]) -> f64 {
-    if samples.is_empty() { return 0.0; }
-    let mean_square = samples.iter().map(|sample| {
-        let value = f64::from(*sample);
-        value * value
-    }).sum::<f64>() / samples.len() as f64;
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let mean_square = samples
+        .iter()
+        .map(|sample| {
+            let value = f64::from(*sample);
+            value * value
+        })
+        .sum::<f64>()
+        / samples.len() as f64;
     mean_square.sqrt()
 }
 
 fn parameter_string<'a>(request: &'a AnalysisRequest, key: &str) -> Result<&'a str, AiError> {
-    request.parameters.values.get(key).and_then(|value| value.as_str()).filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| AiError::InvalidAnalysisOutput(format!("missing highlight parameter '{key}'")))
+    request
+        .parameters
+        .values
+        .get(key)
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| {
+            AiError::InvalidAnalysisOutput(format!("missing highlight parameter '{key}'"))
+        })
 }
 
 fn parameter_u64(request: &AnalysisRequest, key: &str) -> Result<u64, AiError> {
-    request.parameters.values.get(key).and_then(|value| value.as_u64())
-        .ok_or_else(|| AiError::InvalidAnalysisOutput(format!("invalid highlight parameter '{key}'")))
+    request
+        .parameters
+        .values
+        .get(key)
+        .and_then(|value| value.as_u64())
+        .ok_or_else(|| {
+            AiError::InvalidAnalysisOutput(format!("invalid highlight parameter '{key}'"))
+        })
 }
 
 fn parameter_f64(request: &AnalysisRequest, key: &str) -> Result<f64, AiError> {
-    request.parameters.values.get(key).and_then(|value| value.as_f64())
-        .ok_or_else(|| AiError::InvalidAnalysisOutput(format!("invalid highlight parameter '{key}'")))
+    request
+        .parameters
+        .values
+        .get(key)
+        .and_then(|value| value.as_f64())
+        .ok_or_else(|| {
+            AiError::InvalidAnalysisOutput(format!("invalid highlight parameter '{key}'"))
+        })
 }
