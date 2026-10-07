@@ -51,14 +51,18 @@ pub fn resolve_media(entry: &MediaRef, project_dir: &Path) -> MediaResolution {
 mod tests {
     use tempfile::tempdir;
 
-    use crate::{resolve_media, test_project, MediaResolution};
+    use crate::{MediaResolution, resolve_media, test_project};
 
     #[test]
     fn moved_missing_and_same_path_mismatch_never_silently_resolve_wrong_media() {
         let dir = tempdir().unwrap();
         let mut media = test_project().media.remove(0);
 
-        media.absolute_path = dir.path().join("old-location.mp4").to_string_lossy().into_owned();
+        media.absolute_path = dir
+            .path()
+            .join("old-location.mp4")
+            .to_string_lossy()
+            .into_owned();
         media.project_relative_path = Some("media/source.mp4".into());
 
         assert!(matches!(

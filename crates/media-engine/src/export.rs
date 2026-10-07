@@ -14,10 +14,10 @@ use job_system::JobFailure;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    encoder::{select_encoder, EncoderKind},
-    process::{status_error, ProcessOutput, ProcessSpec},
-    render_plan::RenderPlan,
     ManagedRuntime, MediaCapabilities, MediaError,
+    encoder::{EncoderKind, select_encoder},
+    process::{ProcessOutput, ProcessSpec, status_error},
+    render_plan::RenderPlan,
 };
 
 pub trait ExportRunner: Clone {
@@ -164,8 +164,8 @@ impl<R: ExportRunner> ExportJob<R> {
             return Err(cancelled_failure());
         }
 
-        let selection = select_encoder(&plan.settings, self.capabilities)
-            .map_err(export_failure)?;
+        let selection =
+            select_encoder(&plan.settings, self.capabilities).map_err(export_failure)?;
         let mut encoder = selection.primary;
         let mut used_software_fallback = false;
 
@@ -184,8 +184,7 @@ impl<R: ExportRunner> ExportJob<R> {
 
                 encoder = selection.software_fallback.expect("checked fallback");
                 used_software_fallback = true;
-                let fallback_spec =
-                    build_export_spec(&self.runtime, &plan, encoder, &temp_output);
+                let fallback_spec = build_export_spec(&self.runtime, &plan, encoder, &temp_output);
                 if let Err(error) = self.runner.run(&fallback_spec, &cancel) {
                     cleanup_file(&temp_output);
                     return Err(map_runner_failure(error));
@@ -349,20 +348,15 @@ fn compile_timeline_filtergraph(
             filters.push(format!("trim=duration={timeline_duration:.6}"));
             filters.push("setpts=PTS-STARTPTS".to_string());
         } else {
-            filters.push(format!(
-                "trim=start={source_start:.6}:end={source_end:.6}"
-            ));
-            filters.push(format!(
-                "setpts=(PTS-STARTPTS)/{:.6}",
-                clip.speed
-            ));
+            filters.push(format!("trim=start={source_start:.6}:end={source_end:.6}"));
+            filters.push(format!("setpts=(PTS-STARTPTS)/{:.6}", clip.speed));
             filters.push(format!("trim=duration={timeline_duration:.6}"));
         }
 
-        let crop_width = (1.0 - clip.transform.crop.left - clip.transform.crop.right)
-            .clamp(0.001, 1.0);
-        let crop_height = (1.0 - clip.transform.crop.top - clip.transform.crop.bottom)
-            .clamp(0.001, 1.0);
+        let crop_width =
+            (1.0 - clip.transform.crop.left - clip.transform.crop.right).clamp(0.001, 1.0);
+        let crop_height =
+            (1.0 - clip.transform.crop.top - clip.transform.crop.bottom).clamp(0.001, 1.0);
         filters.push(format!(
             "crop=iw*{crop_width:.6}:ih*{crop_height:.6}:iw*{:.6}:ih*{:.6}",
             clip.transform.crop.left, clip.transform.crop.top
@@ -411,9 +405,9 @@ fn compile_timeline_filtergraph(
         {
             let transition_duration = seconds(transition.duration.get()).max(0.001);
             match transition.kind {
-                TransitionKind::CrossDissolve => filters.push(format!(
-                    "fade=t=in:st=0:d={transition_duration:.6}:alpha=1"
-                )),
+                TransitionKind::CrossDissolve => {
+                    filters.push(format!("fade=t=in:st=0:d={transition_duration:.6}:alpha=1"))
+                }
                 TransitionKind::Fade => filters.push(format!(
                     "fade=t=in:st=0:d={transition_duration:.6}:color=black"
                 )),
@@ -434,14 +428,8 @@ fn compile_timeline_filtergraph(
         ));
 
         let next_base = format!("vbase{}", visual_index + 1);
-        let x = format!(
-            "(W-w)/2+{:.6}*W/2",
-            clip.transform.position_x
-        );
-        let y = format!(
-            "(H-h)/2+{:.6}*H/2",
-            clip.transform.position_y
-        );
+        let x = format!("(W-w)/2+{:.6}*W/2", clip.transform.position_x);
+        let y = format!("(H-h)/2+{:.6}*H/2", clip.transform.position_y);
         parts.push(format!(
             "[{base_label}][{clip_label}]overlay=x='{x}':y='{y}':eof_action=pass:enable='between(t,{timeline_start:.6},{timeline_end:.6})'[{next_base}]"
         ));
@@ -451,16 +439,9 @@ fn compile_timeline_filtergraph(
 
     for (index, text) in plan.texts.iter().enumerate() {
         let next = format!("vtext{index}");
-        let x = text_x_expression(
-            text.style.alignment,
-            f64::from(text.transform.position_x),
-        );
-        let y = format!(
-            "(h-text_h)/2+{:.6}*h/2",
-            text.transform.position_y
-        );
-        let opacity =
-            (text.style.opacity * text.transform.opacity).clamp(0.0, 1.0);
+        let x = text_x_expression(text.style.alignment, f64::from(text.transform.position_x));
+        let y = format!("(h-text_h)/2+{:.6}*h/2", text.transform.position_y);
+        let opacity = (text.style.opacity * text.transform.opacity).clamp(0.0, 1.0);
         let filter = drawtext_filter(
             &text.style,
             &text.text,
@@ -516,16 +497,14 @@ fn compile_timeline_filtergraph(
         let source_start = seconds(clip.source_in.get());
         let source_end = seconds(clip.source_out.get());
         let timeline_start = seconds(clip.timeline_start.get());
-        let timeline_duration =
-            (seconds(clip.timeline_end.get()) - timeline_start).max(0.001);
+        let timeline_duration = (seconds(clip.timeline_end.get()) - timeline_start).max(0.001);
         let mut filters = vec![
             format!("atrim=start={source_start:.6}:end={source_end:.6}"),
             "asetpts=PTS-STARTPTS".to_string(),
         ];
         filters.extend(atempo_filters(clip.speed));
 
-        let linear_gain =
-            f64::from(audio.volume) * 10_f64.powf(f64::from(audio.gain_db) / 20.0);
+        let linear_gain = f64::from(audio.volume) * 10_f64.powf(f64::from(audio.gain_db) / 20.0);
         filters.push(format!("volume={linear_gain:.6}"));
 
         let fade_in = seconds(audio.fade_in.get()).min(timeline_duration);
@@ -535,9 +514,7 @@ fn compile_timeline_filtergraph(
         let fade_out = seconds(audio.fade_out.get()).min(timeline_duration);
         if fade_out > 0.0 {
             let fade_start = (timeline_duration - fade_out).max(0.0);
-            filters.push(format!(
-                "afade=t=out:st={fade_start:.6}:d={fade_out:.6}"
-            ));
+            filters.push(format!("afade=t=out:st={fade_start:.6}:d={fade_out:.6}"));
         }
 
         let delay_ms = (timeline_start * 1000.0).round().max(0.0) as u64;
@@ -546,10 +523,7 @@ fn compile_timeline_filtergraph(
         }
 
         let label = format!("aclip{audio_index}");
-        parts.push(format!(
-            "[{input_index}:a]{}[{label}]",
-            filters.join(",")
-        ));
+        parts.push(format!("[{input_index}:a]{}[{label}]", filters.join(",")));
         audio_labels.push(label);
         audio_index += 1;
     }
@@ -623,10 +597,7 @@ fn drawtext_filter(
     }
     if let Some(background) = &style.background {
         options.push("box=1".to_string());
-        options.push(format!(
-            "boxcolor={}",
-            ffmpeg_color(background, opacity)
-        ));
+        options.push(format!("boxcolor={}", ffmpeg_color(background, opacity)));
         options.push("boxborderw=12".to_string());
     }
     options.push(format!("enable='between(t,{start:.6},{end:.6})'"));

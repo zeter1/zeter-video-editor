@@ -2,7 +2,7 @@
 
 use std::{env, path::PathBuf};
 
-use media_engine::{detect_capabilities, ManagedRuntime};
+use media_engine::{ManagedRuntime, detect_capabilities};
 
 #[test]
 fn real_managed_ffmpeg_is_detectable_when_fixture_directory_is_configured() {

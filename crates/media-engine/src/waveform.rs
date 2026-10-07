@@ -1,6 +1,5 @@
 use std::{
-    fs,
-    io,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -8,8 +7,8 @@ use editor_core::MediaRef;
 use job_system::JobContext;
 
 use crate::{
-    process::{run, ProcessSpec},
     ManagedRuntime, MediaError,
+    process::{ProcessSpec, run},
 };
 
 pub fn build_waveform_spec(
@@ -57,7 +56,7 @@ pub fn lookup_waveform(path: &Path) -> Result<Option<PathBuf>, MediaError> {
             return Err(MediaError::CacheIo {
                 path: path.to_path_buf(),
                 source,
-            })
+            });
         }
     };
 

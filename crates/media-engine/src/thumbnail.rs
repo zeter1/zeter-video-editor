@@ -8,8 +8,8 @@ use editor_core::{MediaRef, TimeUs};
 use job_system::JobContext;
 
 use crate::{
-    process::{run, ProcessSpec},
     ManagedRuntime, MediaError,
+    process::{ProcessSpec, run},
 };
 
 pub fn build_thumbnail_spec(
@@ -60,7 +60,7 @@ pub fn lookup_thumbnail(path: &Path) -> Result<Option<PathBuf>, MediaError> {
             return Err(MediaError::CacheIo {
                 path: path.to_path_buf(),
                 source,
-            })
+            });
         }
     };
 

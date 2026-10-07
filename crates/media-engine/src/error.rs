@@ -23,10 +23,7 @@ pub enum MediaError {
     ProbeJson(#[from] serde_json::Error),
 
     #[error("invalid numeric ffprobe field {field}: {value}")]
-    InvalidProbeNumber {
-        field: &'static str,
-        value: String,
-    },
+    InvalidProbeNumber { field: &'static str, value: String },
 
     #[error("cache I/O error at {path:?}: {source}")]
     CacheIo {

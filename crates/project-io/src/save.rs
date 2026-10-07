@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use editor_core::{Project, ProjectRevision};
 
-use crate::codec::encode;
 use crate::ProjectIoError;
+use crate::codec::encode;
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -84,7 +84,7 @@ fn unique_temp_path(path: &Path) -> PathBuf {
 fn replace_path(from: &Path, to: &Path) -> Result<(), std::io::Error> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{
-        MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
     };
 
     let from_wide: Vec<u16> = from.as_os_str().encode_wide().chain(Some(0)).collect();

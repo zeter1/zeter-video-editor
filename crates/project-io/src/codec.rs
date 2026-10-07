@@ -2,9 +2,9 @@ use std::path::Path;
 
 use editor_core::{Project, ProjectRevision};
 
+use crate::ProjectIoError;
 use crate::migration::migrate_to_current;
 use crate::schema::ProjectEnvelope;
-use crate::ProjectIoError;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoadedProject {
@@ -43,7 +43,7 @@ mod tests {
     use editor_core::ProjectRevision;
     use tempfile::tempdir;
 
-    use crate::{load, save_atomic, test_project, ProjectIoError, CURRENT_SCHEMA_VERSION};
+    use crate::{CURRENT_SCHEMA_VERSION, ProjectIoError, load, save_atomic, test_project};
 
     #[test]
     fn vcut_round_trip_preserves_project_and_revision() {

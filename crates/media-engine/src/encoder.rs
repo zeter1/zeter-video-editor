@@ -1,6 +1,6 @@
 use crate::{
-    render_plan::{ExportSettings, VideoCodec},
     MediaCapabilities, MediaError,
+    render_plan::{ExportSettings, VideoCodec},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,10 +74,7 @@ pub fn select_encoder(
     })
 }
 
-fn hardware_encoder(
-    codec: VideoCodec,
-    capabilities: MediaCapabilities,
-) -> Option<EncoderKind> {
+fn hardware_encoder(codec: VideoCodec, capabilities: MediaCapabilities) -> Option<EncoderKind> {
     match codec {
         VideoCodec::H264 if capabilities.nvenc.h264 => Some(EncoderKind::H264Nvenc),
         VideoCodec::H264 if capabilities.qsv.h264 => Some(EncoderKind::H264Qsv),
@@ -89,10 +86,7 @@ fn hardware_encoder(
     }
 }
 
-fn software_encoder(
-    codec: VideoCodec,
-    capabilities: MediaCapabilities,
-) -> Option<EncoderKind> {
+fn software_encoder(codec: VideoCodec, capabilities: MediaCapabilities) -> Option<EncoderKind> {
     match codec {
         VideoCodec::H264 if capabilities.software.h264 => Some(EncoderKind::Libx264),
         VideoCodec::H265 if capabilities.software.h265 => Some(EncoderKind::Libx265),

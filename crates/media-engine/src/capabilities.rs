@@ -1,6 +1,6 @@
 use crate::{
-    process::{run, ProcessSpec},
     ManagedRuntime, MediaError,
+    process::{ProcessSpec, run},
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

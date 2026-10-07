@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use editor_core::{Project, ProjectRevision};
 
-use crate::{load, save_atomic, ProjectIoError};
+use crate::{ProjectIoError, load, save_atomic};
 
 const RECOVERY_COUNT_CAP: usize = 20;
 const RECOVERY_MAX_AGE_MS: u64 = 7 * 24 * 60 * 60 * 1000;
@@ -48,9 +48,7 @@ pub fn should_write_recovery(
 }
 
 pub fn retained_recovery(mut records: Vec<RecoveryRecord>, now_ms: u64) -> Vec<RecoveryRecord> {
-    records.retain(|record| {
-        now_ms.saturating_sub(record.created_at_ms) <= RECOVERY_MAX_AGE_MS
-    });
+    records.retain(|record| now_ms.saturating_sub(record.created_at_ms) <= RECOVERY_MAX_AGE_MS);
     records.sort_by(|left, right| {
         right
             .created_at_ms
@@ -82,10 +80,7 @@ pub fn write_recovery(
     let recovery_dir = recovery_project_dir(project_dir, project.id);
     std::fs::create_dir_all(&recovery_dir)?;
 
-    let path = recovery_dir.join(format!(
-        "snapshot-{:020}-{now_ms}.vcut",
-        revision.get()
-    ));
+    let path = recovery_dir.join(format!("snapshot-{:020}-{now_ms}.vcut", revision.get()));
     save_atomic(&path, project, revision)?;
 
     prune_recovery_dir(&recovery_dir, now_ms)?;
@@ -173,8 +168,7 @@ fn prune_recovery_dir(recovery_dir: &Path, now_ms: u64) -> Result<(), ProjectIoE
     }
 
     let retained = retained_recovery(records.clone(), now_ms);
-    let retained_paths: HashSet<_> =
-        retained.iter().map(|record| record.path.clone()).collect();
+    let retained_paths: HashSet<_> = retained.iter().map(|record| record.path.clone()).collect();
 
     for record in records {
         if !retained_paths.contains(&record.path) {
@@ -194,7 +188,10 @@ mod tests {
     use editor_core::ProjectRevision;
     use tempfile::tempdir;
 
-    use crate::{find_recovery_candidates, retained_recovery, should_write_recovery, test_project, write_recovery, RecoveryRecord};
+    use crate::{
+        RecoveryRecord, find_recovery_candidates, retained_recovery, should_write_recovery,
+        test_project, write_recovery,
+    };
 
     const DAY_MS: u64 = 24 * 60 * 60 * 1000;
 

@@ -38,6 +38,9 @@ jobs:
           rustc --version
           cargo --version
 
+      - name: Rust format check
+        run: cargo fmt --all -- --check
+
       - name: Install frontend dependencies
         run: npm ci
         working-directory: apps/desktop

@@ -8,8 +8,8 @@ use editor_core::MediaRef;
 use job_system::JobContext;
 
 use crate::{
-    process::{run, ProcessSpec},
     ManagedRuntime, MediaError,
+    process::{ProcessSpec, run},
 };
 
 pub fn build_proxy_spec(
@@ -70,7 +70,7 @@ fn lookup_mp4(path: &Path) -> Result<Option<PathBuf>, MediaError> {
             return Err(MediaError::CacheIo {
                 path: path.to_path_buf(),
                 source,
-            })
+            });
         }
     };
 
