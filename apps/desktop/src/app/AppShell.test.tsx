@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./AppShell";
+import { createIpcClient } from "../ipc/client";
 import { createProjectStore } from "../state/projectStore";
 import { createTransientStore } from "../state/transientStore";
 
@@ -148,6 +149,7 @@ describe("AppShell edit gateway", () => {
       projectOpenWithRelink: vi.fn(),
       projectSave: vi.fn(),
       projectSnapshot: vi.fn(),
+      exportSupportBundle: vi.fn(),
       executeEditCommand,
       undo: vi.fn(),
       redo: vi.fn(),
@@ -233,6 +235,7 @@ describe("AppShell missing-media recovery", () => {
       projectOpenWithRelink,
       projectSave: vi.fn(),
       projectSnapshot: vi.fn(),
+      exportSupportBundle: vi.fn(),
       executeEditCommand: vi.fn(),
       undo: vi.fn(),
       redo: vi.fn(),
@@ -270,5 +273,69 @@ describe("AppShell missing-media recovery", () => {
     await vi.waitFor(() =>
       expect(screen.queryByRole("button", { name: "Relink media" })).toBeNull(),
     );
+  });
+});
+
+describe("AppShell diagnostics export", () => {
+  it("exposes support-bundle export as an explicit toolbar action", () => {
+    const exportDiagnostics = vi.fn();
+
+    render(
+      <AppShell
+        projectStore={createProjectStore()}
+        transientStore={createTransientStore()}
+        actions={{
+          openProject: vi.fn(),
+          saveProject: vi.fn(),
+          undo: vi.fn(),
+          redo: vi.fn(),
+          exportDiagnostics,
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Export diagnostics" }),
+    );
+
+    expect(exportDiagnostics).toHaveBeenCalledOnce();
+  });
+
+  it("exports the selected zip through IPC and confirms the saved path", async () => {
+    const outputPath = "C:\\support\\zeter-support.zip";
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "export_support_bundle") {
+        return outputPath;
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const prompt = vi.spyOn(window, "prompt").mockReturnValue(outputPath);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+
+    render(
+      <AppShell
+        client={createIpcClient(invoke)}
+        projectStore={createProjectStore()}
+        transientStore={createTransientStore()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Export diagnostics" }),
+    );
+
+    await vi.waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("export_support_bundle", {
+        outputPath,
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(alert).toHaveBeenCalledWith(
+        `Support bundle saved to ${outputPath}`,
+      ),
+    );
+
+    prompt.mockRestore();
+    alert.mockRestore();
   });
 });

@@ -83,4 +83,21 @@ describe("IPC synchronization", () => {
     expect(invoke).toHaveBeenCalledWith("project_snapshot");
     expect(store.getState().revision).toBe(6);
   });
+
+  it("exports a support bundle through the typed desktop IPC boundary", async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === "export_support_bundle") {
+        return "C:\\support\\zeter-support.zip";
+      }
+      throw new Error(`unexpected command: ${command}`);
+    });
+    const client = createIpcClient(invoke);
+
+    await expect(
+      client.exportSupportBundle("C:\\support\\zeter-support.zip"),
+    ).resolves.toBe("C:\\support\\zeter-support.zip");
+    expect(invoke).toHaveBeenCalledWith("export_support_bundle", {
+      outputPath: "C:\\support\\zeter-support.zip",
+    });
+  });
 });

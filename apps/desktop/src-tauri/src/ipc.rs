@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 use ai_engine::HighlightCandidate;
 use editor_core::{
@@ -14,7 +14,13 @@ use tauri::{Manager, State};
 use crate::{
     app::AppState,
     contracts::{CommandResultDto, JobEventDto, ProjectSnapshotDto, RecoveryCandidateDto},
-    diagnostics::logging::log_app_error,
+    diagnostics::{
+        bundle::{
+            SupportBundleMetadata, SupportJobMetadata,
+            export_support_bundle as write_support_bundle,
+        },
+        logging::{log_app_error, managed_log_paths},
+    },
     error::{AppError, AppErrorDto},
     runtime_manifest::ValidatedRuntime,
 };
@@ -136,6 +142,97 @@ pub fn project_snapshot(state: State<'_, AppState>) -> Result<ProjectSnapshotDto
     project
         .snapshot()
         .map_err(|error| diagnostic_error(error, None, None))
+}
+
+#[tauri::command]
+pub fn export_support_bundle(
+    app: tauri::AppHandle,
+    output_path: String,
+) -> Result<String, AppErrorDto> {
+    let output = PathBuf::from(output_path);
+    let is_zip = output
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"));
+    if !is_zip {
+        return Err(diagnostic_error(
+            AppError::Diagnostics("support bundle output must use a .zip extension".into()),
+            None,
+            None,
+        ));
+    }
+
+    let state = app.state::<AppState>();
+    let runtime = app.state::<ValidatedRuntime>();
+    let jobs = state
+        .jobs
+        .snapshots()
+        .map_err(AppError::from)
+        .map_err(|error| diagnostic_error(error, None, None))?
+        .into_iter()
+        .map(|snapshot| SupportJobMetadata {
+            job_id: snapshot.context.job_id.get().to_string(),
+            kind: format!("{:?}", snapshot.kind),
+            state: format!("{:?}", snapshot.state),
+            error_code: snapshot
+                .failure
+                .as_ref()
+                .map(|failure| failure.code.clone()),
+        })
+        .collect();
+
+    let runtime_metadata = BTreeMap::from([
+        (
+            "ffmpeg_build".into(),
+            runtime.manifest.ffmpeg.build_identity.clone(),
+        ),
+        (
+            "ffprobe_build".into(),
+            runtime.manifest.ffprobe.build_identity.clone(),
+        ),
+        (
+            "whisper_cli_build".into(),
+            runtime.manifest.whisper_cli.build_identity.clone(),
+        ),
+        (
+            "ai_worker_build".into(),
+            runtime.manifest.ai_worker.build_identity.clone(),
+        ),
+        (
+            "ai_worker_protocol".into(),
+            runtime.manifest.ai_worker.protocol_version.to_string(),
+        ),
+    ]);
+    let capabilities = BTreeMap::from([
+        ("managed_runtime".into(), "validated".into()),
+        ("ai_backend".into(), runtime.manifest.models.backend.clone()),
+        (
+            "ai_compatibility".into(),
+            runtime.manifest.models.compatibility.clone(),
+        ),
+    ]);
+    let metadata = SupportBundleMetadata {
+        app_version: runtime.manifest.app.version.clone(),
+        build_id: runtime.manifest.app.build.clone(),
+        os: format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
+        runtime: runtime_metadata,
+        capabilities,
+        jobs,
+        crashes: Vec::new(),
+    };
+
+    let log_dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|error| diagnostic_error(AppError::Diagnostics(error.to_string()), None, None))?;
+    let logs = managed_log_paths(&log_dir)
+        .map_err(|error| AppError::Diagnostics(error.to_string()))
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    let bundle = write_support_bundle(&output, &metadata, &logs)
+        .map_err(|error| AppError::Diagnostics(error.to_string()))
+        .map_err(|error| diagnostic_error(error, None, None))?;
+
+    Ok(bundle.to_string_lossy().into_owned())
 }
 
 #[tauri::command]

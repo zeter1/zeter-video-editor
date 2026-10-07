@@ -54,6 +54,9 @@ pub enum AppError {
     #[error("invalid media metadata: {0}")]
     InvalidMediaMetadata(&'static str),
 
+    #[error("diagnostics error: {0}")]
+    Diagnostics(String),
+
     #[error("job error: {0}")]
     Job(#[from] JobError),
 }
@@ -225,6 +228,15 @@ impl AppError {
                     (*detail).into(),
                     "media-engine",
                     "probe_media",
+                ),
+                Self::Diagnostics(detail) => (
+                    ErrorCategory::Filesystem,
+                    "diagnostics_export",
+                    "The support bundle could not be exported.",
+                    true,
+                    detail.clone(),
+                    "diagnostics",
+                    "export_support_bundle",
                 ),
                 Self::Job(error) => (
                     ErrorCategory::Job,

@@ -4,6 +4,7 @@ interface TopToolbarProps {
   actionsEnabled?: boolean;
   onOpen: () => void;
   onSave: () => void;
+  onExportDiagnostics: () => void;
   onUndo: () => void;
   onRedo: () => void;
 }
@@ -14,6 +15,7 @@ export function TopToolbar({
   actionsEnabled = false,
   onOpen,
   onSave,
+  onExportDiagnostics,
   onUndo,
   onRedo,
 }: TopToolbarProps) {
@@ -41,6 +43,13 @@ export function TopToolbar({
           disabled={!canMutate}
         >
           Save
+        </button>
+        <button
+          type="button"
+          aria-label="Export diagnostics"
+          onClick={onExportDiagnostics}
+        >
+          Diagnostics
         </button>
         <span className="toolbar-divider" aria-hidden="true" />
         <button type="button" onClick={onUndo} disabled={!canMutate}>Undo</button>

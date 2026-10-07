@@ -168,7 +168,7 @@ The approved Tasks 1–19 implementation plan is complete and integrated. Contin
 
 Priorities:
 1. Keep exact-`main` CI green; classify any failure from logs before changing code or workflow.
-2. Address bounded technical debt where it provides real value (for example, existing repository-wide rustfmt drift and currently uninvoked desktop helper warnings) without mass suppression or unrelated refactoring.
+2. Address bounded technical debt where it provides real value. Repository-wide rustfmt drift is now resolved and enforced by CI; remaining desktop helper warnings must be classified as test-only, intentionally staged, or missing runtime wiring before any cleanup. Do not mass-suppress them.
 3. Keep production signing, updater signing, and tagged release work fail-closed until the real release secrets/certificate are available.
 4. Treat real whisper-model inference as **NOT VERIFIED** until an explicit model/speech fixture is available.
 5. Keep Windows platform face-analysis as **not implemented / NOT VERIFIED**; the verified MVP behavior is deterministic center fallback plus manual crop.
@@ -182,6 +182,9 @@ Priorities:
 - PR #2 (`test: harden export E2E timing`) preserved the real export/cancel acceptance while giving that CPU-dependent export a bounded 90-second job wait inside a 120-second test budget. PR CI #69 — PASS, including 7/7 E2E and debug NSIS smoke.
 - PR #2 squash merge produced `main` commit `5a4deb0a6eee58a1d941372dec382a58e0ca4dd2`.
 - Exact-`main` CI #70 / run `37610261147` — PASS: Rust workspace, 23/23 Vitest files / 50 tests, 7/7 real Tauri/WebView2 E2E scenarios (real export/cancel included; export completed in 35.8s), and debug NSIS bundle smoke.
+- PR #3 resolved the known repository-wide rustfmt drift in `media-engine` / `project-io` and added `cargo fmt --all -- --check` as a mandatory Windows CI gate. The first run correctly exposed that the pinned Rust `--profile minimal` lacked rustfmt; the workflow was fixed by explicitly installing the rustfmt component instead of weakening the gate.
+- Exact-`main` CI #74 / run `37614148853` on merge commit `aeea1c4de836e3bae8aaf7333aeabf7ee708227a` — PASS, including the new rustfmt gate, Rust/frontend tests, 7/7 real Tauri/WebView2 E2E scenarios, and debug NSIS smoke.
+- Post-MVP diagnostics hardening wires the already-approved privacy-safe support bundle into the real desktop path: explicit toolbar action → typed Tauri IPC → validated runtime/build identities + current job metadata + managed `zeter-*.log` files only. Source media, project files, transcript content, extracted media and arbitrary logs remain excluded by the existing fail-closed bundle boundary.
 
 Production updater signing, Windows Authenticode signing, real whisper-model inference, and Windows platform face-analysis are not promoted beyond their existing **NOT VERIFIED / not implemented** boundaries.
 
@@ -448,8 +451,8 @@ Task 18 execution notes:
 - a sensitive-looking untracked temporary key/material file appeared during local packaging work; it was moved out of the repository into local quarantine and is not part of the Git diff. Its contents were not exposed or committed.
 - production updater signing, Authenticode signing, and an actual tagged GitHub Release are **NOT VERIFIED** because production secrets/certificate were not used and no release was published. The production workflow is verified only at the static/fail-closed contract level plus the unsigned debug NSIS smoke.
 
-Known verification debt:
-- repository-wide `cargo fmt --all -- --check` currently reports pre-existing formatting drift in earlier Task 7/8 and `project-io` files. This was intentionally not mass-reformatted inside Task 9 to preserve a bounded diff; Task 9 functional/runtime verification is green.
+Resolved verification debt:
+- repository-wide `cargo fmt --all -- --check` drift from earlier Task 7/8 and `project-io` files was normalized in PR #3 and is now enforced on every Windows CI run. Exact-`main` CI #74 passed the new gate plus the full existing acceptance pipeline.
 
 ## Task 19 — End-to-End MVP Workflow and Acceptance Verification
 

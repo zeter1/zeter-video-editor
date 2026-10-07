@@ -196,6 +196,24 @@ pub fn init_local_logging(log_dir: &Path) -> Result<(), DiagnosticsError> {
     Ok(())
 }
 
+pub fn managed_log_paths(log_dir: &Path) -> Result<Vec<PathBuf>, DiagnosticsError> {
+    let entries = match fs::read_dir(log_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error.into()),
+    };
+
+    let mut paths = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        if entry.file_type()?.is_file() && is_managed_log(&entry.path()) {
+            paths.push(entry.path());
+        }
+    }
+    paths.sort();
+    Ok(paths)
+}
+
 struct RotatingLogSink {
     log_dir: PathBuf,
     policy: RetentionPolicy,

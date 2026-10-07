@@ -32,6 +32,7 @@ import "../styles/app.css";
 export interface AppShellActions {
   openProject: () => void;
   saveProject: () => void;
+  exportDiagnostics?: () => void;
   undo: () => void;
   redo: () => void;
 }
@@ -254,6 +255,31 @@ export function AppShell({
     }
   }
 
+  async function handleExportDiagnostics(): Promise<void> {
+    if (actions?.exportDiagnostics) {
+      actions.exportDiagnostics();
+      return;
+    }
+
+    const outputPath = window.prompt("Export support bundle path (.zip)");
+    if (!outputPath) {
+      return;
+    }
+
+    try {
+      const savedPath = await client.exportSupportBundle(outputPath);
+      window.alert(`Support bundle saved to ${savedPath}`);
+    } catch (error) {
+      const typed = appError(error);
+      projectStore.setError(
+        typed?.message ??
+          (error instanceof Error
+            ? error.message
+            : "Support bundle export failed."),
+      );
+    }
+  }
+
   function handleUndo(): void {
     if (actions) {
       actions.undo();
@@ -282,6 +308,7 @@ export function AppShell({
         actionsEnabled={actions !== undefined}
         onOpen={() => void handleOpen()}
         onSave={() => void handleSave()}
+        onExportDiagnostics={() => void handleExportDiagnostics()}
         onUndo={handleUndo}
         onRedo={handleRedo}
       />
