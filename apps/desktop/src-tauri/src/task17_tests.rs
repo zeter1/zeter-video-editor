@@ -249,7 +249,18 @@ fn support_bundle_rejects_unmanaged_logs_and_fail_closed_redacts_unstructured_li
 #[test]
 fn support_bundle_metadata_uses_managed_runtime_identities_without_private_paths() {
     let manifest = crate::runtime_manifest::parse_embedded_manifest().unwrap();
-    let metadata = crate::ipc::support_bundle_metadata(&manifest);
+    let jobs = job_system::JobManager::new();
+    let job_id = jobs.submit(job_system::JobSpec {
+        kind: job_system::JobKind::Export,
+        request_id: editor_core::RequestId::new(),
+        project_id: editor_core::ProjectId::new(),
+        sequence_id: editor_core::SequenceId::new(),
+        source_revision: editor_core::ProjectRevision::new(7),
+        cancellable: true,
+    });
+    jobs.start(job_id).unwrap();
+    let snapshots = vec![jobs.snapshot(job_id).unwrap()];
+    let metadata = crate::ipc::support_bundle_metadata(&manifest, &snapshots);
 
     assert_eq!(metadata.app_version, manifest.app.version);
     assert_eq!(metadata.build_id, manifest.app.build);
@@ -269,7 +280,11 @@ fn support_bundle_metadata_uses_managed_runtime_identities_without_private_paths
         metadata.runtime.get("ai_worker"),
         Some(&manifest.ai_worker.build_identity)
     );
-    assert!(metadata.jobs.is_empty());
+    assert_eq!(metadata.jobs.len(), 1);
+    assert_eq!(metadata.jobs[0].job_id, job_id.get().to_string());
+    assert_eq!(metadata.jobs[0].kind, "Export");
+    assert_eq!(metadata.jobs[0].state, "Running");
+    assert_eq!(metadata.jobs[0].error_code, None);
     assert!(metadata.crashes.is_empty());
 }
 

@@ -117,6 +117,10 @@ impl JobService {
     pub fn get_job_state(&self, job_id: JobId) -> Result<JobSnapshot, JobError> {
         self.manager.snapshot(job_id)
     }
+
+    pub fn snapshots(&self) -> Result<Vec<JobSnapshot>, JobError> {
+        self.manager.snapshots()
+    }
 }
 
 fn ensure_transcription_job(snapshot: &JobSnapshot) -> Result<(), TranscriptionJobError> {
