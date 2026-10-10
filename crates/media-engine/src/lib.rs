@@ -4,6 +4,7 @@ pub mod encoder;
 pub mod error;
 pub mod export;
 pub mod preview_cache;
+pub mod preview_ranges;
 pub mod probe;
 pub mod process;
 pub mod proxy;
@@ -18,6 +19,7 @@ pub use encoder::{EncoderKind, EncoderSelection, select_encoder};
 pub use error::MediaError;
 pub use export::{ExportJob, ExportReceipt, ExportRunner, ManagedExportRunner};
 pub use probe::{AudioProbe, MediaProbe, VideoProbe, probe_media};
+pub use preview_ranges::{PreviewDecodeCapabilities, PreviewMode, PreviewRange, PreviewRangePlan};
 pub use render_plan::{ExportContainer, ExportQuality, ExportSettings, RenderPlan, VideoCodec};
 pub use runtime::ManagedRuntime;
 
