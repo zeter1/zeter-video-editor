@@ -5,6 +5,7 @@ mod contracts;
 mod diagnostics;
 mod error;
 mod ipc;
+mod preview_stream;
 mod runtime_manifest;
 mod update;
 
@@ -25,6 +26,9 @@ mod task19_tests;
 
 fn main() {
     tauri::Builder::default()
+        .register_uri_scheme_protocol("zeter-media", |ctx, request| {
+            preview_stream::serve(ctx.app_handle(), request)
+        })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .manage(app::AppState::new())
