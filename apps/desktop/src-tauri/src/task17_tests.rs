@@ -142,7 +142,14 @@ fn quoted_windows_paths_with_spaces_are_fully_redacted() {
         "cannot open '<path:.mp4>' or '<path:.wav>'"
     );
     assert_eq!(json["event"], "fixture");
-    for private_part in ["Alice Smith", "private clip", "studio-nas", "Client Assets", "Private Person", "voice track"] {
+    for private_part in [
+        "Alice Smith",
+        "private clip",
+        "studio-nas",
+        "Client Assets",
+        "Private Person",
+        "voice track",
+    ] {
         assert!(!sanitized.contains(private_part), "leaked {private_part}");
     }
 }
