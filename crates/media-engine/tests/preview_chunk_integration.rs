@@ -251,7 +251,6 @@ fn managed_ffmpeg_preview_chunk_matches_export_picture_and_audio_baseline() {
     );
 }
 
-
 /// A real layered fixture exercises output-side seeking across a video overlay,
 /// an uncovered timeline gap and the following clip at a fractional frame rate.
 /// It compares the chunk with the same export graph, not with a JS rendering.
@@ -270,30 +269,28 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
         (&background, "testsrc2=size=320x180:rate=30000/1001", 440),
         (&foreground, "color=c=red:s=320x180:r=30000/1001", 880),
     ] {
-        run(
-            &ProcessSpec::new(&runtime.ffmpeg_path)
-                .arg("-y")
-                .arg("-hide_banner")
-                .arg("-loglevel")
-                .arg("error")
-                .arg("-f")
-                .arg("lavfi")
-                .arg("-i")
-                .arg(picture)
-                .arg("-f")
-                .arg("lavfi")
-                .arg("-i")
-                .arg(format!("sine=frequency={hz}:sample_rate=48000"))
-                .arg("-t")
-                .arg("3")
-                .arg("-c:v")
-                .arg("libx264")
-                .arg("-pix_fmt")
-                .arg("yuv420p")
-                .arg("-c:a")
-                .arg("aac")
-                .arg(output.as_os_str()),
-        )
+        run(&ProcessSpec::new(&runtime.ffmpeg_path)
+            .arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-f")
+            .arg("lavfi")
+            .arg("-i")
+            .arg(picture)
+            .arg("-f")
+            .arg("lavfi")
+            .arg("-i")
+            .arg(format!("sine=frequency={hz}:sample_rate=48000"))
+            .arg("-t")
+            .arg("3")
+            .arg("-c:v")
+            .arg("libx264")
+            .arg("-pix_fmt")
+            .arg("yuv420p")
+            .arg("-c:a")
+            .arg("aac")
+            .arg(output.as_os_str()))
         .expect("generate managed FFmpeg layered video and audio fixtures");
     }
 
@@ -359,13 +356,7 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
                     muted: false,
                     locked: false,
                     hidden: false,
-                    clips: vec![clip(
-                        upper_id,
-                        200_000,
-                        1_000_000,
-                        600_000,
-                        1_400_000,
-                    )],
+                    clips: vec![clip(upper_id, 200_000, 1_000_000, 600_000, 1_400_000)],
                 },
             ],
             subtitle_segments: Vec::new(),
@@ -444,16 +435,21 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
 
     // A black uncovered region must not accidentally retain the previous clip.
     let gap = sampled_frame(&runtime, &full, "1.700");
-    let gap_level =
-        gap.iter().map(|value| f64::from(*value)).sum::<f64>() / gap.len() as f64;
-    assert!(gap_level < 12.0, "uncovered timeline gap is not black: {gap_level:.2}");
+    let gap_level = gap.iter().map(|value| f64::from(*value)).sum::<f64>() / gap.len() as f64;
+    assert!(
+        gap_level < 12.0,
+        "uncovered timeline gap is not black: {gap_level:.2}"
+    );
 
     // The independently generated 440/880-Hz sources should produce audible
     // samples on either side of the gap and keep energy consistent per window.
     for (at_full, at_chunk) in [("0.850", "0.350"), ("2.300", "1.800")] {
         let expected = audio_rms(&runtime, &full, at_full);
         let actual = audio_rms(&runtime, &chunk, at_chunk);
-        assert!(expected > 0.005 && actual > 0.005, "lost audio near {at_full}");
+        assert!(
+            expected > 0.005 && actual > 0.005,
+            "lost audio near {at_full}"
+        );
         let relative_error = (expected - actual).abs() / expected;
         assert!(
             relative_error < 0.30,
