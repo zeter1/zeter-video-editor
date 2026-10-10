@@ -12,7 +12,19 @@ pub fn sanitize_named_value(name: &str, value: &str) -> String {
     }
 
     let key = name.to_ascii_lowercase();
-    if key.contains("path") || key.ends_with("_file") || key == "file" {
+    // Diagnostic producers also use fileName, asset-file-name and sourceFile.
+    // Treat these as path-bearing fields so bare filenames cannot leak PII.
+    let compact_key = key
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>();
+    if key.contains("path")
+        || key.ends_with("_file")
+        || key.ends_with("-file")
+        || key == "file"
+        || name.ends_with("File")
+        || compact_key.contains("filename")
+    {
         return sanitize_path(Path::new(value));
     }
     if key.contains("args") || key.contains("command_line") || key.contains("commandline") {

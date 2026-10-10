@@ -145,6 +145,34 @@ fn sensitive_json_keys_in_camel_case_and_kebab_case_are_redacted() {
 }
 
 #[test]
+fn filename_metadata_variants_are_sanitized_in_structured_diagnostics() {
+    let record = r#"{"event":"import_finished","request_id":"fixture-request","fileName":"Alice-private.mp4","asset-file-name":"Secret Client.vcut","sourceFile":"C:\\Users\\Alice\\Private\\clip.mov","nested":{"source_file_name":"Customer Recording.wav","safe":{"count":2}}}"#;
+    let sanitized = sanitize_log_line(record);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["fileName"], "<path:.mp4>");
+    assert_eq!(json["asset-file-name"], "<path:.vcut>");
+    assert_eq!(json["sourceFile"], "<path:.mov>");
+    assert_eq!(json["nested"]["source_file_name"], "<path:.wav>");
+    assert_eq!(json["nested"]["safe"]["count"], 2);
+    assert_eq!(json["event"], "import_finished");
+    assert_eq!(json["request_id"], "fixture-request");
+    assert!(!sanitized.contains("Alice"));
+    assert!(!sanitized.contains("Secret Client"));
+    assert!(!sanitized.contains("Customer Recording"));
+
+    // The same naming variants occur in support-bundle metadata maps.
+    assert_eq!(
+        sanitize_named_value("originalFileName", "Alice private.webm"),
+        "<path:.webm>"
+    );
+    assert_eq!(
+        sanitize_named_value("output-file", "Secret output.mp4"),
+        "<path:.mp4>"
+    );
+}
+
+#[test]
 fn github_oauth_app_and_personal_access_tokens_are_redacted_from_logs() {
     // GitHub's documented prefixes include OAuth, GitHub App user,
     // installation and refresh tokens as well as both PAT formats.

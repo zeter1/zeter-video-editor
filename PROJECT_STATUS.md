@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-10
 
+## Latest checkpoint — 2026-10-10 — filename-field privacy across naming conventions (PR #11)
+
+- Root cause: `sanitize_named_value` handled `source_path`, `*_file` and `file` but not bare private filenames carried by `fileName`, `originalFileName`, `asset-file-name` or `sourceFile`. Unstructured bare names need key-based protection when they lack detectable drive-letter path syntax.
+- Fix: extend path-bearing field classification using normalized ASCII key spelling for `*filename`, preserving existing path and `*_file` handling, and recognizing kebab-case `*-file` / camelCase `*File`. Reuse the existing `sanitize_path` extension allowlist and retain safe `event` / `request_id`, nested counts and original serialized JSON keys.
+- New Rust regression `filename_metadata_variants_are_sanitized_in_structured_diagnostics` covers media/project filenames, Windows paths, nested JSON and support-metadata named values. Scope: only `redaction.rs`, `task17_tests.rs`, `PROJECT_STATUS.md`, `CHANGELOG.md` in existing unmerged PR #11 branch. No main, other AI/updater PR, CI gate, signing, tag, release or merge changes.
+- Previous exact-head Windows CI #118 belongs to old SHA `f027222`: rustfmt, Rust workspace, frontend/Vitest, real Tauri/WebView2 E2E passed at inspection; NSIS smoke was still in progress. New commit needs its own exact-head CI for all gates; no local Rust toolchain, Windows or locally observed RED/GREEN. Follow exact logs and correct any failure in the same PR.
+- References: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html ; https://doc.rust-lang.org/stable/std/path/ .
+
 ## Latest checkpoint — 2026-10-10 — case-insensitive separator-agnostic diagnostic key privacy (PR #11)
 
 - Found a remaining diagnostic privacy gap: key classification recognized snake_case names such as `raw_audio` and `private_key`, but missed equivalent camelCase/kebab-case/mixed punctuation (`rawAudio`, `privateKey`, `api-key`, `projectJson`, `sessionId`). Sensitive JSON values could survive into local logs/support ZIP when producers changed field naming conventions.
