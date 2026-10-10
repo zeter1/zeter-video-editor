@@ -381,6 +381,7 @@ export function AppShell({
         />
         <PreviewPanel
           sequence={activeSequence}
+          media={project?.media ?? []}
           selectedClip={selectedClip}
           selectedTrackId={selectedTrackId}
           playheadTimeUs={transient.playheadTimeUs}
