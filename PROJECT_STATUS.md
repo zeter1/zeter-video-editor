@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-10
 
+## Latest checkpoint — 2026-10-10 — downloadable unsigned Windows preview installer (PR #11)
+
+- User requested a runnable binary to inspect the editor. Existing Windows CI builds a ~110 MiB debug NSIS installer (confirmed in CI #120 log as `target/x86_64-pc-windows-msvc/debug/bundle/nsis/Zeter Video Editor_0.0.1_x64-setup.exe`) but previously did not upload it: each ephemeral runner deleted it after job completion.
+- Add pinned `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02` (verified v4.6.2 SHA) after the unchanged Tauri debug NSIS bundle smoke, with `if-no-files-found: error`, 7-day retention, no compression, and a single .exe path pattern. The artifact is `zeter-video-editor-windows-preview-x64` ZIP; user extracts and runs the installer on Windows x64. The upload step runs only after earlier gates succeed. No change to production release workflow, signing requirements, app features or main.
+- This is an **unsigned debug preview**, NOT a signed/production release or verified live-AI demo. Windows SmartScreen/Defender may warn. Do not imply the installer can already be downloaded until this exact-head workflow has completed and the artifact exists. Latest prior functional CI #120 was SUCCESS for commit `7cc644c`; CI #121 was in progress for `6175f8c` when this build-export change was planned.
+- After this commit, check exact HEAD in PR #11 and the new Windows workflow run for rustfmt, frontend, FFmpeg, AI worker, Rust tests, Vitest, real WebView2 E2E, debug NSIS build and upload artifact; if failure, inspect exact logs. Provide the actual run/artifact URL after verifying it is available. No merge, release, tag or signing.
+- Still NOT VERIFIED: real whisper model inference, Windows face detector, Authenticode and end-to-end signed updater install.
+
 ## Latest checkpoint — 2026-10-10 — argv / arguments alias privacy (PR #11)
 
 - Previous exact-head Windows CI #120 on `7cc644c13929dd1c6d76703304adc964c6bfd612` COMPLETED SUCCESS: rustfmt, frontend build, pinned FFmpeg, AI worker fixture, Rust workspace tests, Vitest, real Tauri/WebView2 E2E and debug NSIS smoke. https://github.com/zeter1/zeter-video-editor/actions/runs/38055012360 . This does not verify a newer commit.

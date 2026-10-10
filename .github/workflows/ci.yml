@@ -84,3 +84,14 @@ jobs:
       - name: Tauri debug bundle smoke
         working-directory: apps/desktop
         run: npm run tauri build -- --debug --bundles nsis --config ../../release/tauri.debug.conf.json
+      
+      # Test-only NSIS installer for manual review. It is unsigned,
+      # not an official release and contains the managed runtime sidecars.
+      - name: Upload unsigned Windows preview installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zeter-video-editor-windows-preview-x64
+          path: target/x86_64-pc-windows-msvc/debug/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
