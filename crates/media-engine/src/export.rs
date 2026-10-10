@@ -8,7 +8,7 @@ use std::{
 };
 
 use editor_core::{
-    ClipKind, ProjectRevision, RenderClip, TextAlignment, TextStyle, TransitionKind,
+    ClipKind, ProjectRevision, RenderClip, TextAlignment, TextStyle, TimeUs, TransitionKind,
 };
 use job_system::JobFailure;
 use tokio_util::sync::CancellationToken;
@@ -249,6 +249,51 @@ pub fn build_export_spec(
     encoder: EncoderKind,
     output: &Path,
 ) -> ProcessSpec {
+    build_export_spec_with_window(runtime, plan, encoder, output, None)
+}
+
+/// Prepare a bounded preview output from the authoritative *export* filtergraph.
+///
+/// Seeking is an OUTPUT option after -filter_complex: input-side -ss would alter
+/// source PTS and break timeline offsets, transitions and audio delays. This
+/// only builds a command; scheduling/cancellation/cache publication are separate.
+pub fn build_preview_chunk_spec(
+    runtime: &ManagedRuntime,
+    plan: &RenderPlan,
+    encoder: EncoderKind,
+    output: &Path,
+    start: TimeUs,
+    end: TimeUs,
+) -> Result<ProcessSpec, MediaError> {
+    let timeline_end = plan
+        .clips
+        .iter()
+        .map(|clip| clip.timeline_end.get())
+        .chain(plan.subtitles.iter().map(|subtitle| subtitle.end.get()))
+        .max()
+        .unwrap_or(0);
+    if start >= end {
+        return Err(MediaError::InvalidPreviewChunk {
+            reason: "start must precede end",
+        });
+    }
+    if end.get() > timeline_end {
+        return Err(MediaError::InvalidPreviewChunk {
+            reason: "window exceeds timeline duration",
+        });
+    }
+    Ok(build_export_spec_with_window(
+        runtime, plan, encoder, output, Some((start, end)),
+    ))
+}
+
+fn build_export_spec_with_window(
+    runtime: &ManagedRuntime,
+    plan: &RenderPlan,
+    encoder: EncoderKind,
+    output: &Path,
+    window: Option<(TimeUs, TimeUs)>,
+) -> ProcessSpec {
     let mut spec = ProcessSpec::new(&runtime.ffmpeg_path)
         .arg("-y")
         .arg("-hide_banner")
@@ -312,9 +357,18 @@ pub fn build_export_spec(
             .arg("192k");
     }
 
-    spec.arg("-t")
-        .arg(format!("{duration:.6}"))
-        .arg("-movflags")
+    // An output-side seek lets FFmpeg evaluate the full, export-identical
+    // timeline graph before discarding timestamps outside the desired window.
+    // The full export call path is unchanged when no window was requested.
+    spec = match window {
+        Some((start, end)) => spec
+            .arg("-ss")
+            .arg(format!("{:.6}", seconds(start.get())))
+            .arg("-t")
+            .arg(format!("{:.6}", seconds(end.get() - start.get()))),
+        None => spec.arg("-t").arg(format!("{duration:.6}")),
+    };
+    spec.arg("-movflags")
         .arg("+faststart")
         .arg(output.as_os_str())
 }
