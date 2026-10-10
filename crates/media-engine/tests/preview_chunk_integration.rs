@@ -474,8 +474,7 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
         ("chunk", chunk.as_path(), "1.800"),
     ] {
         let frame = sampled_frame(&runtime, output, at);
-        let mean = frame.iter().map(|value| f64::from(*value)).sum::<f64>()
-            / frame.len() as f64;
+        let mean = frame.iter().map(|value| f64::from(*value)).sum::<f64>() / frame.len() as f64;
         assert!(
             mean > 25.0,
             "{label} lost the V1 return at {at}: mean RGB={mean:.2}"
@@ -488,8 +487,7 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
 
     let chunk_gap = sampled_frame(&runtime, &chunk, "1.200");
     let chunk_gap_level =
-        chunk_gap.iter().map(|value| f64::from(*value)).sum::<f64>()
-            / chunk_gap.len() as f64;
+        chunk_gap.iter().map(|value| f64::from(*value)).sum::<f64>() / chunk_gap.len() as f64;
     assert!(
         chunk_gap_level < 12.0,
         "preview chunk uncovered gap is not black: {chunk_gap_level:.2}"
