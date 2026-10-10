@@ -5,6 +5,18 @@
 ## Unreleased
 
 ### Added
+- В Windows CI после успешного debug NSIS bundle добавлена выгрузка неподписанного тестового установщика в GitHub Actions artifact (ZIP, 7 дней хранения); можно проверить редактор без локальной сборки. Публикация релиза и signing не затронуты.
+
+### Fixed
+- Для диагностических аргументов `argv`, `processArgv`, `cliArguments`, `programArguments` добавлена безопасная нормализованная классификация ключей и Rust-регрессия на вложенный JSON и metadata (PR #11; требуется exact-head Windows CI).
+- Диагностические JSON-поля путей, имён файлов и аргументов процесса теперь скрывают целые вложенные объекты/массивы, а не пропускают приватные значения через дочерние ключи. Добавлен Rust regression для сохранения безопасных event/request_id/metrics (PR #11; требуется exact-head CI).
+- Диагностические поля имён файлов в camelCase/kebab-case/snake_case (`fileName`, `originalFileName`, `asset-file-name`, `sourceFile`) теперь скрывают приватное имя, сохраняя только разрешённое расширение. Добавлен тест вложенного JSON и metadata (PR #11; требуется новый exact-head Windows CI).
+- Приватные поля диагностического JSON теперь одинаково редактируются при snake_case, camelCase, kebab-case и смешанных разделителях: `privateKey`, `api-key`, `sessionId`, `rawAudio`, `rawVideo`, `frameData`, `userContent`, `projectJson`. Сохранены безопасные поля событий, добавлен регрессионный Rust-тест (PR #11; нужен exact-head Windows CI).
+- Экспорт диагностического ZIP не прерывается из-за повреждённого лога с некорректным UTF-8: файл пропускается, остальные корректные логи сохраняются. Добавлен Rust regression; ограничения чтения и очистка содержимого сохранены (PR #11; новый exact-head CI ожидается).
+- Диагностический ZIP теперь ограничивает чтение логов и число включённых записей по политике хранения (10 файлов, по 10 MiB, общий бюджет); увеличившиеся или oversized файлы не экспортируются. Добавлен Rust regression test на sparse oversized fixture и 12 логов (PR #11, exact-head CI pending).
+- Diagnostic logs/support bundles now redact all documented GitHub credential prefixes (`gho_`, `ghu_`, `ghs_`, `ghr_` plus existing `ghp_`, `github_pat_`), including nested free-text messages; added Rust regression covering OAuth, GitHub App and PAT token types.
+
+### Added
 - Начат Task 1 утверждённого MVP implementation plan: Cargo workspace, desktop/AI-worker scaffolding, базовый React/Vite toolchain и Windows CI.
 - Добавлены первые TDD-контракты для стабильных идентификаторов и микросекундного времени доменного слоя.
 - Реализован Task 2: доменная модель Project/Sequence/Track/Clip/MediaRef, базовые transform/color/audio/subtitle/transition типы и валидация идентичности, ссылок, таймингов, размеров и FPS.
@@ -38,5 +50,14 @@
 - Добавлен пользовательский export sanitized support bundle через обычный toolbar и реальный Tauri IPC: ZIP содержит только allowlisted managed logs, безопасные runtime identities и текущую job metadata, без project/media/transcript contents.
 
 ### Fixed
+- Диагностика скрывает URL целиком для схем http(s), ws(s), ftp и file, предотвращая раскрытие логинов/паролей URL, query-секретов и приватных путей во вложенных JSON-сообщениях; добавлен регрессионный Rust-тест (PR #11; проверка exact-head CI ожидается).
+- Диагностические сообщения теперь скрывают HTTP Basic credentials (Base64 логин/пароль) во всех вхождениях, включая смешанный регистр и вложенные JSON-поля; общий сканер сохраняет Bearer-редакцию, добавлен Rust regression test (PR #11; exact-head CI ожидается).
+- В диагностике полностью маскируются unquoted Windows/UNC пути с пробелами; неопределённые хвосты и произвольные расширения файлов скрываются fail-closed, с регрессионными Rust-тестами (PR #11, exact-head CI pending).
+- Закрыта утечка приватного содержимого в диагностических записях, где корень является валидным JSON-скаляром или массивом: только JSON-объекты считаются структурированным логом; остальные записи fail-closed заменяются на `[UNSTRUCTURED LOG RECORD REDACTED]`. Добавлен Rust регрессионный тест.
+- Исправлена утечка частей путей Windows и UNC с пробелами внутри кавычек в текстах диагностики: `redact_windows_paths` обрабатывает путь до закрывающей кавычки и оставляет только `<path:.ext>`. Добавлен Rust regression test на drive-letter и UNC пути с пробелами; проверка нового exact-head CI ожидается.
+- Закрыта утечка UNC-сетевых путей Windows (`\\server\share\file`) через неструктурированный текст внутри JSON-диагностик: приватные имена сервера, сетевой папки и каталогов скрываются как `<path:.ext>`; Windows RED/GREEN regression test.
+- Устранена утечка Bearer-токенов при нескольких пробелах после схемы авторизации в диагностических сообщениях; добавлен Windows TDD-регрессионный тест на два токена и смешанный регистр.
+- Диагностическая JSON-редакция теперь полностью скрывает чувствительные поля с объектами, массивами и скалярами (секреты, содержимое проекта и транскрипты); добавлен регрессионный тест, сохраняющий безопасные поля.
+- Диагностический санитайзер теперь редактирует ВСЕ Bearer-токены в одной строке журнала, включая смешанный регистр и вложенные JSON-сообщения, а не только первый; TDD-регрессия предотвращает утечку последующих токенов.
 - Устранён флаки Windows E2E для реального H.264 export: export acceptance теперь ждёт terminal job state до 90 секунд внутри отдельного 120-секундного test budget вместо слишком узкого 30-секундного poll timeout; сам export/cancel gate остаётся обязательным.
 - Нормализован накопившийся rustfmt drift в `media-engine` и `project-io`; Windows CI теперь запускает `cargo fmt --all -- --check` как обязательный mechanical quality gate перед build/test стадиями.

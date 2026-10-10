@@ -1,6 +1,79 @@
 # Project Status
 
-Last updated: 2026-10-07
+Last updated: 2026-10-10
+
+## Latest checkpoint — 2026-10-10 — downloadable unsigned Windows preview installer (PR #11)
+
+- User requested a runnable binary to inspect the editor. Existing Windows CI builds a ~110 MiB debug NSIS installer (confirmed in CI #120 log as `target/x86_64-pc-windows-msvc/debug/bundle/nsis/Zeter Video Editor_0.0.1_x64-setup.exe`) but previously did not upload it: each ephemeral runner deleted it after job completion.
+- Add pinned `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02` (verified v4.6.2 SHA) after the unchanged Tauri debug NSIS bundle smoke, with `if-no-files-found: error`, 7-day retention, no compression, and a single .exe path pattern. The artifact is `zeter-video-editor-windows-preview-x64` ZIP; user extracts and runs the installer on Windows x64. The upload step runs only after earlier gates succeed. No change to production release workflow, signing requirements, app features or main.
+- This is an **unsigned debug preview**, NOT a signed/production release or verified live-AI demo. Windows SmartScreen/Defender may warn. Do not imply the installer can already be downloaded until this exact-head workflow has completed and the artifact exists. Latest prior functional CI #120 was SUCCESS for commit `7cc644c`; CI #121 was in progress for `6175f8c` when this build-export change was planned.
+- After this commit, check exact HEAD in PR #11 and the new Windows workflow run for rustfmt, frontend, FFmpeg, AI worker, Rust tests, Vitest, real WebView2 E2E, debug NSIS build and upload artifact; if failure, inspect exact logs. Provide the actual run/artifact URL after verifying it is available. No merge, release, tag or signing.
+- Still NOT VERIFIED: real whisper model inference, Windows face detector, Authenticode and end-to-end signed updater install.
+
+## Latest checkpoint — 2026-10-10 — argv / arguments alias privacy (PR #11)
+
+- Previous exact-head Windows CI #120 on `7cc644c13929dd1c6d76703304adc964c6bfd612` COMPLETED SUCCESS: rustfmt, frontend build, pinned FFmpeg, AI worker fixture, Rust workspace tests, Vitest, real Tauri/WebView2 E2E and debug NSIS smoke. https://github.com/zeter1/zeter-video-editor/actions/runs/38055012360 . This does not verify a newer commit.
+- Gap: `is_args_field` previously recognized `args` and `commandLine` but did not classify `argv`, `processArgv` or `cliArguments`, allowing raw process input values to escape redaction inside diagnostic JSON object/array and support metadata.
+- Fix: normalize only classifier key to ASCII lowercase alphanumeric, recognize `args`, `arguments`, `commandline` and `*argv`; preserve existing `[REDACTED ARGS]` redaction, original keys and safe event/request_id/count. New Rust regression `argv_and_arguments_aliases_are_redacted_without_exposing_process_inputs` tests scalar, nested object/array, metadata and safe fields.
+- Exactly 4 files changed in existing OPEN unmerged PR #11: `redaction.rs`, `task17_tests.rs`, `PROJECT_STATUS.md`, `CHANGELOG.md`. New exact-head Windows CI is mandatory; no local Rust/rustfmt/Windows or observed local RED/GREEN. If failing, inspect logs and repair on the same branch without weakening gates. No merge, tag, release, signing.
+- NOT VERIFIED: real whisper.cpp speech inference with model, Windows face detection, Authenticode, signed updater installation. Reference: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html .
+
+## Latest checkpoint — 2026-10-10 — structured path/arguments container privacy (PR #11)
+
+- Root cause: JSON diagnostic path/file-name and process-args fields were sanitized only for string values. A producer could send a nested object or array (e.g. `sourcePath: {label: "..."}` or `commandLineArgs: ["..."]`) and expose private filenames, project names or command arguments through child keys not classified as sensitive.
+- Fix: extract the existing scalar key classifiers without changing scalar behavior. Before recursively sanitizing JSON containers, replace object/array values of path-like keys with `<path>` and argument-like keys with `[REDACTED ARGS]`. Other diagnostic objects, event/request_id and numeric metrics preserve their existing contract. Sensitive-key masking still takes precedence.
+- Regression: `path_and_process_args_containers_are_redacted_without_exposing_nested_names` covers top-level and nested objects/arrays, both placeholders, preserved safe correlation fields and numeric metric. Scope: existing PR #11 only, four files (redaction.rs, task17_tests.rs, PROJECT_STATUS.md, CHANGELOG.md).
+- Verification: this GitHub-side change has NO locally observed Rust TDD RED/GREEN or Windows toolchain checks. New exact-head Windows CI required; older CI #118 SUCCESS only proves previous SHA `f027222`. CI #119 for `409f3ca` was in progress at start and does not verify this new change.
+- No merge, release, signing or tag. Actual platform face detection, live whisper model inference and production signed updater installation remain NOT VERIFIED. Security reference: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html .
+
+## Latest checkpoint — 2026-10-10 — filename-field privacy across naming conventions (PR #11)
+
+- Root cause: `sanitize_named_value` handled `source_path`, `*_file` and `file` but not bare private filenames carried by `fileName`, `originalFileName`, `asset-file-name` or `sourceFile`. Unstructured bare names need key-based protection when they lack detectable drive-letter path syntax.
+- Fix: extend path-bearing field classification using normalized ASCII key spelling for `*filename`, preserving existing path and `*_file` handling, and recognizing kebab-case `*-file` / camelCase `*File`. Reuse the existing `sanitize_path` extension allowlist and retain safe `event` / `request_id`, nested counts and original serialized JSON keys.
+- New Rust regression `filename_metadata_variants_are_sanitized_in_structured_diagnostics` covers media/project filenames, Windows paths, nested JSON and support-metadata named values. Scope: only `redaction.rs`, `task17_tests.rs`, `PROJECT_STATUS.md`, `CHANGELOG.md` in existing unmerged PR #11 branch. No main, other AI/updater PR, CI gate, signing, tag, release or merge changes.
+- Previous exact-head Windows CI #118 belongs to old SHA `f027222`: rustfmt, Rust workspace, frontend/Vitest, real Tauri/WebView2 E2E passed at inspection; NSIS smoke was still in progress. New commit needs its own exact-head CI for all gates; no local Rust toolchain, Windows or locally observed RED/GREEN. Follow exact logs and correct any failure in the same PR.
+- References: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html ; https://doc.rust-lang.org/stable/std/path/ .
+
+## Latest checkpoint — 2026-10-10 — case-insensitive separator-agnostic diagnostic key privacy (PR #11)
+
+- Found a remaining diagnostic privacy gap: key classification recognized snake_case names such as `raw_audio` and `private_key`, but missed equivalent camelCase/kebab-case/mixed punctuation (`rawAudio`, `privateKey`, `api-key`, `projectJson`, `sessionId`). Sensitive JSON values could survive into local logs/support ZIP when producers changed field naming conventions.
+- Fix: canonicalize **only the classifier input** to ASCII alphanumeric lowercase, preserving serialized original keys and safe correlation fields; classify `sessionId` as a secret per OWASP logging guidance. Also cover `rawVideo`, `frameData`, `userContent`. Apply consistently to JSON (including container values) and support metadata maps. Regression `sensitive_json_keys_in_camel_case_and_kebab_case_are_redacted` checks secret/content/project classes, nested containers, preserved event/request_id and metadata named values.
+- Scope: `redaction.rs`, `task17_tests.rs`, `PROJECT_STATUS.md`, `CHANGELOG.md` only on existing PR #11 branch; no main/AI/updater modifications and no CI gates bypassed. Exact-head CI of the new commit REQUIRED; tests not run locally (Rust toolchain unavailable). Previous #117 belongs to prior SHA `28b8c87` and cannot verify this change.
+- Source: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html ; https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html . No merge, tag, signing or release.
+
+
+## Latest checkpoint — 2026-10-10 — invalid UTF-8 support-log resilience (PR #11)
+
+- Exact-head Windows CI #115 on `bae73828d24852d4bbeb8103fac0641f19cc0df2` completed SUCCESS: rustfmt, frontend, pinned FFmpeg, AI worker, Rust tests, Vitest, actual Tauri/WebView2 Playwright E2E, and debug NSIS smoke. https://github.com/zeter1/zeter-video-editor/actions/runs/38051607674 .
+- Found reliability gap: one stale or damaged `zeter-*.log` with invalid UTF-8 made `Read::read_to_string` abort the entire support archive despite other healthy logs.
+- Fix: retain bounded read through `Read::take(max_file_bytes + 1)`, use `read_to_end` then strict `String::from_utf8`, skip only bad-encoding logs, preserve valid logs plus per-line sanitization. Rust regression `support_bundle_skips_invalid_utf8_log_and_keeps_valid_logs` checks the export contains manifest and healthy log only.
+- New follow-up commit REQUIRES ITS OWN exact-head Windows CI. #115 belongs to previous SHA and is NOT verification of these changes. Local Rust/rustfmt/Windows execution unavailable; no locally observed RED/GREEN. No changes to main, stacked AI or updater PRs, no merge/tag/release/signing.
+- References: https://doc.rust-lang.org/std/io/trait.Read.html ; https://doc.rust-lang.org/std/string/struct.String.html ; https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html .
+
+## Latest checkpoint — 2026-10-10 — GitHub OAuth/App token prefix redaction (PR #11)
+
+- Found a remaining credentials-in-logs gap: the generic diagnostic sanitizer recognized `ghp_` / `github_pat_`, but not the official GitHub OAuth / App token formats `gho_`, `ghu_`, `ghs_`, `ghr_`.
+- Added all four documented token prefixes to the existing fail-closed free-text masking path (including nested JSON fields), preserving safe event fields. Regression `github_oauth_app_and_personal_access_tokens_are_redacted_from_logs` covers six token formats with punctuation, mixed plain/nested fields and the newer `ghs_APPID_JWT` shape.
+- Official format reference: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github ; OWASP logging: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html .
+- Verification must use the **new exact-head Windows CI**; local Rust/rustfmt and Windows tests are unavailable. Previous #110 evidence belongs only to ddc3ae7, not this new change. No changes to AI, updater, workflow gates, signing, tags, releases or main.
+
+## Latest checkpoint — 2026-10-10 — URL credential/path log redaction (PR #11)
+
+- Continued existing PR #11 \`fix/diagnostics-nested-redaction-20261010\` on unchanged main; no merge, release, tag or signing.
+- Gap: untrusted diagnostic message strings could contain URL userinfo passwords, unknown query parameter secrets, fragments and private file URLs. Previously Basic/Bearer and Windows paths were redacted, but full URLs were not.
+- Fix: \`sanitize_untrusted_text\` now fail-closed replaces every http(s), ws(s), ftp and file URL with \`[REDACTED URL]\` before credential/path filters; keeps benign context and Unicode text. It deliberately stops only at whitespace/quotes/angle brackets, not query punctuation.
+- Regression \`diagnostic_urls_hide_credentials_private_paths_and_unknown_query_parameters\` checks multiple schemes, mixed case, nested JSON, URL userinfo, query tokens, local file URLs and UTF-8.
+- Verification: Rust toolchain / Windows not available locally in this session. New exact-head Windows CI must be checked; do not infer PASS from historical PR #11 CI #107 or #106. Historical CI #107 was checked with Rust/frontend/E2E passing on previous head \`1f0a38b\`, NSIS still running at that observation.
+- OWASP: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html ; https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html . Remaining unverified: live whisper inference, Windows face detection, production signed updater installation/Authenticode, production release. PRs #7→#8→#9 and #10 remain open, no merging without authorization.
+
+## Latest checkpoint — 2026-10-10 — HTTP Basic authentication log redaction (PR #11)
+
+- Continued the existing open PR #11 on branch `fix/diagnostics-nested-redaction-20261010`, based on unchanged `main` `fa920b7`; no merge, release, tag or signing.
+- Privacy gap: free-form diagnostics redacted Bearer but not HTTP Basic credentials (Base64-encoded username/password); a log message or sanitized support bundle could retain credentials.
+- Fix: shared case-insensitive authentication-scheme scanner now redacts each Basic and Bearer credential, including repeated whitespace and multiple occurrences. Regression: `diagnostic_messages_redact_all_basic_auth_credentials` covers two HTTP header values plus one nested JSON message.
+- Verification: local Rust/Windows execution unavailable in this session (Remote Desktop Commander quota previously 0%); new commit CI status MUST be checked on exact HEAD before declaring PASS. Last known green historical head `a65ff12f72cfa0a0d2225993d5bafe3b0a666c21` had Windows CI #106 SUCCESS.
+- Security references: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html and https://www.rfc-editor.org/rfc/rfc7617.html .
+- Remaining unverified: actual whisper.cpp speech inference, Windows face detector, production Authenticode/updater signing, signed updater installation, tagged release. Other open PRs #7→#8→#9 and #10 remain unmerged; do not merge without explicit user approval.
 
 ## Current phase
 
@@ -161,6 +234,33 @@ Integration record:
 - export E2E timing hardening PR #2 merge commit: `5a4deb0a6eee58a1d941372dec382a58e0ca4dd2`
 
 ## Next step
+
+### 2026-10-10 diagnostic unquoted-path privacy hardening (PR #11; CI pending)
+
+- Follow-up on existing PR #11 (no merge): unquoted Windows/UNC paths with spaces could expose path tails because whitespace was treated as a terminator. The sanitizer now consumes until a strong delimiter; ambiguous trailing prose is conservatively redacted.
+- sanitize_path no longer echoes arbitrary text as a file extension: only an allowlist of media/project/diagnostic extensions is retained; other extensions fail closed to <path>. The code retains known extensions in normalized lowercase.
+- Rust regressions: unquoted drive-letter and UNC paths with spaces, ambiguous unquoted path suffix and private extension, known uppercase extension. Local Windows RED/GREEN not observed (Remote Desktop Commander usage exhausted); run exact-head CI and report only actual results.
+- OWASP Logging Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html (file paths and personal data require careful sanitization).
+- Scope: diagnostics redaction, Task 17 tests, status, changelog only; do NOT merge or release without explicit user authorization.
+
+### 2026-10-10 diagnostics privacy hardening and integration checkpoint (pending merge)
+
+- Продолжение PR #11, кодовый коммит `fce51ad72a8239eee17d95a4f7c0f5fa05326c83`: найдено и исправлено раскрытие Bearer credential после **нескольких пробелов** (`Bearer  secret`): прежний sanitizer заменял только схему, оставляя credential в сообщении. Новый регрессионный `bearer_tokens_with_repeated_whitespace_do_not_leak` прошёл настоящий Windows TDD RED (0/1, оба секрета видимы) -> GREEN (1/1). Полная Task 17 диагностика 10/10 PASS; `cargo fmt --all -- --check` PASS; `git diff --check` PASS; local branch committed/pushed, worktree clean at handoff. Остальные workspace/frontend/E2E/NSIS для этого нового кода должны подтверждаться **по окончательному exact head SHA**, а не наследоваться от более раннего CI.
+- CI #91 / run `38042822778` на **предыдущем** SHA `cfb665e78655ed79423d7212c97698f8e7477d60` завершился SUCCESS (включая WebView2 E2E и NSIS); это не является E2E/NSIS доказательством для `fce51ad` или последующих документационных коммитов. После изменений проверить новый Actions run на актуальном PR #11 head, прежде чем отмечать exact-head Windows acceptance PASS. Не сливать PR без отдельного одобрения.
+
+- Verified remote main head: fa920b73759f8699d57247d4da534c2ed69bbe3d. No PR merges in this session.
+- Open stacked AI PRs: #7 (eb6189fd272c5ed0302b13f3327be8f84d4a3448, base main, CI 37629223058 SUCCESS), #8 (8e39a1206ccadfc45ef8b1d123b461468c43dbc9, base #7 branch, CI 37636641342 SUCCESS), #9 (6b822210d14806afa8e2b37aba35cef6a6760e3e, draft, base #8 branch, CI 37647137514 SUCCESS).
+- Independent updater PR #10 (caa901e85ebf8ae77d1f136de9ed1814b588b7c6, base main, CI 37664289811 SUCCESS). All four PRs mergeable against current bases when checked. DO NOT merge without explicit user permission.
+- Current standalone branch fix/diagnostics-nested-redaction-20261010: apps/desktop/src-tauri/src/diagnostics/redaction.rs now redacts entire sensitive JSON values (object, array, non-string scalar), avoiding leaks through local JSON logging and sanitized support bundles. Non-sensitive nested values remain unchanged. Regression test in task17_tests.rs.
+- Follow-up privacy hardening on the SAME PR #11 branch: sanitize_untrusted_text previously masked only the first Bearer credential in a diagnostic value, allowing later tokens (including case variants and nested JSON messages) to remain visible. redact_bearer now scans through all credential occurrences without re-scanning replacements. Regression task17_tests::diagnostic_messages_redact_every_bearer_token: actual Windows RED 0/1 (second and third tokens leaked), GREEN 9/9 diagnostics tests. No new branch or PR; main remains unchanged.
+- Follow-up local Windows verification on amended PR #11 worktree: cargo fmt --all -- --check PASS; cargo test --workspace PASS (including 31/31 desktop Rust tests); npm.cmd --prefix apps/desktop test -- --run PASS (23 files / 52 tests); npm.cmd --prefix apps/desktop run build PASS; git diff --check PASS. Original PR #11 CI #90 / run 38042059272 SUCCESS for previous exact head 72fb9c7 (real WebView2 E2E + debug NSIS smoke); after follow-up, repeat CI must be evaluated at the NEW exact head before declaring its desktop acceptance PASS. Production signed release still NOT VERIFIED.
+- TDD RED observed: cargo test -p zeter-desktop-tauri sensitive_json_containers_are_redacted_before_visiting_children failed because JSON token object exposed an unguarded value. After production fix GREEN: focused test PASS, 8/8 Task 17 tests PASS.
+- Local Windows verification: cargo fmt --all -- --check PASS; cargo test --workspace PASS; npm.cmd run build PASS; Vitest 23/23 files and 52/52 tests PASS; git diff --check PASS. Branch-specific real Tauri/WebView2 E2E and debug NSIS smoke NOT VERIFIED until exact-head Windows CI completes.
+- For isolated worktree setup, stage ignored managed sidecars (ffmpeg, ffprobe, whisper-cli, zeter-ai-worker) in apps/desktop/src-tauri/binaries; build frontend apps/desktop/dist before Tauri tests. In PowerShell use npm.cmd (local policy prevents npm.ps1). Do not modify main tree or system execution policy.
+- Zeter-PC baseline main checkout G:\МОЯ Веб-разработка\zeter-video-editor was clean and matched origin/main. Existing worktrees include .worktrees\updater-flow-20261007 (local backup 194dc80...), .worktrees\updater-safe-sol-20261007 (PR #10), and this diagnostics worktree. Keep local backup branches/worktrees unless inspected and safe to remove.
+- NOT VERIFIED: real whisper inference with real model/fixture; production face analysis; signed updater install/Authenticode/tagged release. No release or signing performed.
+- Next: confirm diagnostics PR exact head SHA and Windows Actions, review failures, preserve unmerged PR. Integrate stacked AI PRs in dependency order (#7 -> #8 -> #9) only when explicitly authorized; consider AppShell merge interactions with #10. Continue bounded stabilization or seek approval for new scope.
+
 
 **Post-MVP stabilization / release-readiness hardening inside the approved architecture**
 
@@ -487,3 +587,40 @@ Task 19 execution notes:
 - Real whisper model inference remains **NOT VERIFIED** because no model/speech fixture was supplied; deterministic worker/parser/application acceptance is verified, and the real pinned whisper CLI packaging/startup identity boundary is verified.
 - Windows platform face-analysis remains **NOT VERIFIED / not implemented** as already recorded in Task 16; deterministic center fallback and manual crop remain the approved verified MVP behavior.
 - Production updater signing, Windows Authenticode signing and an actual tagged GitHub Release remain **NOT VERIFIED** because production secrets/certificate were intentionally not used during MVP acceptance.
+
+## Post-MVP diagnostics privacy hardening — 2026-10-10 (PR #11 continuation)
+
+- Active PR: https://github.com/zeter1/zeter-video-editor/pull/11 (branch `fix/diagnostics-nested-redaction-20261010`, base `main`). No PR merges or production releases were performed.
+- Root cause: `redact_windows_paths` recognized drive-letter paths such as `C:\...` but did not recognize UNC network paths (`\\server\share\media.mp4`). Thus untrusted diagnostic messages and sanitized support-bundle logs could expose private network host/share/folder names.
+- Minimal scoped fix: detect a leading two-backslash UNC prefix in the existing Windows path redactor and pass the candidate through the same extension-only `sanitize_path` boundary. Drive-letter behavior is retained. Added `diagnostic_messages_redact_unc_network_paths` to Task 17 Rust regression tests.
+- Windows TDD RED: focused regression failed (0/1), revealing the original full UNC path in JSON `message`. GREEN after implementation: focused regression passed (1/1). Full Rust workspace and frontend gates are recorded separately in the checkpoint Google Doc; avoid claiming real E2E/NSIS green on the new head until exact-head CI finishes.
+- This branch remains independent of stacked AI PRs #7/#8/#9 and updater PR #10. Do not merge PR #11 without explicit user approval. Real whisper model inference, platform face detector, production signing/update installation, and tagged release remain NOT VERIFIED.
+- Next step: read latest PR #11 head and matching GitHub Actions run; confirm full Windows Rust/frontend/WebView2/NSIS on exactly that SHA, inspect review threads, then continue bounded post-MVP reliability hardening without creating duplicate PRs.
+
+## Post-MVP diagnostics privacy hardening — quoted paths with spaces (2026-10-10)
+
+- Continuing the **existing** PR #11 / `fix/diagnostics-nested-redaction-20261010`; main remains `fa920b73759f8699d57247d4da534c2ed69bbe3d`. No merge, release, production signing, or changes to AI/updater branches.
+- Root cause: `redact_windows_paths` stopped an untrusted Windows drive-letter or UNC path at the first whitespace, even when the full path was enclosed in quotes. In a diagnostic such as `'C:\\Users\\Alice Smith\\private clip.mp4'`, portions after the first space could survive log sanitization and the support bundle.
+- Minimal fix: if a recognized path begins immediately after a single/double quote, scan to its matching quote and replace the **entire** path with `sanitize_path` extension-only metadata. Unquoted path parsing is unchanged. New Rust regression: `quoted_windows_paths_with_spaces_are_fully_redacted`, covering both drive-letter and UNC paths with spaces.
+- Test and code were committed to this PR through GitHub. No local Windows compiler/runtime was used in this conversation; **do not claim local Rust RED/GREEN**, and treat the new test, full Rust workspace, frontend, WebView2 acceptance, and NSIS on the newest SHA as **NOT VERIFIED** until a matching GitHub Actions CI run completes successfully.
+- The last observed latest code SHA before documentation was `86df5342f9490ef90cebe1222b9aa8196005aecc` (test, fix, formatting). Re-read PR exact head and its CI after documentation pushes; previous run #95 on the older UNC-only head was cancelled by newer pushes, so it is not evidence for this change.
+- Keep the existing outstanding verification debt: real whisper model/speech inference, Windows platform face detection, signed updater install, Authenticode, and tagged production release.
+- Next safe action: check fresh PR #11 exact head/reviews/CI; if rustfmt/test/build/E2E/NSIS fail, fix this same PR without disabling checks; if green, record exact SHA and mark ready for review **without merging**. Review stacked #7/#8/#9 and updater #10 separately.
+
+## Post-MVP diagnostics privacy hardening — non-object JSON records (2026-10-10)
+
+- Continued existing open PR #11 on branch `fix/diagnostics-nested-redaction-20261010`, based on main `fa920b73759f8699d57247d4da534c2ed69bbe3d`. Do not merge without explicit approval.
+- Root cause: `sanitize_log_line` parsed any valid JSON root and recursively sanitized it. Top-level strings or arrays lack the structured diagnostic field names needed for privacy classification; a valid JSON string/array containing private transcript text could pass through local logs and the sanitized support bundle unchanged.
+- Scoped fix: only top-level JSON objects are treated as structured diagnostic records. All non-object JSON and invalid JSON use the existing `[UNSTRUCTURED LOG RECORD REDACTED]` fail-closed placeholder. Existing object field sanitization is preserved. Added Rust regression `non_object_json_log_records_are_redacted_instead_of_leaking_content` for strings, arrays, booleans, null and numbers, plus an ordinary object compatibility assertion.
+- New-code local Windows compilation, TDD RED/GREEN, and integration tests: **NOT VERIFIED** (remote command quota exhausted). An exact-head Windows GitHub Actions run after the commit must prove rustfmt, workspace tests, frontend, real WebView2 E2E and debug NSIS. Earlier #101 SUCCESS applies to prior head `488137221fea4f8bb8593ff506ebe13c1c28bfca` only.
+- References: OWASP Logging Cheat Sheet (https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html), serde_json Value documentation (https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html).
+- Keep NOT VERIFIED: real whisper.cpp model inference, Windows platform face detector, signed updater installation, Windows Authenticode/production updater signing, tagged release.
+
+## Post-MVP diagnostics — bounded support ZIP log inputs (2026-10-10)
+
+- Existing PR #11, branch `fix/diagnostics-nested-redaction-20261010`, base main. No merge/tag/release/signing; no AI/updater changes.
+- Finding: `export_support_bundle` formerly used unbounded `fs::read_to_string` for caller-supplied matching `zeter-*.log` files and did not cap the number included. Stale or modified logs could exhaust memory/disk despite the normal writer's 10 × 10 MiB retention limits.
+- Fix: reuse `RetentionPolicy::default()` for support-ZIP export, skipping oversized files and enforcing max file count and total raw byte budget. Use `Read::take(max_file_bytes + 1)` after metadata check so concurrent file growth cannot cause an unbounded read. Preserve structured-log sanitization and allowed log filenames.
+- Test: `support_bundle_caps_oversized_logs_and_exported_log_count` checks a sparse oversized file plus 12 small logs; expected manifest + 10 included logs only.
+- Verification: NO local Rust/rustfmt/Windows execution or observed RED/GREEN in this environment. GitHub exact-head CI required for new commit (rustfmt, cargo, frontend/Vitest, real WebView2 E2E, NSIS). #112 for previous `60d33cb` was running while preparing this patch, and must not count as verification for this commit.
+- Next: check current PR #11 HEAD and final GitHub Actions status; if FAILED inspect the failing step/log and fix in the same PR without disabling gates. Unverified: live whisper model inference, Windows face detection, production updater installation, Authenticode/signing/release.

@@ -72,6 +72,345 @@ fn redaction_removes_private_content_secrets_paths_raw_process_args_and_log_inje
 }
 
 #[test]
+fn non_object_json_log_records_are_redacted_instead_of_leaking_content() {
+    for record in [
+        r#""private transcript phrase""#,
+        r#"["private transcript phrase"]"#,
+        r#"["safe", {"message": "private transcript phrase"}]"#,
+        "false",
+        "null",
+        "42",
+    ] {
+        assert_eq!(
+            sanitize_log_line(record),
+            "[UNSTRUCTURED LOG RECORD REDACTED]"
+        );
+    }
+
+    let structured = sanitize_log_line(r#"{"event":"fixture","message":"safe"}"#);
+    let json: serde_json::Value = serde_json::from_str(&structured).unwrap();
+    assert_eq!(json["event"], "fixture");
+    assert_eq!(json["message"], "safe");
+}
+
+#[test]
+fn sensitive_json_containers_are_redacted_before_visiting_children() {
+    let line = r#"{"event":"fixture","token":{"value":"unguarded-token-value"},"credentials":["unguarded-credential-value"],"transcript_segments":[{"text":"private spoken words"}],"project_json":{"name":"Private Creator Project"},"password":42,"safe":{"count":2},"request_id":"request-fixture"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["token"], "[REDACTED SECRET]");
+    assert_eq!(json["credentials"], "[REDACTED SECRET]");
+    assert_eq!(json["transcript_segments"], "[REDACTED CONTENT]");
+    assert_eq!(json["project_json"], "[REDACTED PROJECT]");
+    assert_eq!(json["password"], "[REDACTED SECRET]");
+    assert_eq!(json["safe"]["count"], 2);
+    assert_eq!(json["request_id"], "request-fixture");
+    assert!(!sanitized.contains("unguarded-"));
+    assert!(!sanitized.contains("private spoken words"));
+    assert!(!sanitized.contains("Private Creator Project"));
+}
+
+#[test]
+fn sensitive_json_keys_in_camel_case_and_kebab_case_are_redacted() {
+    let record = r#"{"event":"render_progress","request_id":"request-fixture","api-key":"hidden-api","privateKey":"hidden-private","accessKey":"hidden-access","sessionId":"hidden-session","projectJson":{"name":"hidden-project"},"rawAudio":["hidden-voice"],"rawVideo":"hidden-frames","frameData":{"pixels":"hidden-pixels"},"userContent":"hidden-user","safe":{"count":2}}"#;
+    let sanitized = sanitize_log_line(record);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    for key in ["api-key", "privateKey", "accessKey", "sessionId"] {
+        assert_eq!(json[key], "[REDACTED SECRET]");
+    }
+    assert_eq!(json["projectJson"], "[REDACTED PROJECT]");
+    for key in ["rawAudio", "rawVideo", "frameData", "userContent"] {
+        assert_eq!(json[key], "[REDACTED CONTENT]");
+    }
+    assert_eq!(json["event"], "render_progress");
+    assert_eq!(json["request_id"], "request-fixture");
+    assert_eq!(json["safe"]["count"], 2);
+    assert!(!sanitized.contains("hidden-"));
+
+    // Metadata maps use the same classifier, not just JSON log records.
+    assert_eq!(
+        sanitize_named_value("session-id", "private-session"),
+        "[REDACTED SECRET]"
+    );
+    assert_eq!(
+        sanitize_named_value("project.json", "private-project"),
+        "[REDACTED PROJECT]"
+    );
+    assert_eq!(
+        sanitize_named_value("raw_audio", "private-audio"),
+        "[REDACTED CONTENT]"
+    );
+}
+
+#[test]
+fn filename_metadata_variants_are_sanitized_in_structured_diagnostics() {
+    let record = r#"{"event":"import_finished","request_id":"fixture-request","fileName":"Alice-private.mp4","asset-file-name":"Secret Client.vcut","sourceFile":"C:\\Users\\Alice\\Private\\clip.mov","nested":{"source_file_name":"Customer Recording.wav","safe":{"count":2}}}"#;
+    let sanitized = sanitize_log_line(record);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["fileName"], "<path:.mp4>");
+    assert_eq!(json["asset-file-name"], "<path:.vcut>");
+    assert_eq!(json["sourceFile"], "<path:.mov>");
+    assert_eq!(json["nested"]["source_file_name"], "<path:.wav>");
+    assert_eq!(json["nested"]["safe"]["count"], 2);
+    assert_eq!(json["event"], "import_finished");
+    assert_eq!(json["request_id"], "fixture-request");
+    assert!(!sanitized.contains("Alice"));
+    assert!(!sanitized.contains("Secret Client"));
+    assert!(!sanitized.contains("Customer Recording"));
+
+    // The same naming variants occur in support-bundle metadata maps.
+    assert_eq!(
+        sanitize_named_value("originalFileName", "Alice private.webm"),
+        "<path:.webm>"
+    );
+    assert_eq!(
+        sanitize_named_value("output-file", "Secret output.mp4"),
+        "<path:.mp4>"
+    );
+}
+
+#[test]
+fn path_and_process_args_containers_are_redacted_without_exposing_nested_names() {
+    let record = r#"{"event":"render_progress","request_id":"safe-request","sourcePath":{"label":"Private Project Folder","item":"Customer Cut.mp4"},"fileName":["Alice Reveal.mp4","Bob Private.mov"],"commandLineArgs":["--input","Personal Raw Title"],"nested":{"source_file":{"display":"Hidden Client Source"}},"metrics":{"count":7}}"#;
+    let sanitized = sanitize_log_line(record);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["sourcePath"], "<path>");
+    assert_eq!(json["fileName"], "<path>");
+    assert_eq!(json["commandLineArgs"], "[REDACTED ARGS]");
+    assert_eq!(json["nested"]["source_file"], "<path>");
+    assert_eq!(json["event"], "render_progress");
+    assert_eq!(json["request_id"], "safe-request");
+    assert_eq!(json["metrics"]["count"], 7);
+    for secret in [
+        "Private Project Folder",
+        "Customer Cut",
+        "Alice Reveal",
+        "Bob Private",
+        "Personal Raw Title",
+        "Hidden Client Source",
+    ] {
+        assert!(!sanitized.contains(secret), "leaked nested value: {secret}");
+    }
+}
+
+#[test]
+fn argv_and_arguments_aliases_are_redacted_without_exposing_process_inputs() {
+    let record = r#"{"event":"render_progress","request_id":"safe-request","argv":["--source","Private Client.mov","--password","unguarded-secret"],"nested":{"processArgv":{"first":"Hidden Client Video.mp4"},"cliArguments":["Private cut.vcut"],"command-line-arguments":"--input Secret Cut.mp4"},"safe":{"count":3}}"#;
+    let sanitized = sanitize_log_line(record);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["argv"], "[REDACTED ARGS]");
+    assert_eq!(json["nested"]["processArgv"], "[REDACTED ARGS]");
+    assert_eq!(json["nested"]["cliArguments"], "[REDACTED ARGS]");
+    assert_eq!(json["nested"]["command-line-arguments"], "[REDACTED ARGS]");
+    assert_eq!(json["event"], "render_progress");
+    assert_eq!(json["request_id"], "safe-request");
+    assert_eq!(json["safe"]["count"], 3);
+    for secret in [
+        "Private Client",
+        "unguarded-secret",
+        "Hidden Client Video",
+        "Private cut",
+        "Secret Cut",
+    ] {
+        assert!(!sanitized.contains(secret), "leaked argument: {secret}");
+    }
+
+    // Support-bundle metadata maps share the same field classifier.
+    assert_eq!(
+        sanitize_named_value("process_argv", "--input Customer Footage.mov"),
+        "[REDACTED ARGS]"
+    );
+    assert_eq!(
+        sanitize_named_value("programArguments", "--token unguarded-secret"),
+        "[REDACTED ARGS]"
+    );
+}
+
+#[test]
+fn github_oauth_app_and_personal_access_tokens_are_redacted_from_logs() {
+    // GitHub's documented prefixes include OAuth, GitHub App user,
+    // installation and refresh tokens as well as both PAT formats.
+    let line = r#"{"event":"fixture","message":"gho_oauth-private ghu_user-private, ghs_APPID_JWT-private; ghr_refresh-private","nested":[{"message":"ghp_classic-private and github_pat_fine-private"}]}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "[REDACTED SECRET] [REDACTED SECRET], [REDACTED SECRET]; [REDACTED SECRET]"
+    );
+    assert_eq!(
+        json["nested"][0]["message"],
+        "[REDACTED SECRET] and [REDACTED SECRET]"
+    );
+    assert_eq!(json["event"], "fixture");
+    for private_token in [
+        "gho_oauth-private",
+        "ghu_user-private",
+        "ghs_APPID_JWT-private",
+        "ghr_refresh-private",
+        "ghp_classic-private",
+        "github_pat_fine-private",
+    ] {
+        assert!(!sanitized.contains(private_token), "leaked {private_token}");
+    }
+}
+
+#[test]
+fn diagnostic_messages_redact_every_bearer_token() {
+    let line = r#"{"event":"fixture","message":"Bearer first-private-token and BEARER second-private-token; bearer third-private-token","nested":[{"message":"Bearer fourth-private-token"}]}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "[REDACTED SECRET] and [REDACTED SECRET]; [REDACTED SECRET]"
+    );
+    assert_eq!(json["nested"][0]["message"], "[REDACTED SECRET]");
+    assert_eq!(json["event"], "fixture");
+    assert!(!sanitized.contains("private-token"));
+}
+
+#[test]
+fn bearer_tokens_with_repeated_whitespace_do_not_leak() {
+    let line = r#"{"event":"fixture","message":"Authorization: Bearer  first-private-token; Authorization: bEaReR    second-private-token"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "Authorization: [REDACTED SECRET]; Authorization: [REDACTED SECRET]"
+    );
+    assert_eq!(json["event"], "fixture");
+    assert!(!sanitized.contains("private-token"));
+}
+
+#[test]
+fn diagnostic_messages_redact_all_basic_auth_credentials() {
+    let line = r#"{"event":"fixture","message":"Authorization: Basic YWxpY2U6cHJpdmF0ZQ==; Proxy-Authorization: bAsIc   Ym9iOnNlY3JldA==","nested":[{"message":"basic Y2Fyb2w6aGlkZGVu"}]}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "Authorization: [REDACTED SECRET]; Proxy-Authorization: [REDACTED SECRET]"
+    );
+    assert_eq!(json["nested"][0]["message"], "[REDACTED SECRET]");
+    assert_eq!(json["event"], "fixture");
+    for private_credential in [
+        "YWxpY2U6cHJpdmF0ZQ==",
+        "Ym9iOnNlY3JldA==",
+        "Y2Fyb2w6aGlkZGVu",
+    ] {
+        assert!(!sanitized.contains(private_credential));
+    }
+}
+
+#[test]
+fn diagnostic_urls_hide_credentials_private_paths_and_unknown_query_parameters() {
+    let line = r#"{"event":"fixture","message":"request https://alice:password@api.example/private?api_key=unsafe-one and WSS://gateway.example/socket?unusual_session=unsafe-two failed","nested":[{"url":"file:///C:/Users/Alice/private clip.mp4"}]}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "request [REDACTED URL] and [REDACTED URL] failed"
+    );
+    assert_eq!(json["nested"][0]["url"], "[REDACTED URL]");
+    assert_eq!(json["event"], "fixture");
+    for private_part in ["alice:password", "unsafe-one", "unsafe-two", "Alice"] {
+        assert!(!sanitized.contains(private_part), "leaked {private_part}");
+    }
+
+    assert_eq!(
+        sanitize_named_value("message", "ошибка https://host.invalid/?token=private"),
+        "ошибка [REDACTED URL]"
+    );
+    assert_eq!(
+        sanitize_named_value("event", "export_complete"),
+        "export_complete"
+    );
+}
+
+#[test]
+fn diagnostic_messages_redact_unc_network_paths() {
+    let line = r#"{"event":"fixture","message":"could not open \\\\studio-nas\\Clients\\Alice\\private-take.mp4"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["message"], "could not open <path:.mp4>");
+    assert_eq!(json["event"], "fixture");
+    assert!(!sanitized.contains("studio-nas"));
+    assert!(!sanitized.contains("Clients"));
+    assert!(!sanitized.contains("Alice"));
+}
+
+#[test]
+fn quoted_windows_paths_with_spaces_are_fully_redacted() {
+    let line = r#"{"event":"fixture","message":"cannot open 'C:\\Users\\Alice Smith\\private clip.mp4' or '\\\\studio-nas\\Client Assets\\Private Person\\voice track.wav'"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "cannot open '<path:.mp4>' or '<path:.wav>'"
+    );
+    assert_eq!(json["event"], "fixture");
+    for private_part in [
+        "Alice Smith",
+        "private clip",
+        "studio-nas",
+        "Client Assets",
+        "Private Person",
+        "voice track",
+    ] {
+        assert!(!sanitized.contains(private_part), "leaked {private_part}");
+    }
+}
+
+#[test]
+fn unquoted_windows_paths_with_spaces_are_redacted_as_a_whole() {
+    let line = r#"{"event":"fixture","message":"cannot open C:\\Users\\Alice Smith\\private clip.mp4; nor \\\\studio-nas\\Client Assets\\Private Person\\voice track.wav"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["message"], "cannot open <path:.mp4>; nor <path:.wav>");
+    for sensitive in [
+        "Alice Smith",
+        "private clip",
+        "studio-nas",
+        "Client Assets",
+        "Private Person",
+        "voice track",
+    ] {
+        assert!(!sanitized.contains(sensitive), "leaked {sensitive}");
+    }
+}
+
+#[test]
+fn uncertain_unquoted_path_suffix_and_private_extension_fail_closed() {
+    let line = r#"{"event":"fixture","message":"failed C:\\Users\\Alice Smith\\private clip.mp4 unavailable"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+    assert_eq!(json["message"], "failed <path>");
+    assert!(!sanitized.contains("Alice Smith"));
+    assert!(!sanitized.contains("private clip"));
+
+    let private_extension = sanitize_path(std::path::Path::new(
+        r"C:\Users\Alice Smith\private clip.client notes",
+    ));
+    assert_eq!(private_extension, "<path>");
+    let known_extension = sanitize_path(std::path::Path::new(
+        r"C:\Users\Alice Smith\private clip.MP4",
+    ));
+    assert_eq!(known_extension, "<path:.mp4>");
+}
+
+#[test]
 fn rotation_policy_is_ten_times_ten_mib_fourteen_days_and_never_prunes_unrelated_files() {
     let policy = RetentionPolicy::default();
     assert_eq!(policy.max_files, 10);
@@ -244,6 +583,85 @@ fn support_bundle_rejects_unmanaged_logs_and_fail_closed_redacts_unstructured_li
     assert!(!combined.contains("private transcript phrase"));
     assert!(!combined.contains("SHOULD NEVER ENTER SUPPORT BUNDLE"));
     assert!(combined.contains("[UNSTRUCTURED LOG RECORD REDACTED]"));
+}
+
+#[test]
+fn support_bundle_caps_oversized_logs_and_exported_log_count() {
+    let dir = tempdir().unwrap();
+    let oversized = dir.path().join("zeter-oversized.log");
+    // A sparse oversized file avoids allocating test data.
+    fs::File::create(&oversized)
+        .unwrap()
+        .set_len(10 * 1024 * 1024 + 1)
+        .unwrap();
+
+    let mut logs = vec![oversized];
+    for index in 0..12 {
+        let path = dir.path().join(format!("zeter-{index:02}.log"));
+        let record = serde_json::json!({"event": format!("bounded_{index:02}")});
+        fs::write(&path, format!("{record}\n")).unwrap();
+        logs.push(path);
+    }
+    let metadata = SupportBundleMetadata {
+        app_version: "0.0.1".into(),
+        build_id: "fixture".into(),
+        os: "Windows".into(),
+        runtime: BTreeMap::new(),
+        capabilities: BTreeMap::new(),
+        jobs: Vec::new(),
+        crashes: Vec::new(),
+    };
+    let output = dir.path().join("bounded-support.zip");
+    export_support_bundle(&output, &metadata, &logs).unwrap();
+
+    let mut archive = zip::ZipArchive::new(fs::File::open(&output).unwrap()).unwrap();
+    assert_eq!(archive.len(), 11, "manifest plus at most ten managed logs");
+    let mut exported = String::new();
+    for index in 0..archive.len() {
+        archive
+            .by_index(index)
+            .unwrap()
+            .read_to_string(&mut exported)
+            .unwrap();
+    }
+    assert!(exported.contains("bounded_00"));
+    assert!(exported.contains("bounded_09"));
+    assert!(!exported.contains("bounded_10"));
+    assert!(!exported.contains("bounded_11"));
+}
+
+#[test]
+fn support_bundle_skips_invalid_utf8_log_and_keeps_valid_logs() {
+    let dir = tempdir().unwrap();
+    let corrupted = dir.path().join("zeter-corrupted.log");
+    let healthy = dir.path().join("zeter-healthy.log");
+    fs::write(&corrupted, b"{\"event\":\"corrupt\"\xff}\n").unwrap();
+    fs::write(&healthy, "{\"event\":\"healthy_after_corruption\"}\n").unwrap();
+
+    let metadata = SupportBundleMetadata {
+        app_version: "0.0.1".into(),
+        build_id: "fixture".into(),
+        os: "Windows".into(),
+        runtime: BTreeMap::new(),
+        capabilities: BTreeMap::new(),
+        jobs: Vec::new(),
+        crashes: Vec::new(),
+    };
+    let output = dir.path().join("support-corrupt-log.zip");
+    export_support_bundle(&output, &metadata, &[corrupted, healthy]).unwrap();
+
+    let mut archive = zip::ZipArchive::new(fs::File::open(&output).unwrap()).unwrap();
+    assert_eq!(archive.len(), 2, "manifest plus the healthy log only");
+    let mut exported = String::new();
+    for index in 0..archive.len() {
+        archive
+            .by_index(index)
+            .unwrap()
+            .read_to_string(&mut exported)
+            .unwrap();
+    }
+    assert!(exported.contains("healthy_after_corruption"));
+    assert!(!exported.contains("\"event\":\"corrupt\""));
 }
 
 #[test]
