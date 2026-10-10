@@ -87,6 +87,11 @@ pub fn sanitize_untrusted_text(value: &str) -> String {
     sanitized = redact_urls(&sanitized);
     sanitized = redact_prefixed_secret(&sanitized, "ghp_");
     sanitized = redact_prefixed_secret(&sanitized, "github_pat_");
+    // OAuth and GitHub App tokens have distinct documented prefixes.
+    sanitized = redact_prefixed_secret(&sanitized, "gho_");
+    sanitized = redact_prefixed_secret(&sanitized, "ghu_");
+    sanitized = redact_prefixed_secret(&sanitized, "ghs_");
+    sanitized = redact_prefixed_secret(&sanitized, "ghr_");
     sanitized = redact_prefixed_secret(&sanitized, "sk-");
     sanitized = redact_bearer(&sanitized);
     sanitized = redact_basic(&sanitized);
