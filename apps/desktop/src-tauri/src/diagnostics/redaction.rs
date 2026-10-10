@@ -170,7 +170,14 @@ fn redact_bearer(input: &str) -> String {
     // Authorization values. Search past each replacement to redact all of them.
     while let Some(offset) = output[search_from..].to_ascii_lowercase().find("bearer ") {
         let start = search_from + offset;
-        let token_start = start + "bearer ".len();
+        let token_after_scheme = start + "bearer ".len();
+        // Multiple spaces (or normalized tabs/newlines) may precede a token.
+        // Include the entire separator run so the credential cannot survive.
+        let token_start = output[token_after_scheme..]
+            .char_indices()
+            .find(|(_, ch)| !ch.is_whitespace())
+            .map(|(index, _)| token_after_scheme + index)
+            .unwrap_or(output.len());
         let token_end = output[token_start..]
             .char_indices()
             .find(|(_, ch)| ch.is_whitespace() || matches!(ch, '"' | '\'' | ',' | ';'))

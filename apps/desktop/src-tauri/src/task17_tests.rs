@@ -105,6 +105,20 @@ fn diagnostic_messages_redact_every_bearer_token() {
 }
 
 #[test]
+fn bearer_tokens_with_repeated_whitespace_do_not_leak() {
+    let line = r#"{"event":"fixture","message":"Authorization: Bearer  first-private-token; Authorization: bEaReR    second-private-token"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "Authorization: [REDACTED SECRET]; Authorization: [REDACTED SECRET]"
+    );
+    assert_eq!(json["event"], "fixture");
+    assert!(!sanitized.contains("private-token"));
+}
+
+#[test]
 fn rotation_policy_is_ten_times_ten_mib_fourteen_days_and_never_prunes_unrelated_files() {
     let policy = RetentionPolicy::default();
     assert_eq!(policy.max_files, 10);
