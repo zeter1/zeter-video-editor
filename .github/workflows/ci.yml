@@ -67,7 +67,11 @@ jobs:
           ./scripts/stage-managed-runtime.ps1 -FfmpegPath $paths.ffmpeg -FfprobePath $paths.ffprobe -WhisperCliPath $whisper -AiWorkerPath $worker
 
       - name: Rust tests
-        run: cargo test --workspace
+        shell: pwsh
+        run: |
+          $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
+          $env:ZETER_TEST_FFMPEG_DIR = Split-Path $paths.ffmpeg -Parent
+          cargo test --workspace
 
       - name: Frontend tests
         run: npm test -- --run
