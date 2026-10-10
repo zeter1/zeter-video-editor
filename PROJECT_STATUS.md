@@ -162,6 +162,14 @@ Integration record:
 
 ## Next step
 
+### 2026-10-10 diagnostic unquoted-path privacy hardening (PR #11; CI pending)
+
+- Follow-up on existing PR #11 (no merge): unquoted Windows/UNC paths with spaces could expose path tails because whitespace was treated as a terminator. The sanitizer now consumes until a strong delimiter; ambiguous trailing prose is conservatively redacted.
+- sanitize_path no longer echoes arbitrary text as a file extension: only an allowlist of media/project/diagnostic extensions is retained; other extensions fail closed to <path>. The code retains known extensions in normalized lowercase.
+- Rust regressions: unquoted drive-letter and UNC paths with spaces, ambiguous unquoted path suffix and private extension, known uppercase extension. Local Windows RED/GREEN not observed (Remote Desktop Commander usage exhausted); run exact-head CI and report only actual results.
+- OWASP Logging Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html (file paths and personal data require careful sanitization).
+- Scope: diagnostics redaction, Task 17 tests, status, changelog only; do NOT merge or release without explicit user authorization.
+
 ### 2026-10-10 diagnostics privacy hardening and integration checkpoint (pending merge)
 
 - Продолжение PR #11, кодовый коммит `fce51ad72a8239eee17d95a4f7c0f5fa05326c83`: найдено и исправлено раскрытие Bearer credential после **нескольких пробелов** (`Bearer  secret`): прежний sanitizer заменял только схему, оставляя credential в сообщении. Новый регрессионный `bearer_tokens_with_repeated_whitespace_do_not_leak` прошёл настоящий Windows TDD RED (0/1, оба секрета видимы) -> GREEN (1/1). Полная Task 17 диагностика 10/10 PASS; `cargo fmt --all -- --check` PASS; `git diff --check` PASS; local branch committed/pushed, worktree clean at handoff. Остальные workspace/frontend/E2E/NSIS для этого нового кода должны подтверждаться **по окончательному exact head SHA**, а не наследоваться от более раннего CI.

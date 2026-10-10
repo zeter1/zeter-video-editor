@@ -177,6 +177,47 @@ fn quoted_windows_paths_with_spaces_are_fully_redacted() {
 }
 
 #[test]
+fn unquoted_windows_paths_with_spaces_are_redacted_as_a_whole() {
+    let line = r#"{"event":"fixture","message":"cannot open C:\\\\Users\\\\Alice Smith\\\\private clip.mp4; nor \\\\\\\\studio-nas\\\\Client Assets\\\\Private Person\\\\voice track.wav"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "cannot open <path:.mp4>; nor <path:.wav>"
+    );
+    for sensitive in [
+        "Alice Smith",
+        "private clip",
+        "studio-nas",
+        "Client Assets",
+        "Private Person",
+        "voice track",
+    ] {
+        assert!(!sanitized.contains(sensitive), "leaked {sensitive}");
+    }
+}
+
+#[test]
+fn uncertain_unquoted_path_suffix_and_private_extension_fail_closed() {
+    let line = r#"{"event":"fixture","message":"failed C:\\\\Users\\\\Alice Smith\\\\private clip.mp4 unavailable"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+    assert_eq!(json["message"], "failed <path>");
+    assert!(!sanitized.contains("Alice Smith"));
+    assert!(!sanitized.contains("private clip"));
+
+    let private_extension = sanitize_path(std::path::Path::new(
+        r"C:\Users\Alice Smith\private clip.client notes",
+    ));
+    assert_eq!(private_extension, "<path>");
+    let known_extension = sanitize_path(std::path::Path::new(
+        r"C:\Users\Alice Smith\private clip.MP4",
+    ));
+    assert_eq!(known_extension, "<path:.mp4>");
+}
+
+#[test]
 fn rotation_policy_is_ten_times_ten_mib_fourteen_days_and_never_prunes_unrelated_files() {
     let policy = RetentionPolicy::default();
     assert_eq!(policy.max_files, 10);

@@ -22,16 +22,31 @@ pub fn sanitize_named_value(name: &str, value: &str) -> String {
 }
 
 pub fn sanitize_path(path: &Path) -> String {
+    // Never echo arbitrary extension text: a path ending in ".private notes"
+    // must not leak private words through the otherwise-redacted placeholder.
     let extension = path
         .extension()
         .and_then(|value| value.to_str())
-        .filter(|value| !value.is_empty())
-        .map(|value| format!(".{}", sanitize_untrusted_text(value)));
+        .and_then(safe_path_extension)
+        .map(|value| format!(".{value}"));
 
     match extension {
         Some(extension) => format!("<path:{extension}>"),
         None => "<path>".into(),
     }
+}
+
+fn safe_path_extension(value: &str) -> Option<&'static str> {
+    const SAFE_EXTENSIONS: &[&str] = &[
+        "aac", "avi", "bmp", "flac", "gif", "jpeg", "jpg", "json", "log", "m4a", "m4v",
+        "mkv", "mov", "mp3", "mp4", "mpeg", "mpg", "ogg", "opus", "png", "vcut", "wav",
+        "webm", "webp", "wmv", "zip",
+    ];
+
+    SAFE_EXTENSIONS
+        .iter()
+        .copied()
+        .find(|extension| value.eq_ignore_ascii_case(extension))
 }
 
 pub fn sanitize_process_args(program: &str, args: &[String]) -> String {
@@ -230,7 +245,10 @@ fn redact_windows_paths(input: &str) -> String {
                 if ch == terminator {
                     break;
                 }
-            } else if ch.is_whitespace() || matches!(ch, '"' | '\'' | ',' | ';' | ')' | ']' | '}') {
+            } else if matches!(ch, '"' | '\'' | ',' | ';' | ')' | ']' | '}') {
+                // An unquoted Windows path can contain spaces in directory and
+                // filename segments. Whitespace is not a reliable path boundary;
+                // consume until a strong delimiter instead of leaking the tail.
                 break;
             }
             index += 1;
