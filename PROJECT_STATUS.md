@@ -2,6 +2,15 @@
 
 Last updated: 2026-10-10
 
+## Latest checkpoint — 2026-10-10 — URL credential/path log redaction (PR #11)
+
+- Continued existing PR #11 \`fix/diagnostics-nested-redaction-20261010\` on unchanged main; no merge, release, tag or signing.
+- Gap: untrusted diagnostic message strings could contain URL userinfo passwords, unknown query parameter secrets, fragments and private file URLs. Previously Basic/Bearer and Windows paths were redacted, but full URLs were not.
+- Fix: \`sanitize_untrusted_text\` now fail-closed replaces every http(s), ws(s), ftp and file URL with \`[REDACTED URL]\` before credential/path filters; keeps benign context and Unicode text. It deliberately stops only at whitespace/quotes/angle brackets, not query punctuation.
+- Regression \`diagnostic_urls_hide_credentials_private_paths_and_unknown_query_parameters\` checks multiple schemes, mixed case, nested JSON, URL userinfo, query tokens, local file URLs and UTF-8.
+- Verification: Rust toolchain / Windows not available locally in this session. New exact-head Windows CI must be checked; do not infer PASS from historical PR #11 CI #107 or #106. Historical CI #107 was checked with Rust/frontend/E2E passing on previous head \`1f0a38b\`, NSIS still running at that observation.
+- OWASP: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html ; https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html . Remaining unverified: live whisper inference, Windows face detection, production signed updater installation/Authenticode, production release. PRs #7→#8→#9 and #10 remain open, no merging without authorization.
+
 ## Latest checkpoint — 2026-10-10 — HTTP Basic authentication log redaction (PR #11)
 
 - Continued the existing open PR #11 on branch `fix/diagnostics-nested-redaction-20261010`, based on unchanged `main` `fa920b7`; no merge, release, tag or signing.

@@ -162,6 +162,29 @@ fn diagnostic_messages_redact_all_basic_auth_credentials() {
 }
 
 #[test]
+fn diagnostic_urls_hide_credentials_private_paths_and_unknown_query_parameters() {
+    let line = r#"{"event":"fixture","message":"request https://alice:password@api.example/private?api_key=unsafe-one and WSS://gateway.example/socket?unusual_session=unsafe-two failed","nested":[{"url":"file:///C:/Users/Alice/private clip.mp4"}]}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "request [REDACTED URL] and [REDACTED URL] failed"
+    );
+    assert_eq!(json["nested"][0]["url"], "[REDACTED URL]");
+    assert_eq!(json["event"], "fixture");
+    for private_part in ["alice:password", "unsafe-one", "unsafe-two", "Alice"] {
+        assert!(!sanitized.contains(private_part), "leaked {private_part}");
+    }
+
+    assert_eq!(
+        sanitize_named_value("message", "ошибка https://host.invalid/?token=private"),
+        "ошибка [REDACTED URL]"
+    );
+    assert_eq!(sanitize_named_value("event", "export_complete"), "export_complete");
+}
+
+#[test]
 fn diagnostic_messages_redact_unc_network_paths() {
     let line = r#"{"event":"fixture","message":"could not open \\\\studio-nas\\Clients\\Alice\\private-take.mp4"}"#;
     let sanitized = sanitize_log_line(line);

@@ -84,6 +84,7 @@ pub fn sanitize_untrusted_text(value: &str) -> String {
         })
         .collect::<String>();
 
+    sanitized = redact_urls(&sanitized);
     sanitized = redact_prefixed_secret(&sanitized, "ghp_");
     sanitized = redact_prefixed_secret(&sanitized, "github_pat_");
     sanitized = redact_prefixed_secret(&sanitized, "sk-");
@@ -178,6 +179,42 @@ fn redact_prefixed_secret(input: &str, prefix: &str) -> String {
             .unwrap_or(tail.len());
         output.replace_range(start..start + end_offset, REDACTED_SECRET);
     }
+    output
+}
+
+// URLs can carry passwords in userinfo, API keys in query parameters,
+// private media paths, or session tokens in fragments. Redact the entire
+// URL, not only selected query keys, so unknown credential names fail closed.
+fn redact_urls(input: &str) -> String {
+    const SCHEMES: &[&str] = &["https://", "http://", "ftp://", "ws://", "wss://", "file://"];
+    let mut output = String::with_capacity(input.len());
+    let mut index = 0;
+
+    while index < input.len() {
+        let starts_url = SCHEMES.iter().any(|scheme| {
+            input[index..]
+                .get(..scheme.len())
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case(scheme))
+        });
+
+        if starts_url {
+            output.push_str("[REDACTED URL]");
+            // Do not stop at punctuation such as '&', ';', ',', ')' or ']':
+            // those characters are permitted in URLs and may precede secrets.
+            index = input[index..]
+                .char_indices()
+                .find(|(_, ch)| {
+                    ch.is_whitespace() || matches!(ch, '"' | '\'' | '<' | '>')
+                })
+                .map(|(offset, _)| index + offset)
+                .unwrap_or(input.len());
+        } else {
+            let ch = input[index..].chars().next().expect("valid UTF-8 boundary");
+            output.push(ch);
+            index += ch.len_utf8();
+        }
+    }
+
     output
 }
 
