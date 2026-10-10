@@ -5,6 +5,7 @@
 ## Unreleased
 
 ### Fixed
+- Диагностический ZIP теперь ограничивает чтение логов и число включённых записей по политике хранения (10 файлов, по 10 MiB, общий бюджет); увеличившиеся или oversized файлы не экспортируются. Добавлен Rust regression test на sparse oversized fixture и 12 логов (PR #11, exact-head CI pending).
 - Diagnostic logs/support bundles now redact all documented GitHub credential prefixes (`gho_`, `ghu_`, `ghs_`, `ghr_` plus existing `ghp_`, `github_pat_`), including nested free-text messages; added Rust regression covering OAuth, GitHub App and PAT token types.
 
 ### Added

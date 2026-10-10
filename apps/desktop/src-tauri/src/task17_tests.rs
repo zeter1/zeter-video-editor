@@ -466,6 +466,47 @@ fn support_bundle_rejects_unmanaged_logs_and_fail_closed_redacts_unstructured_li
 }
 
 #[test]
+fn support_bundle_caps_oversized_logs_and_exported_log_count() {
+    let dir = tempdir().unwrap();
+    let oversized = dir.path().join("zeter-oversized.log");
+    // A sparse oversized file avoids allocating test data.
+    fs::File::create(&oversized)
+        .unwrap()
+        .set_len(10 * 1024 * 1024 + 1)
+        .unwrap();
+
+    let mut logs = vec![oversized];
+    for index in 0..12 {
+        let path = dir.path().join(format!("zeter-{index:02}.log"));
+        let record = serde_json::json!({"event": format!("bounded_{index:02}")});
+        fs::write(&path, format!("{record}\n")).unwrap();
+        logs.push(path);
+    }
+    let metadata = SupportBundleMetadata {
+        app_version: "0.0.1".into(),
+        build_id: "fixture".into(),
+        os: "Windows".into(),
+        runtime: BTreeMap::new(),
+        capabilities: BTreeMap::new(),
+        jobs: Vec::new(),
+        crashes: Vec::new(),
+    };
+    let output = dir.path().join("bounded-support.zip");
+    export_support_bundle(&output, &metadata, &logs).unwrap();
+
+    let mut archive = zip::ZipArchive::new(fs::File::open(&output).unwrap()).unwrap();
+    assert_eq!(archive.len(), 11, "manifest plus at most ten managed logs");
+    let mut exported = String::new();
+    for index in 0..archive.len() {
+        archive.by_index(index).unwrap().read_to_string(&mut exported).unwrap();
+    }
+    assert!(exported.contains("bounded_00"));
+    assert!(exported.contains("bounded_09"));
+    assert!(!exported.contains("bounded_10"));
+    assert!(!exported.contains("bounded_11"));
+}
+
+#[test]
 fn support_bundle_metadata_uses_managed_runtime_identities_without_private_paths() {
     let manifest = crate::runtime_manifest::parse_embedded_manifest().unwrap();
     let jobs = job_system::JobManager::new();

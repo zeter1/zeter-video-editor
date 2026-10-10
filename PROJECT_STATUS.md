@@ -567,3 +567,12 @@ Task 19 execution notes:
 - New-code local Windows compilation, TDD RED/GREEN, and integration tests: **NOT VERIFIED** (remote command quota exhausted). An exact-head Windows GitHub Actions run after the commit must prove rustfmt, workspace tests, frontend, real WebView2 E2E and debug NSIS. Earlier #101 SUCCESS applies to prior head `488137221fea4f8bb8593ff506ebe13c1c28bfca` only.
 - References: OWASP Logging Cheat Sheet (https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html), serde_json Value documentation (https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html).
 - Keep NOT VERIFIED: real whisper.cpp model inference, Windows platform face detector, signed updater installation, Windows Authenticode/production updater signing, tagged release.
+
+## Post-MVP diagnostics — bounded support ZIP log inputs (2026-10-10)
+
+- Existing PR #11, branch `fix/diagnostics-nested-redaction-20261010`, base main. No merge/tag/release/signing; no AI/updater changes.
+- Finding: `export_support_bundle` formerly used unbounded `fs::read_to_string` for caller-supplied matching `zeter-*.log` files and did not cap the number included. Stale or modified logs could exhaust memory/disk despite the normal writer's 10 × 10 MiB retention limits.
+- Fix: reuse `RetentionPolicy::default()` for support-ZIP export, skipping oversized files and enforcing max file count and total raw byte budget. Use `Read::take(max_file_bytes + 1)` after metadata check so concurrent file growth cannot cause an unbounded read. Preserve structured-log sanitization and allowed log filenames.
+- Test: `support_bundle_caps_oversized_logs_and_exported_log_count` checks a sparse oversized file plus 12 small logs; expected manifest + 10 included logs only.
+- Verification: NO local Rust/rustfmt/Windows execution or observed RED/GREEN in this environment. GitHub exact-head CI required for new commit (rustfmt, cargo, frontend/Vitest, real WebView2 E2E, NSIS). #112 for previous `60d33cb` was running while preparing this patch, and must not count as verification for this commit.
+- Next: check current PR #11 HEAD and final GitHub Actions status; if FAILED inspect the failing step/log and fix in the same PR without disabling gates. Unverified: live whisper model inference, Windows face detection, production updater installation, Authenticode/signing/release.
