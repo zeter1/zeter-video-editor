@@ -215,10 +215,23 @@ fn redact_windows_paths(input: &str) -> String {
 
         let start = index;
         index += if starts_unc_path { 2 } else { 3 };
-        while index < chars.len()
-            && !chars[index].is_whitespace()
-            && !matches!(chars[index], '"' | '\'' | ',' | ';' | ')' | ']' | '}')
-        {
+        // Quoted Windows paths can contain spaces; keep the full candidate.
+        let quote = if start > 0 && matches!(chars[start - 1], '"' | '\'') {
+            Some(chars[start - 1])
+        } else {
+            None
+        };
+        while index < chars.len() {
+            let ch = chars[index];
+            if let Some(terminator) = quote {
+                if ch == terminator {
+                    break;
+                }
+            } else if ch.is_whitespace()
+                || matches!(ch, '"' | '\'' | ',' | ';' | ')' | ']' | '}')
+            {
+                break;
+            }
             index += 1;
         }
         let candidate = chars[start..index].iter().collect::<String>();
