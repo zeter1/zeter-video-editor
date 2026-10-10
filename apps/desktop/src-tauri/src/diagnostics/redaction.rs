@@ -227,9 +227,7 @@ fn redact_windows_paths(input: &str) -> String {
                 if ch == terminator {
                     break;
                 }
-            } else if ch.is_whitespace()
-                || matches!(ch, '"' | '\'' | ',' | ';' | ')' | ']' | '}')
-            {
+            } else if ch.is_whitespace() || matches!(ch, '"' | '\'' | ',' | ';' | ')' | ']' | '}') {
                 break;
             }
             index += 1;
