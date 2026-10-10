@@ -178,14 +178,11 @@ fn quoted_windows_paths_with_spaces_are_fully_redacted() {
 
 #[test]
 fn unquoted_windows_paths_with_spaces_are_redacted_as_a_whole() {
-    let line = r#"{"event":"fixture","message":"cannot open C:\\\\Users\\\\Alice Smith\\\\private clip.mp4; nor \\\\\\\\studio-nas\\\\Client Assets\\\\Private Person\\\\voice track.wav"}"#;
+    let line = r#"{"event":"fixture","message":"cannot open C:\\Users\\Alice Smith\\private clip.mp4; nor \\\\studio-nas\\Client Assets\\Private Person\\voice track.wav"}"#;
     let sanitized = sanitize_log_line(line);
     let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
 
-    assert_eq!(
-        json["message"],
-        "cannot open <path:.mp4>; nor <path:.wav>"
-    );
+    assert_eq!(json["message"], "cannot open <path:.mp4>; nor <path:.wav>");
     for sensitive in [
         "Alice Smith",
         "private clip",
@@ -200,7 +197,7 @@ fn unquoted_windows_paths_with_spaces_are_redacted_as_a_whole() {
 
 #[test]
 fn uncertain_unquoted_path_suffix_and_private_extension_fail_closed() {
-    let line = r#"{"event":"fixture","message":"failed C:\\\\Users\\\\Alice Smith\\\\private clip.mp4 unavailable"}"#;
+    let line = r#"{"event":"fixture","message":"failed C:\\Users\\Alice Smith\\private clip.mp4 unavailable"}"#;
     let sanitized = sanitize_log_line(line);
     let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
     assert_eq!(json["message"], "failed <path>");
