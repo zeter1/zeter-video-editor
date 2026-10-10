@@ -498,7 +498,11 @@ fn support_bundle_caps_oversized_logs_and_exported_log_count() {
     assert_eq!(archive.len(), 11, "manifest plus at most ten managed logs");
     let mut exported = String::new();
     for index in 0..archive.len() {
-        archive.by_index(index).unwrap().read_to_string(&mut exported).unwrap();
+        archive
+            .by_index(index)
+            .unwrap()
+            .read_to_string(&mut exported)
+            .unwrap();
     }
     assert!(exported.contains("bounded_00"));
     assert!(exported.contains("bounded_09"));
