@@ -2,6 +2,13 @@
 
 Last updated: 2026-10-07
 
+## Active engineering checkpoint — 2026-10-10
+
+- **PR #14 OPEN**, branch `fix/preview-playback-transport-20261010`, base `main` at `90cb2490542f153a2f02a04b62121b283f4a94f6`. Status: awaiting exact-head Windows CI, NOT merged.
+- Preview transport now sets browser playbackRate from clip speed, applies track/clip mute and clip volume/gain, plays across adjacent decodable Video clips, stops at gaps/end, and supports Space to toggle Play/Pause except editable/button targets. Regression tests include Vitest and Windows Tauri/WebView2 E2E.
+- Source-of-truth checks: https://github.com/zeter1/zeter-video-editor/pull/14 and its exact-head Windows run (verify terminal conclusion before completion). Follow-up: inspect CI gates; fix failures only in this PR; do not merge without verification and user authorization.
+- **Known gaps:** no real FFmpeg compositing/multiple independent audio tracks, no image/gap timeline-clock playback, no verified MKV/HEVC decoder proxy. Real whisper inference, Windows face detector, production signing remain unverified. The prior Windows installer at G:\\бинарь видеоредактора has NOT been replaced by this change.
+
 ## Current phase
 
 Superpowers — **MVP integrated / post-MVP stabilization and release readiness**.
