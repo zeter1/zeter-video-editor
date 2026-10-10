@@ -2,6 +2,13 @@
 
 Last updated: 2026-10-10
 
+## Latest checkpoint — 2026-10-10 — GitHub OAuth/App token prefix redaction (PR #11)
+
+- Found a remaining credentials-in-logs gap: the generic diagnostic sanitizer recognized `ghp_` / `github_pat_`, but not the official GitHub OAuth / App token formats `gho_`, `ghu_`, `ghs_`, `ghr_`.
+- Added all four documented token prefixes to the existing fail-closed free-text masking path (including nested JSON fields), preserving safe event fields. Regression `github_oauth_app_and_personal_access_tokens_are_redacted_from_logs` covers six token formats with punctuation, mixed plain/nested fields and the newer `ghs_APPID_JWT` shape.
+- Official format reference: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github ; OWASP logging: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html .
+- Verification must use the **new exact-head Windows CI**; local Rust/rustfmt and Windows tests are unavailable. Previous #110 evidence belongs only to ddc3ae7, not this new change. No changes to AI, updater, workflow gates, signing, tags, releases or main.
+
 ## Latest checkpoint — 2026-10-10 — URL credential/path log redaction (PR #11)
 
 - Continued existing PR #11 \`fix/diagnostics-nested-redaction-20261010\` on unchanged main; no merge, release, tag or signing.
