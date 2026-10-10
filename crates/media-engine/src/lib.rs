@@ -18,8 +18,8 @@ pub use capabilities::{EncoderCapabilities, MediaCapabilities, detect_capabiliti
 pub use encoder::{EncoderKind, EncoderSelection, select_encoder};
 pub use error::MediaError;
 pub use export::{ExportJob, ExportReceipt, ExportRunner, ManagedExportRunner};
-pub use probe::{AudioProbe, MediaProbe, VideoProbe, probe_media};
 pub use preview_ranges::{PreviewDecodeCapabilities, PreviewMode, PreviewRange, PreviewRangePlan};
+pub use probe::{AudioProbe, MediaProbe, VideoProbe, probe_media};
 pub use render_plan::{ExportContainer, ExportQuality, ExportSettings, RenderPlan, VideoCodec};
 pub use runtime::ManagedRuntime;
 
