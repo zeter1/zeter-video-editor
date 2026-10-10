@@ -564,8 +564,7 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
     // audible source is the separate 1100-Hz WAV on TrackKind::Audio.
     // Checking each output against a minimum energy (not just each other)
     // catches a shared exporter/preview bug that silently drops audio-only.
-    let independent_full_rms =
-        checked_standalone_tone_rms(&runtime, &full, "1.600", "full export");
+    let independent_full_rms = checked_standalone_tone_rms(&runtime, &full, "1.600", "full export");
     let independent_chunk_rms =
         checked_standalone_tone_rms(&runtime, &chunk, "1.100", "preview chunk");
     let standalone_relative_error =
