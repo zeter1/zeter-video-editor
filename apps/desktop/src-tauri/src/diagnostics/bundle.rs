@@ -90,7 +90,7 @@ pub fn export_support_bundle(
             continue;
         }
         let mut raw = String::new();
-        file.by_ref()
+        Read::by_ref(&mut file)
             .take(policy.max_file_bytes.saturating_add(1))
             .read_to_string(&mut raw)?;
         let raw_bytes = raw.len() as u64;
