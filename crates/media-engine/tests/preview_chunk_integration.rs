@@ -500,6 +500,30 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
     )
     .expect("compile layered timeline");
 
+    // The V2 layer spans [0.6, 1.4) on the timeline. Inspect the actual
+    // FFmpeg graph rather than only comparing the two outputs, which can
+    // share the same inclusive-end error.
+    let graph_spec = build_export_spec(
+        &runtime,
+        &plan,
+        EncoderKind::Libx264,
+        &temp.path().join("inspect-graph.mp4"),
+    );
+    let graph_index = graph_spec
+        .args
+        .iter()
+        .position(|arg| arg == "-filter_complex")
+        .expect("full export has filtergraph");
+    let graph = graph_spec.args[graph_index + 1].to_string_lossy();
+    assert!(
+        graph.contains("enable='gte(t,0.600000)*lt(t,1.400000)'"),
+        "upper V2 overlay must end before its end timestamp: {graph}"
+    );
+    assert!(
+        !graph.contains("enable='between(t,0.600000,1.400000)'"),
+        "inclusive-end overlay leaked into a half-open clip interval"
+    );
+
     let full = temp.path().join("layered-full.mp4");
     let chunk = temp.path().join("layered-chunk.mp4");
     run(&build_export_spec(
