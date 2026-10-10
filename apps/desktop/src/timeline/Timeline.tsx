@@ -1,5 +1,7 @@
 import {
+  useEffect,
   useMemo,
+  useRef,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
@@ -67,6 +69,44 @@ export function Timeline({
   requestIdFactory,
 }: TimelineProps) {
   const transient = useTransientStore(transientStore);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // The timeline zoom shortcut is global while a sequence is mounted, but
+  // never captures typing or native input controls.
+  useEffect(() => {
+    const isInput = (target: EventTarget | null): boolean => {
+      const element = target instanceof Element ? target : null;
+      return Boolean(element?.closest("input, textarea, select, [contenteditable], [role='textbox']"));
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || isInput(event.target)) return;
+      const key = event.key;
+      const delta = key === "+" || key === "=" || event.code === "NumpadAdd"
+        ? 1
+        : key === "-" || key === "_" || event.code === "NumpadSubtract"
+          ? -1
+          : 0;
+      if (delta === 0 && key !== "0" && event.code !== "Numpad0") return;
+      event.preventDefault();
+      const current = transientStore.getState().timelineZoom;
+      transientStore.setTimelineZoom(delta === 0 ? 1 : delta > 0 ? current * 1.25 : current / 1.25);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [transientStore]);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const current = transientStore.getState().timelineZoom;
+      transientStore.setTimelineZoom(current * (event.deltaY < 0 ? 1.25 : 0.8));
+    };
+    element.addEventListener("wheel", onWheel, { passive: false });
+    return () => element.removeEventListener("wheel", onWheel);
+  }, [transientStore]);
 
   const clipEdgeTimesUs = useMemo(
     () =>
@@ -152,15 +192,15 @@ export function Timeline({
     <div className="timeline-editor">
       <div className="timeline-inline-toolbar">
         <button type="button" onClick={addMarker}>
-          + Marker
+          + Маркер
         </button>
         <span>
-          Playhead {(transient.playheadTimeUs / 1_000_000).toFixed(2)}s
+          Курсор {(transient.playheadTimeUs / 1_000_000).toFixed(2)} с
         </span>
         <label>
-          Zoom
+          Масштаб
           <input
-            aria-label="Timeline zoom"
+            aria-label="Масштаб таймлайна"
             type="range"
             min="0.25"
             max="8"
@@ -174,6 +214,7 @@ export function Timeline({
       </div>
 
       <div
+        ref={scrollRef}
         className="timeline-scroll"
         onScroll={(event) =>
           transientStore.setTimelineScrollLeft(event.currentTarget.scrollLeft)
