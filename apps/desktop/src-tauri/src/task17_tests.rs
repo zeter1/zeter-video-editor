@@ -141,6 +141,27 @@ fn bearer_tokens_with_repeated_whitespace_do_not_leak() {
 }
 
 #[test]
+fn diagnostic_messages_redact_all_basic_auth_credentials() {
+    let line = r#"{"event":"fixture","message":"Authorization: Basic YWxpY2U6cHJpdmF0ZQ==; Proxy-Authorization: bAsIc   Ym9iOnNlY3JldA==","nested":[{"message":"basic Y2Fyb2w6aGlkZGVu"}]}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "Authorization: [REDACTED SECRET]; Proxy-Authorization: [REDACTED SECRET]"
+    );
+    assert_eq!(json["nested"][0]["message"], "[REDACTED SECRET]");
+    assert_eq!(json["event"], "fixture");
+    for private_credential in [
+        "YWxpY2U6cHJpdmF0ZQ==",
+        "Ym9iOnNlY3JldA==",
+        "Y2Fyb2w6aGlkZGVu",
+    ] {
+        assert!(!sanitized.contains(private_credential));
+    }
+}
+
+#[test]
 fn diagnostic_messages_redact_unc_network_paths() {
     let line = r#"{"event":"fixture","message":"could not open \\\\studio-nas\\Clients\\Alice\\private-take.mp4"}"#;
     let sanitized = sanitize_log_line(line);

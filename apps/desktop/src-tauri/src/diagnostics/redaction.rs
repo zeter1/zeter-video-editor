@@ -88,6 +88,7 @@ pub fn sanitize_untrusted_text(value: &str) -> String {
     sanitized = redact_prefixed_secret(&sanitized, "github_pat_");
     sanitized = redact_prefixed_secret(&sanitized, "sk-");
     sanitized = redact_bearer(&sanitized);
+    sanitized = redact_basic(&sanitized);
     sanitized = redact_windows_paths(&sanitized);
     sanitized
 }
@@ -181,14 +182,22 @@ fn redact_prefixed_secret(input: &str, prefix: &str) -> String {
 }
 
 fn redact_bearer(input: &str) -> String {
+    redact_auth_scheme(input, "bearer ")
+}
+
+fn redact_basic(input: &str) -> String {
+    redact_auth_scheme(input, "basic ")
+}
+
+fn redact_auth_scheme(input: &str, scheme: &str) -> String {
     let mut output = input.to_owned();
     let mut search_from = 0;
 
-    // A single diagnostic message can contain multiple independently sensitive
-    // Authorization values. Search past each replacement to redact all of them.
-    while let Some(offset) = output[search_from..].to_ascii_lowercase().find("bearer ") {
+    // A diagnostic message can contain multiple independent credentials.
+    // Scan beyond each replacement rather than exposing later occurrences.
+    while let Some(offset) = output[search_from..].to_ascii_lowercase().find(scheme) {
         let start = search_from + offset;
-        let token_after_scheme = start + "bearer ".len();
+        let token_after_scheme = start + scheme.len();
         // Multiple spaces (or normalized tabs/newlines) may precede a token.
         // Include the entire separator run so the credential cannot survive.
         let token_start = output[token_after_scheme..]

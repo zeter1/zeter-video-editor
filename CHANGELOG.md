@@ -38,6 +38,7 @@
 - Добавлен пользовательский export sanitized support bundle через обычный toolbar и реальный Tauri IPC: ZIP содержит только allowlisted managed logs, безопасные runtime identities и текущую job metadata, без project/media/transcript contents.
 
 ### Fixed
+- Диагностические сообщения теперь скрывают HTTP Basic credentials (Base64 логин/пароль) во всех вхождениях, включая смешанный регистр и вложенные JSON-поля; общий сканер сохраняет Bearer-редакцию, добавлен Rust regression test (PR #11; exact-head CI ожидается).
 - В диагностике полностью маскируются unquoted Windows/UNC пути с пробелами; неопределённые хвосты и произвольные расширения файлов скрываются fail-closed, с регрессионными Rust-тестами (PR #11, exact-head CI pending).
 - Закрыта утечка приватного содержимого в диагностических записях, где корень является валидным JSON-скаляром или массивом: только JSON-объекты считаются структурированным логом; остальные записи fail-closed заменяются на `[UNSTRUCTURED LOG RECORD REDACTED]`. Добавлен Rust регрессионный тест.
 - Исправлена утечка частей путей Windows и UNC с пробелами внутри кавычек в текстах диагностики: `redact_windows_paths` обрабатывает путь до закрывающей кавычки и оставляет только `<path:.ext>`. Добавлен Rust regression test на drive-letter и UNC пути с пробелами; проверка нового exact-head CI ожидается.

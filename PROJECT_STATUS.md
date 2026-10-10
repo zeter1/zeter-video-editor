@@ -2,6 +2,15 @@
 
 Last updated: 2026-10-10
 
+## Latest checkpoint — 2026-10-10 — HTTP Basic authentication log redaction (PR #11)
+
+- Continued the existing open PR #11 on branch `fix/diagnostics-nested-redaction-20261010`, based on unchanged `main` `fa920b7`; no merge, release, tag or signing.
+- Privacy gap: free-form diagnostics redacted Bearer but not HTTP Basic credentials (Base64-encoded username/password); a log message or sanitized support bundle could retain credentials.
+- Fix: shared case-insensitive authentication-scheme scanner now redacts each Basic and Bearer credential, including repeated whitespace and multiple occurrences. Regression: `diagnostic_messages_redact_all_basic_auth_credentials` covers two HTTP header values plus one nested JSON message.
+- Verification: local Rust/Windows execution unavailable in this session (Remote Desktop Commander quota previously 0%); new commit CI status MUST be checked on exact HEAD before declaring PASS. Last known green historical head `a65ff12f72cfa0a0d2225993d5bafe3b0a666c21` had Windows CI #106 SUCCESS.
+- Security references: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html and https://www.rfc-editor.org/rfc/rfc7617.html .
+- Remaining unverified: actual whisper.cpp speech inference, Windows face detector, production Authenticode/updater signing, signed updater installation, tagged release. Other open PRs #7→#8→#9 and #10 remain unmerged; do not merge without explicit user approval.
+
 ## Current phase
 
 Superpowers — **MVP integrated / post-MVP stabilization and release readiness**.
