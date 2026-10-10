@@ -164,6 +164,9 @@ Integration record:
 
 ### 2026-10-10 diagnostics privacy hardening and integration checkpoint (pending merge)
 
+- Продолжение PR #11, кодовый коммит `fce51ad72a8239eee17d95a4f7c0f5fa05326c83`: найдено и исправлено раскрытие Bearer credential после **нескольких пробелов** (`Bearer  secret`): прежний sanitizer заменял только схему, оставляя credential в сообщении. Новый регрессионный `bearer_tokens_with_repeated_whitespace_do_not_leak` прошёл настоящий Windows TDD RED (0/1, оба секрета видимы) -> GREEN (1/1). Полная Task 17 диагностика 10/10 PASS; `cargo fmt --all -- --check` PASS; `git diff --check` PASS; local branch committed/pushed, worktree clean at handoff. Остальные workspace/frontend/E2E/NSIS для этого нового кода должны подтверждаться **по окончательному exact head SHA**, а не наследоваться от более раннего CI.
+- CI #91 / run `38042822778` на **предыдущем** SHA `cfb665e78655ed79423d7212c97698f8e7477d60` завершился SUCCESS (включая WebView2 E2E и NSIS); это не является E2E/NSIS доказательством для `fce51ad` или последующих документационных коммитов. После изменений проверить новый Actions run на актуальном PR #11 head, прежде чем отмечать exact-head Windows acceptance PASS. Не сливать PR без отдельного одобрения.
+
 - Verified remote main head: fa920b73759f8699d57247d4da534c2ed69bbe3d. No PR merges in this session.
 - Open stacked AI PRs: #7 (eb6189fd272c5ed0302b13f3327be8f84d4a3448, base main, CI 37629223058 SUCCESS), #8 (8e39a1206ccadfc45ef8b1d123b461468c43dbc9, base #7 branch, CI 37636641342 SUCCESS), #9 (6b822210d14806afa8e2b37aba35cef6a6760e3e, draft, base #8 branch, CI 37647137514 SUCCESS).
 - Independent updater PR #10 (caa901e85ebf8ae77d1f136de9ed1814b588b7c6, base main, CI 37664289811 SUCCESS). All four PRs mergeable against current bases when checked. DO NOT merge without explicit user permission.
