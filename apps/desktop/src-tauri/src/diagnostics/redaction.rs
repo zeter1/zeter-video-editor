@@ -163,18 +163,23 @@ fn redact_prefixed_secret(input: &str, prefix: &str) -> String {
 }
 
 fn redact_bearer(input: &str) -> String {
-    let lower = input.to_ascii_lowercase();
-    let Some(start) = lower.find("bearer ") else {
-        return input.to_owned();
-    };
-    let token_start = start + "bearer ".len();
-    let token_end = input[token_start..]
-        .char_indices()
-        .find(|(_, ch)| ch.is_whitespace() || matches!(ch, '"' | '\'' | ',' | ';'))
-        .map(|(index, _)| token_start + index)
-        .unwrap_or(input.len());
     let mut output = input.to_owned();
-    output.replace_range(start..token_end, REDACTED_SECRET);
+    let mut search_from = 0;
+
+    // A single diagnostic message can contain multiple independently sensitive
+    // Authorization values. Search past each replacement to redact all of them.
+    while let Some(offset) = output[search_from..].to_ascii_lowercase().find("bearer ") {
+        let start = search_from + offset;
+        let token_start = start + "bearer ".len();
+        let token_end = output[token_start..]
+            .char_indices()
+            .find(|(_, ch)| ch.is_whitespace() || matches!(ch, '"' | '\'' | ',' | ';'))
+            .map(|(index, _)| token_start + index)
+            .unwrap_or(output.len());
+        output.replace_range(start..token_end, REDACTED_SECRET);
+        search_from = start + REDACTED_SECRET.len();
+    }
+
     output
 }
 
