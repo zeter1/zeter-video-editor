@@ -86,9 +86,15 @@ fn preview_window_reuses_exact_export_graph_and_seeks_on_output() {
     expected.insert(t_idx, "-ss".into());
     expected.insert(t_idx + 1, "1.250000".into());
     expected[t_idx + 3] = "0.750000".into();
-    assert_eq!(chunk, expected, "preview must not fork the export filtergraph");
+    assert_eq!(
+        chunk, expected,
+        "preview must not fork the export filtergraph"
+    );
     assert!(
-        chunk.iter().position(|arg| arg == "-filter_complex").unwrap()
+        chunk
+            .iter()
+            .position(|arg| arg == "-filter_complex")
+            .unwrap()
             < chunk.iter().position(|arg| arg == "-ss").unwrap(),
         "output seeking must happen after the filtergraph, not on source inputs"
     );
