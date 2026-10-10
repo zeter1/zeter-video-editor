@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-10-07
+Last updated: 2026-10-10
 
 ## Current phase
 
@@ -161,6 +161,20 @@ Integration record:
 - export E2E timing hardening PR #2 merge commit: `5a4deb0a6eee58a1d941372dec382a58e0ca4dd2`
 
 ## Next step
+
+### 2026-10-10 diagnostics privacy hardening and integration checkpoint (pending merge)
+
+- Verified remote main head: fa920b73759f8699d57247d4da534c2ed69bbe3d. No PR merges in this session.
+- Open stacked AI PRs: #7 (eb6189fd272c5ed0302b13f3327be8f84d4a3448, base main, CI 37629223058 SUCCESS), #8 (8e39a1206ccadfc45ef8b1d123b461468c43dbc9, base #7 branch, CI 37636641342 SUCCESS), #9 (6b822210d14806afa8e2b37aba35cef6a6760e3e, draft, base #8 branch, CI 37647137514 SUCCESS).
+- Independent updater PR #10 (caa901e85ebf8ae77d1f136de9ed1814b588b7c6, base main, CI 37664289811 SUCCESS). All four PRs mergeable against current bases when checked. DO NOT merge without explicit user permission.
+- Current standalone branch fix/diagnostics-nested-redaction-20261010: apps/desktop/src-tauri/src/diagnostics/redaction.rs now redacts entire sensitive JSON values (object, array, non-string scalar), avoiding leaks through local JSON logging and sanitized support bundles. Non-sensitive nested values remain unchanged. Regression test in task17_tests.rs.
+- TDD RED observed: cargo test -p zeter-desktop-tauri sensitive_json_containers_are_redacted_before_visiting_children failed because JSON token object exposed an unguarded value. After production fix GREEN: focused test PASS, 8/8 Task 17 tests PASS.
+- Local Windows verification: cargo fmt --all -- --check PASS; cargo test --workspace PASS; npm.cmd run build PASS; Vitest 23/23 files and 52/52 tests PASS; git diff --check PASS. Branch-specific real Tauri/WebView2 E2E and debug NSIS smoke NOT VERIFIED until exact-head Windows CI completes.
+- For isolated worktree setup, stage ignored managed sidecars (ffmpeg, ffprobe, whisper-cli, zeter-ai-worker) in apps/desktop/src-tauri/binaries; build frontend apps/desktop/dist before Tauri tests. In PowerShell use npm.cmd (local policy prevents npm.ps1). Do not modify main tree or system execution policy.
+- Zeter-PC baseline main checkout G:\МОЯ Веб-разработка\zeter-video-editor was clean and matched origin/main. Existing worktrees include .worktrees\updater-flow-20261007 (local backup 194dc80...), .worktrees\updater-safe-sol-20261007 (PR #10), and this diagnostics worktree. Keep local backup branches/worktrees unless inspected and safe to remove.
+- NOT VERIFIED: real whisper inference with real model/fixture; production face analysis; signed updater install/Authenticode/tagged release. No release or signing performed.
+- Next: confirm diagnostics PR exact head SHA and Windows Actions, review failures, preserve unmerged PR. Integrate stacked AI PRs in dependency order (#7 -> #8 -> #9) only when explicitly authorized; consider AppShell merge interactions with #10. Continue bounded stabilization or seek approval for new scope.
+
 
 **Post-MVP stabilization / release-readiness hardening inside the approved architecture**
 

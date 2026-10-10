@@ -72,6 +72,24 @@ fn redaction_removes_private_content_secrets_paths_raw_process_args_and_log_inje
 }
 
 #[test]
+fn sensitive_json_containers_are_redacted_before_visiting_children() {
+    let line = r#"{"event":"fixture","token":{"value":"unguarded-token-value"},"credentials":["unguarded-credential-value"],"transcript_segments":[{"text":"private spoken words"}],"project_json":{"name":"Private Creator Project"},"password":42,"safe":{"count":2},"request_id":"request-fixture"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["token"], "[REDACTED SECRET]");
+    assert_eq!(json["credentials"], "[REDACTED SECRET]");
+    assert_eq!(json["transcript_segments"], "[REDACTED CONTENT]");
+    assert_eq!(json["project_json"], "[REDACTED PROJECT]");
+    assert_eq!(json["password"], "[REDACTED SECRET]");
+    assert_eq!(json["safe"]["count"], 2);
+    assert_eq!(json["request_id"], "request-fixture");
+    assert!(!sanitized.contains("unguarded-"));
+    assert!(!sanitized.contains("private spoken words"));
+    assert!(!sanitized.contains("Private Creator Project"));
+}
+
+#[test]
 fn rotation_policy_is_ten_times_ten_mib_fourteen_days_and_never_prunes_unrelated_files() {
     let policy = RetentionPolicy::default();
     assert_eq!(policy.max_files, 10);

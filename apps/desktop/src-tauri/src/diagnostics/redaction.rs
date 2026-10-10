@@ -7,16 +7,11 @@ const REDACTED_PROJECT: &str = "[REDACTED PROJECT]";
 const REDACTED_SECRET: &str = "[REDACTED SECRET]";
 
 pub fn sanitize_named_value(name: &str, value: &str) -> String {
+    if let Some(placeholder) = sensitive_key_placeholder(name) {
+        return placeholder.into();
+    }
+
     let key = name.to_ascii_lowercase();
-    if is_secret_key(&key) {
-        return REDACTED_SECRET.into();
-    }
-    if key.contains("project_json") || key == "project" {
-        return REDACTED_PROJECT.into();
-    }
-    if is_private_content_key(&key) {
-        return REDACTED_CONTENT.into();
-    }
     if key.contains("path") || key.ends_with("_file") || key == "file" {
         return sanitize_path(Path::new(value));
     }
@@ -80,6 +75,13 @@ pub fn sanitize_untrusted_text(value: &str) -> String {
 }
 
 fn sanitize_json_value(key: Option<&str>, value: &mut Value) {
+    // Sensitive fields must be redacted as a whole, even if their value is
+    // an object, array, number, or boolean rather than a plain string.
+    if let Some(placeholder) = key.and_then(sensitive_key_placeholder) {
+        *value = Value::String(placeholder.into());
+        return;
+    }
+
     match value {
         Value::Object(map) => sanitize_object(map),
         Value::Array(items) => {
@@ -103,6 +105,19 @@ fn sanitize_object(map: &mut Map<String, Value>) {
         } else {
             sanitize_json_value(Some(key), value);
         }
+    }
+}
+
+fn sensitive_key_placeholder(name: &str) -> Option<&'static str> {
+    let key = name.to_ascii_lowercase();
+    if is_secret_key(&key) {
+        Some(REDACTED_SECRET)
+    } else if key.contains("project_json") || key == "project" {
+        Some(REDACTED_PROJECT)
+    } else if is_private_content_key(&key) {
+        Some(REDACTED_CONTENT)
+    } else {
+        None
     }
 }
 
