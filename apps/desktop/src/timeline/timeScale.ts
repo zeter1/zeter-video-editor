@@ -61,3 +61,29 @@ export function durationUsToPixels(
 ): number {
   return Math.max(0, durationUs) * scaleFactor(pixelsPerSecond, zoom);
 }
+/** Keep the same timeline instant beneath a viewport x-coordinate after zoom. */
+export function scrollLeftForAnchoredZoom(
+  previousScrollLeftPx: number,
+  anchorViewportXPx: number,
+  previousZoom: number,
+  nextZoom: number,
+  pixelsPerSecond: number,
+  originOffsetPx: number,
+  scrollWidthPx: number,
+  viewportWidthPx: number,
+): number {
+  const anchorTimeUs = contentPixelToTimeUs(
+    previousScrollLeftPx + anchorViewportXPx,
+    originOffsetPx,
+    pixelsPerSecond,
+    previousZoom,
+  );
+  const projectedLeftPx =
+    originOffsetPx +
+    timeUsToPixel(anchorTimeUs, pixelsPerSecond, nextZoom) -
+    anchorViewportXPx;
+  return Math.min(
+    Math.max(0, scrollWidthPx - viewportWidthPx),
+    Math.max(0, projectedLeftPx),
+  );
+}

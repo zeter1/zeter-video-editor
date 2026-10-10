@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -20,7 +21,7 @@ import {
 } from "../state/transientStore";
 import { commitTimelineCommand } from "./interaction";
 import { MarkerLayer } from "./MarkerLayer";
-import { contentPixelToTimeUs, timeUsToPixel } from "./timeScale";
+import { contentPixelToTimeUs, scrollLeftForAnchoredZoom, timeUsToPixel } from "./timeScale";
 import { TrackView } from "./TrackView";
 
 export const TIMELINE_PIXELS_PER_SECOND = 100;
@@ -70,6 +71,57 @@ export function Timeline({
 }: TimelineProps) {
   const transient = useTransientStore(transientStore);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pendingZoom = useRef<{
+    previousZoom: number;
+    previousScrollLeftPx: number;
+    anchorViewportXPx: number;
+  } | null>(null);
+
+  function setZoomAnchored(nextZoom: number, mouseClientX?: number): void {
+    const current = transientStore.getState();
+    const clampedZoom = Math.min(8, Math.max(0.25, nextZoom));
+    if (current.timelineZoom === clampedZoom) return;
+    const element = scrollRef.current;
+    if (element) {
+      const playheadViewportX =
+        TIMELINE_TRACK_HEADER_WIDTH_PX +
+        timeUsToPixel(current.playheadTimeUs, TIMELINE_PIXELS_PER_SECOND, current.timelineZoom) -
+        element.scrollLeft;
+      const defaultAnchorX =
+        playheadViewportX >= 0 && playheadViewportX <= element.clientWidth
+          ? playheadViewportX
+          : element.clientWidth / 2;
+      const anchorViewportXPx =
+        mouseClientX === undefined
+          ? defaultAnchorX
+          : Math.max(0, Math.min(element.clientWidth, mouseClientX - element.getBoundingClientRect().left));
+      pendingZoom.current = {
+        previousZoom: current.timelineZoom,
+        previousScrollLeftPx: element.scrollLeft,
+        anchorViewportXPx,
+      };
+    }
+    transientStore.setTimelineZoom(clampedZoom);
+  }
+
+  // The viewport must be adjusted after React has committed the new content width.
+  useLayoutEffect(() => {
+    const pending = pendingZoom.current;
+    pendingZoom.current = null;
+    const element = scrollRef.current;
+    if (!pending || !element) return;
+    element.scrollLeft = scrollLeftForAnchoredZoom(
+      pending.previousScrollLeftPx,
+      pending.anchorViewportXPx,
+      pending.previousZoom,
+      transient.timelineZoom,
+      TIMELINE_PIXELS_PER_SECOND,
+      TIMELINE_TRACK_HEADER_WIDTH_PX,
+      element.scrollWidth,
+      element.clientWidth,
+    );
+    transientStore.setTimelineScrollLeft(element.scrollLeft);
+  }, [transient.timelineZoom, transientStore]);
 
   // The timeline zoom shortcut is global while a sequence is mounted, but
   // never captures typing or native input controls.
@@ -89,7 +141,7 @@ export function Timeline({
       if (delta === 0 && key !== "0" && event.code !== "Numpad0") return;
       event.preventDefault();
       const current = transientStore.getState().timelineZoom;
-      transientStore.setTimelineZoom(delta === 0 ? 1 : delta > 0 ? current * 1.25 : current / 1.25);
+      setZoomAnchored(delta === 0 ? 1 : delta > 0 ? current * 1.25 : current / 1.25);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -99,10 +151,10 @@ export function Timeline({
     const element = scrollRef.current;
     if (!element) return;
     const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) return;
+      if (!event.ctrlKey || event.deltaY === 0) return;
       event.preventDefault();
       const current = transientStore.getState().timelineZoom;
-      transientStore.setTimelineZoom(current * (event.deltaY < 0 ? 1.25 : 0.8));
+      setZoomAnchored(current * (event.deltaY < 0 ? 1.25 : 0.8), event.clientX);
     };
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);
@@ -207,7 +259,7 @@ export function Timeline({
             step="0.25"
             value={transient.timelineZoom}
             onChange={(event) =>
-              transientStore.setTimelineZoom(Number(event.currentTarget.value))
+              setZoomAnchored(Number(event.currentTarget.value))
             }
           />
         </label>
