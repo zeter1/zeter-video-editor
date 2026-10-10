@@ -53,8 +53,7 @@ pub fn sanitize_log_line(line: &str) -> String {
         // could contain arbitrary transcript or project content.
         Ok(Value::Object(mut fields)) => {
             sanitize_object(&mut fields);
-            serde_json::to_string(&fields)
-                .unwrap_or_else(|_| "[INVALID DIAGNOSTIC RECORD]".into())
+            serde_json::to_string(&fields).unwrap_or_else(|_| "[INVALID DIAGNOSTIC RECORD]".into())
         }
         _ => "[UNSTRUCTURED LOG RECORD REDACTED]".into(),
     }
