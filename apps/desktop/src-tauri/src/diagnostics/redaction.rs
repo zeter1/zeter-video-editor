@@ -196,18 +196,25 @@ fn redact_windows_paths(input: &str) -> String {
     let mut index = 0;
 
     while index < chars.len() {
-        let starts_path = index + 2 < chars.len()
+        let starts_drive_path = index + 2 < chars.len()
             && chars[index].is_ascii_alphabetic()
             && chars[index + 1] == ':'
             && (chars[index + 2] == '\\' || chars[index + 2] == '/');
-        if !starts_path {
+        // Windows network shares can contain private server/share/user names
+        // even when there is no drive letter (\\server\share\file).
+        let starts_unc_path = index + 2 < chars.len()
+            && chars[index] == '\\'
+            && chars[index + 1] == '\\'
+            && chars[index + 2] != '\\'
+            && !chars[index + 2].is_whitespace();
+        if !starts_drive_path && !starts_unc_path {
             output.push(chars[index]);
             index += 1;
             continue;
         }
 
         let start = index;
-        index += 3;
+        index += if starts_unc_path { 2 } else { 3 };
         while index < chars.len()
             && !chars[index].is_whitespace()
             && !matches!(chars[index], '"' | '\'' | ',' | ';' | ')' | ']' | '}')

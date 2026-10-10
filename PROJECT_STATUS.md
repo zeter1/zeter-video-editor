@@ -506,3 +506,12 @@ Task 19 execution notes:
 - Real whisper model inference remains **NOT VERIFIED** because no model/speech fixture was supplied; deterministic worker/parser/application acceptance is verified, and the real pinned whisper CLI packaging/startup identity boundary is verified.
 - Windows platform face-analysis remains **NOT VERIFIED / not implemented** as already recorded in Task 16; deterministic center fallback and manual crop remain the approved verified MVP behavior.
 - Production updater signing, Windows Authenticode signing and an actual tagged GitHub Release remain **NOT VERIFIED** because production secrets/certificate were intentionally not used during MVP acceptance.
+
+## Post-MVP diagnostics privacy hardening — 2026-10-10 (PR #11 continuation)
+
+- Active PR: https://github.com/zeter1/zeter-video-editor/pull/11 (branch `fix/diagnostics-nested-redaction-20261010`, base `main`). No PR merges or production releases were performed.
+- Root cause: `redact_windows_paths` recognized drive-letter paths such as `C:\...` but did not recognize UNC network paths (`\\server\share\media.mp4`). Thus untrusted diagnostic messages and sanitized support-bundle logs could expose private network host/share/folder names.
+- Minimal scoped fix: detect a leading two-backslash UNC prefix in the existing Windows path redactor and pass the candidate through the same extension-only `sanitize_path` boundary. Drive-letter behavior is retained. Added `diagnostic_messages_redact_unc_network_paths` to Task 17 Rust regression tests.
+- Windows TDD RED: focused regression failed (0/1), revealing the original full UNC path in JSON `message`. GREEN after implementation: focused regression passed (1/1). Full Rust workspace and frontend gates are recorded separately in the checkpoint Google Doc; avoid claiming real E2E/NSIS green on the new head until exact-head CI finishes.
+- This branch remains independent of stacked AI PRs #7/#8/#9 and updater PR #10. Do not merge PR #11 without explicit user approval. Real whisper model inference, platform face detector, production signing/update installation, and tagged release remain NOT VERIFIED.
+- Next step: read latest PR #11 head and matching GitHub Actions run; confirm full Windows Rust/frontend/WebView2/NSIS on exactly that SHA, inspect review threads, then continue bounded post-MVP reliability hardening without creating duplicate PRs.

@@ -119,6 +119,19 @@ fn bearer_tokens_with_repeated_whitespace_do_not_leak() {
 }
 
 #[test]
+fn diagnostic_messages_redact_unc_network_paths() {
+    let line = r#"{"event":"fixture","message":"could not open \\\\studio-nas\\Clients\\Alice\\private-take.mp4"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["message"], "could not open <path:.mp4>");
+    assert_eq!(json["event"], "fixture");
+    assert!(!sanitized.contains("studio-nas"));
+    assert!(!sanitized.contains("Clients"));
+    assert!(!sanitized.contains("Alice"));
+}
+
+#[test]
 fn rotation_policy_is_ten_times_ten_mib_fourteen_days_and_never_prunes_unrelated_files() {
     let policy = RetentionPolicy::default();
     assert_eq!(policy.max_files, 10);
