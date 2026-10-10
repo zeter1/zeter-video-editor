@@ -38,9 +38,9 @@ pub fn sanitize_path(path: &Path) -> String {
 
 fn safe_path_extension(value: &str) -> Option<&'static str> {
     const SAFE_EXTENSIONS: &[&str] = &[
-        "aac", "avi", "bmp", "flac", "gif", "jpeg", "jpg", "json", "log", "m4a", "m4v",
-        "mkv", "mov", "mp3", "mp4", "mpeg", "mpg", "ogg", "opus", "png", "vcut", "wav",
-        "webm", "webp", "wmv", "zip",
+        "aac", "avi", "bmp", "flac", "gif", "jpeg", "jpg", "json", "log", "m4a", "m4v", "mkv",
+        "mov", "mp3", "mp4", "mpeg", "mpg", "ogg", "opus", "png", "vcut", "wav", "webm", "webp",
+        "wmv", "zip",
     ];
 
     SAFE_EXTENSIONS
