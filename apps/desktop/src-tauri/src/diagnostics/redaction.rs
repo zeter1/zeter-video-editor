@@ -201,11 +201,17 @@ fn redact_urls(input: &str) -> String {
 
         if starts_url {
             output.push_str("[REDACTED URL]");
-            // Do not stop at punctuation such as '&', ';', ',', ')' or ']':
-            // those characters are permitted in URLs and may precede secrets.
+            // File URLs may contain literal spaces in diagnostic strings.
+            // Consume the entire value rather than leaking a private tail.
+            let file_url = input[index..]
+                .get(.."file://".len())
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("file://"));
+            // Do not stop at query punctuation: it may precede secrets.
             index = input[index..]
                 .char_indices()
-                .find(|(_, ch)| ch.is_whitespace() || matches!(ch, '"' | '\'' | '<' | '>'))
+                .find(|(_, ch)| {
+                    (!file_url && ch.is_whitespace()) || matches!(ch, '"' | '\'' | '<' | '>')
+                })
                 .map(|(offset, _)| index + offset)
                 .unwrap_or(input.len());
         } else {
