@@ -181,7 +181,10 @@ fn diagnostic_urls_hide_credentials_private_paths_and_unknown_query_parameters()
         sanitize_named_value("message", "ошибка https://host.invalid/?token=private"),
         "ошибка [REDACTED URL]"
     );
-    assert_eq!(sanitize_named_value("event", "export_complete"), "export_complete");
+    assert_eq!(
+        sanitize_named_value("event", "export_complete"),
+        "export_complete"
+    );
 }
 
 #[test]

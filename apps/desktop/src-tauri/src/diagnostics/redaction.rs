@@ -186,7 +186,9 @@ fn redact_prefixed_secret(input: &str, prefix: &str) -> String {
 // private media paths, or session tokens in fragments. Redact the entire
 // URL, not only selected query keys, so unknown credential names fail closed.
 fn redact_urls(input: &str) -> String {
-    const SCHEMES: &[&str] = &["https://", "http://", "ftp://", "ws://", "wss://", "file://"];
+    const SCHEMES: &[&str] = &[
+        "https://", "http://", "ftp://", "ws://", "wss://", "file://",
+    ];
     let mut output = String::with_capacity(input.len());
     let mut index = 0;
 
@@ -203,9 +205,7 @@ fn redact_urls(input: &str) -> String {
             // those characters are permitted in URLs and may precede secrets.
             index = input[index..]
                 .char_indices()
-                .find(|(_, ch)| {
-                    ch.is_whitespace() || matches!(ch, '"' | '\'' | '<' | '>')
-                })
+                .find(|(_, ch)| ch.is_whitespace() || matches!(ch, '"' | '\'' | '<' | '>'))
                 .map(|(offset, _)| index + offset)
                 .unwrap_or(input.len());
         } else {
