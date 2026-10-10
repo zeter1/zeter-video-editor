@@ -541,7 +541,7 @@ fn support_bundle_skips_invalid_utf8_log_and_keeps_valid_logs() {
             .unwrap();
     }
     assert!(exported.contains("healthy_after_corruption"));
-    assert!(!exported.contains("corrupt"));
+    assert!(!exported.contains("\"event\":\"corrupt\""));
 }
 
 #[test]
