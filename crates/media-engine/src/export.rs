@@ -488,8 +488,11 @@ fn compile_timeline_filtergraph(
         let next_base = format!("vbase{}", visual_index + 1);
         let x = format!("(W-w)/2+{:.6}*W/2", clip.transform.position_x);
         let y = format!("(H-h)/2+{:.6}*H/2", clip.transform.position_y);
+        // Clips occupy [start, end); inclusive FFmpeg between() leaks the
+        // outgoing layer onto the first frame of the next clip.
+        let enable = half_open_enable(timeline_start, timeline_end);
         parts.push(format!(
-            "[{base_label}][{clip_label}]overlay=x='{x}':y='{y}':eof_action=pass:enable='between(t,{timeline_start:.6},{timeline_end:.6})'[{next_base}]"
+            "[{base_label}][{clip_label}]overlay=x='{x}':y='{y}':eof_action=pass:enable='{enable}'[{next_base}]"
         ));
         base_label = next_base;
         visual_index += 1;
@@ -658,9 +661,15 @@ fn drawtext_filter(
         options.push(format!("boxcolor={}", ffmpeg_color(background, opacity)));
         options.push("boxborderw=12".to_string());
     }
-    options.push(format!("enable='between(t,{start:.6},{end:.6})'"));
+    options.push(format!("enable='{}'", half_open_enable(start, end)));
 
     format!("drawtext={}", options.join(":"))
+}
+
+// FFmpeg's between(t,a,b) includes b. The editor model's clip, text and
+// subtitle intervals are half-open; use one shared predicate for all three.
+fn half_open_enable(start: f64, end: f64) -> String {
+    format!("gte(t,{start:.6})*lt(t,{end:.6})")
 }
 
 fn text_x_expression(alignment: TextAlignment, position_x: f64) -> String {
@@ -683,6 +692,25 @@ fn escape_drawtext(value: &str) -> String {
         .replace('\'', "\\'")
         .replace(':', "\\:")
         .replace('%', "\\%")
+}
+
+#[cfg(test)]
+mod half_open_enable_tests {
+    use super::half_open_enable;
+
+    #[test]
+    fn uses_inclusive_start_exclusive_end_even_at_fractional_frame_boundary() {
+        // Frame 42 at 30000/1001 fps lands exactly at 1.401400 s.
+        // FFmpeg between(t,start,end) would incorrectly include this frame.
+        assert_eq!(
+            half_open_enable(0.600000, 1.401400),
+            "gte(t,0.600000)*lt(t,1.401400)"
+        );
+        assert_eq!(
+            half_open_enable(0.0, 0.500500),
+            "gte(t,0.000000)*lt(t,0.500500)"
+        );
+    }
 }
 
 fn seconds(microseconds: i64) -> f64 {

@@ -166,6 +166,62 @@ fn standalone_tone_oracle_rejects_wrong_frequency_and_silence() {
     assert!(tone_amplitude(&[0.0; 3200], 1100.0) < 1e-9);
 }
 
+// This managed FFmpeg oracle verifies real decoded pixels at an exact
+// 30000/1001 boundary, independently of any exported/chunk parity.
+#[test]
+fn managed_ffmpeg_half_open_enable_excludes_exact_ntsc_end_frame() {
+    let Ok(dir) = env::var("ZETER_TEST_FFMPEG_DIR") else {
+        eprintln!("SKIP: ZETER_TEST_FFMPEG_DIR is not configured outside Windows CI");
+        return;
+    };
+    let runtime = ManagedRuntime::from_dir(PathBuf::from(dir), "pinned-half-open-fixture");
+    let output = Command::new(&runtime.ffmpeg_path)
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=16x16:r=30000/1001:d=1.6",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=red:s=16x16:r=30000/1001:d=1.6",
+            "-filter_complex",
+            "[0:v][1:v]overlay=enable='gte(t,0.600000)*lt(t,1.401400)'[v]",
+            "-map",
+            "[v]",
+            "-frames:v",
+            "43",
+            "-pix_fmt",
+            "rgb24",
+            "-f",
+            "rawvideo",
+            "-",
+        ])
+        .output()
+        .expect("run managed FFmpeg half-open frame oracle");
+    assert!(
+        output.status.success(),
+        "managed FFmpeg half-open frame oracle failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    const FRAME_BYTES: usize = 16 * 16 * 3;
+    assert_eq!(output.stdout.len(), 43 * FRAME_BYTES);
+    // n=41 is before the half-open end, n=42 is precisely 1.401400s.
+    let previous = &output.stdout[41 * FRAME_BYTES..42 * FRAME_BYTES];
+    let boundary = &output.stdout[42 * FRAME_BYTES..43 * FRAME_BYTES];
+    assert!(
+        previous[0] > 180 && previous[1] < 80 && previous[2] < 80,
+        "frame 41 should retain the red upper layer"
+    );
+    assert!(
+        boundary.iter().all(|&channel| channel < 30),
+        "frame 42 must not retain the upper layer at its exclusive end"
+    );
+}
+
 #[test]
 fn managed_ffmpeg_preview_chunk_matches_export_picture_and_audio_baseline() {
     let Ok(dir) = env::var("ZETER_TEST_FFMPEG_DIR") else {
@@ -499,6 +555,30 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
         },
     )
     .expect("compile layered timeline");
+
+    // The V2 layer spans [0.6, 1.4) on the timeline. Inspect the actual
+    // FFmpeg graph rather than only comparing the two outputs, which can
+    // share the same inclusive-end error.
+    let graph_spec = build_export_spec(
+        &runtime,
+        &plan,
+        EncoderKind::Libx264,
+        &temp.path().join("inspect-graph.mp4"),
+    );
+    let graph_index = graph_spec
+        .args
+        .iter()
+        .position(|arg| arg.to_string_lossy() == "-filter_complex")
+        .expect("full export has filtergraph");
+    let graph = graph_spec.args[graph_index + 1].to_string_lossy();
+    assert!(
+        graph.contains("enable='gte(t,0.600000)*lt(t,1.400000)'"),
+        "upper V2 overlay must end before its end timestamp: {graph}"
+    );
+    assert!(
+        !graph.contains("enable='between(t,0.600000,1.400000)'"),
+        "inclusive-end overlay leaked into a half-open clip interval"
+    );
 
     let full = temp.path().join("layered-full.mp4");
     let chunk = temp.path().join("layered-chunk.mp4");
