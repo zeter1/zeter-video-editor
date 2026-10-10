@@ -132,6 +132,22 @@ fn diagnostic_messages_redact_unc_network_paths() {
 }
 
 #[test]
+fn quoted_windows_paths_with_spaces_are_fully_redacted() {
+    let line = r#"{"event":"fixture","message":"cannot open 'C:\\Users\\Alice Smith\\private clip.mp4' or '\\\\studio-nas\\Client Assets\\Private Person\\voice track.wav'"}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "cannot open '<path:.mp4>' or '<path:.wav>'"
+    );
+    assert_eq!(json["event"], "fixture");
+    for private_part in ["Alice Smith", "private clip", "studio-nas", "Client Assets", "Private Person", "voice track"] {
+        assert!(!sanitized.contains(private_part), "leaked {private_part}");
+    }
+}
+
+#[test]
 fn rotation_policy_is_ten_times_ten_mib_fourteen_days_and_never_prunes_unrelated_files() {
     let policy = RetentionPolicy::default();
     assert_eq!(policy.max_files, 10);
