@@ -100,30 +100,28 @@ fn managed_ffmpeg_preview_chunk_matches_export_picture_and_audio_baseline() {
 
     // A moving image reveals time-offset mistakes; sine audio checks the
     // independently encoded audio stream and that it was not lost by seeking.
-    run(
-        &ProcessSpec::new(&runtime.ffmpeg_path)
-            .arg("-y")
-            .arg("-hide_banner")
-            .arg("-loglevel")
-            .arg("error")
-            .arg("-f")
-            .arg("lavfi")
-            .arg("-i")
-            .arg("testsrc2=size=320x180:rate=30")
-            .arg("-f")
-            .arg("lavfi")
-            .arg("-i")
-            .arg("sine=frequency=660:sample_rate=48000")
-            .arg("-t")
-            .arg("3")
-            .arg("-c:v")
-            .arg("libx264")
-            .arg("-pix_fmt")
-            .arg("yuv420p")
-            .arg("-c:a")
-            .arg("aac")
-            .arg(source.as_os_str()),
-    )
+    run(&ProcessSpec::new(&runtime.ffmpeg_path)
+        .arg("-y")
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-f")
+        .arg("lavfi")
+        .arg("-i")
+        .arg("testsrc2=size=320x180:rate=30")
+        .arg("-f")
+        .arg("lavfi")
+        .arg("-i")
+        .arg("sine=frequency=660:sample_rate=48000")
+        .arg("-t")
+        .arg("3")
+        .arg("-c:v")
+        .arg("libx264")
+        .arg("-pix_fmt")
+        .arg("yuv420p")
+        .arg("-c:a")
+        .arg("aac")
+        .arg(source.as_os_str()))
     .expect("generate real audio/video fixture");
 
     let media_id = MediaId::new();
@@ -202,17 +200,15 @@ fn managed_ffmpeg_preview_chunk_matches_export_picture_and_audio_baseline() {
         &full,
     ))
     .expect("render complete timeline");
-    run(
-        &build_preview_chunk_spec(
-            &runtime,
-            &plan,
-            EncoderKind::Libx264,
-            &chunk,
-            t(500_000),
-            t(1_500_000),
-        )
-        .expect("valid half-open chunk"),
+    run(&build_preview_chunk_spec(
+        &runtime,
+        &plan,
+        EncoderKind::Libx264,
+        &chunk,
+        t(500_000),
+        t(1_500_000),
     )
+    .expect("valid half-open chunk"))
     .expect("render output-side chunk");
 
     let full_probe = probe_media(&runtime, &full).expect("probe full export");
