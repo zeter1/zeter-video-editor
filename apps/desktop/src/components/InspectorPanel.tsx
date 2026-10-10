@@ -35,7 +35,7 @@ export function InspectorPanel({
       aria-label="Inspector"
       data-testid="inspector-panel"
     >
-      <div className="panel-heading">Inspector</div>
+      <div className="panel-heading">Свойства</div>
       <div className="inspector-scroll">
         {hasClipContext ? (
           <div className="inspector-fields">
@@ -88,9 +88,9 @@ export function InspectorPanel({
           </div>
         ) : (
           <div className="inspector-empty">
-            <strong>{project?.name ?? "Nothing selected"}</strong>
+            <strong>{project?.name ?? "Ничего не выбрано"}</strong>
             <p className="empty-copy">
-              Select a clip, text layer, subtitle, or track to edit its properties.
+              Выберите клип, текст, субтитры или дорожку для настройки.
             </p>
           </div>
         )}
