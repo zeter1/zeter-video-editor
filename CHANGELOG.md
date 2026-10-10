@@ -5,6 +5,7 @@
 ## Unreleased
 
 ### Fixed
+- Приватные поля диагностического JSON теперь одинаково редактируются при snake_case, camelCase, kebab-case и смешанных разделителях: `privateKey`, `api-key`, `sessionId`, `rawAudio`, `rawVideo`, `frameData`, `userContent`, `projectJson`. Сохранены безопасные поля событий, добавлен регрессионный Rust-тест (PR #11; нужен exact-head Windows CI).
 - Экспорт диагностического ZIP не прерывается из-за повреждённого лога с некорректным UTF-8: файл пропускается, остальные корректные логи сохраняются. Добавлен Rust regression; ограничения чтения и очистка содержимого сохранены (PR #11; новый exact-head CI ожидается).
 - Диагностический ZIP теперь ограничивает чтение логов и число включённых записей по политике хранения (10 файлов, по 10 MiB, общий бюджет); увеличившиеся или oversized файлы не экспортируются. Добавлен Rust regression test на sparse oversized fixture и 12 логов (PR #11, exact-head CI pending).
 - Diagnostic logs/support bundles now redact all documented GitHub credential prefixes (`gho_`, `ghu_`, `ghs_`, `ghr_` plus existing `ghp_`, `github_pat_`), including nested free-text messages; added Rust regression covering OAuth, GitHub App and PAT token types.

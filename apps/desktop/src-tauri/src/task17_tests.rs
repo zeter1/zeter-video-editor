@@ -112,6 +112,39 @@ fn sensitive_json_containers_are_redacted_before_visiting_children() {
 }
 
 #[test]
+fn sensitive_json_keys_in_camel_case_and_kebab_case_are_redacted() {
+    let record = r#"{"event":"render_progress","request_id":"request-fixture","api-key":"hidden-api","privateKey":"hidden-private","accessKey":"hidden-access","sessionId":"hidden-session","projectJson":{"name":"hidden-project"},"rawAudio":["hidden-voice"],"rawVideo":"hidden-frames","frameData":{"pixels":"hidden-pixels"},"userContent":"hidden-user","safe":{"count":2}}"#;
+    let sanitized = sanitize_log_line(record);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    for key in ["api-key", "privateKey", "accessKey", "sessionId"] {
+        assert_eq!(json[key], "[REDACTED SECRET]");
+    }
+    assert_eq!(json["projectJson"], "[REDACTED PROJECT]");
+    for key in ["rawAudio", "rawVideo", "frameData", "userContent"] {
+        assert_eq!(json[key], "[REDACTED CONTENT]");
+    }
+    assert_eq!(json["event"], "render_progress");
+    assert_eq!(json["request_id"], "request-fixture");
+    assert_eq!(json["safe"]["count"], 2);
+    assert!(!sanitized.contains("hidden-"));
+
+    // Metadata maps use the same classifier, not just JSON log records.
+    assert_eq!(
+        sanitize_named_value("session-id", "private-session"),
+        "[REDACTED SECRET]"
+    );
+    assert_eq!(
+        sanitize_named_value("project.json", "private-project"),
+        "[REDACTED PROJECT]"
+    );
+    assert_eq!(
+        sanitize_named_value("raw_audio", "private-audio"),
+        "[REDACTED CONTENT]"
+    );
+}
+
+#[test]
 fn github_oauth_app_and_personal_access_tokens_are_redacted_from_logs() {
     // GitHub's documented prefixes include OAuth, GitHub App user,
     // installation and refresh tokens as well as both PAT formats.

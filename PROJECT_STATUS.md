@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-10
 
+## Latest checkpoint — 2026-10-10 — case-insensitive separator-agnostic diagnostic key privacy (PR #11)
+
+- Found a remaining diagnostic privacy gap: key classification recognized snake_case names such as `raw_audio` and `private_key`, but missed equivalent camelCase/kebab-case/mixed punctuation (`rawAudio`, `privateKey`, `api-key`, `projectJson`, `sessionId`). Sensitive JSON values could survive into local logs/support ZIP when producers changed field naming conventions.
+- Fix: canonicalize **only the classifier input** to ASCII alphanumeric lowercase, preserving serialized original keys and safe correlation fields; classify `sessionId` as a secret per OWASP logging guidance. Also cover `rawVideo`, `frameData`, `userContent`. Apply consistently to JSON (including container values) and support metadata maps. Regression `sensitive_json_keys_in_camel_case_and_kebab_case_are_redacted` checks secret/content/project classes, nested containers, preserved event/request_id and metadata named values.
+- Scope: `redaction.rs`, `task17_tests.rs`, `PROJECT_STATUS.md`, `CHANGELOG.md` only on existing PR #11 branch; no main/AI/updater modifications and no CI gates bypassed. Exact-head CI of the new commit REQUIRED; tests not run locally (Rust toolchain unavailable). Previous #117 belongs to prior SHA `28b8c87` and cannot verify this change.
+- Source: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html ; https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html . No merge, tag, signing or release.
+
+
 ## Latest checkpoint — 2026-10-10 — invalid UTF-8 support-log resilience (PR #11)
 
 - Exact-head Windows CI #115 on `bae73828d24852d4bbeb8103fac0641f19cc0df2` completed SUCCESS: rustfmt, frontend, pinned FFmpeg, AI worker, Rust tests, Vitest, actual Tauri/WebView2 Playwright E2E, and debug NSIS smoke. https://github.com/zeter1/zeter-video-editor/actions/runs/38051607674 .

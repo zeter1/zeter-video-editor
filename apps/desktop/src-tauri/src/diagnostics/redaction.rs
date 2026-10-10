@@ -134,10 +134,17 @@ fn sanitize_object(map: &mut Map<String, Value>) {
 }
 
 fn sensitive_key_placeholder(name: &str) -> Option<&'static str> {
-    let key = name.to_ascii_lowercase();
+    // Treat snake_case, kebab-case, camelCase and mixed separators alike.
+    // Untrusted diagnostic producers must not bypass privacy redaction by
+    // changing only the field-name spelling.
+    let key = name
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .map(|ch| ch.to_ascii_lowercase())
+        .collect::<String>();
     if is_secret_key(&key) {
         Some(REDACTED_SECRET)
-    } else if key.contains("project_json") || key == "project" {
+    } else if key.contains("projectjson") || key == "project" {
         Some(REDACTED_PROJECT)
     } else if is_private_content_key(&key) {
         Some(REDACTED_CONTENT)
@@ -150,9 +157,10 @@ fn is_private_content_key(key: &str) -> bool {
     key.contains("transcript")
         || key.contains("subtitle")
         || key.contains("prompt")
-        || key.contains("frame_data")
-        || key.contains("raw_audio")
-        || key.contains("user_content")
+        || key.contains("framedata")
+        || key.contains("rawaudio")
+        || key.contains("rawvideo")
+        || key.contains("usercontent")
 }
 
 fn is_secret_key(key: &str) -> bool {
@@ -160,13 +168,13 @@ fn is_secret_key(key: &str) -> bool {
         || key.contains("passwd")
         || key.contains("secret")
         || key.contains("token")
-        || key.contains("api_key")
         || key.contains("apikey")
         || key.contains("auth")
         || key.contains("cookie")
-        || key.contains("access_key")
-        || key.contains("private_key")
+        || key.contains("accesskey")
+        || key.contains("privatekey")
         || key.contains("credential")
+        || key.contains("sessionid")
 }
 
 fn redact_prefixed_secret(input: &str, prefix: &str) -> String {
