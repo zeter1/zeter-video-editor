@@ -511,6 +511,40 @@ fn support_bundle_caps_oversized_logs_and_exported_log_count() {
 }
 
 #[test]
+fn support_bundle_skips_invalid_utf8_log_and_keeps_valid_logs() {
+    let dir = tempdir().unwrap();
+    let corrupted = dir.path().join("zeter-corrupted.log");
+    let healthy = dir.path().join("zeter-healthy.log");
+    fs::write(&corrupted, b"{\"event\":\"corrupt\"\xff}\n").unwrap();
+    fs::write(&healthy, "{\"event\":\"healthy_after_corruption\"}\n").unwrap();
+
+    let metadata = SupportBundleMetadata {
+        app_version: "0.0.1".into(),
+        build_id: "fixture".into(),
+        os: "Windows".into(),
+        runtime: BTreeMap::new(),
+        capabilities: BTreeMap::new(),
+        jobs: Vec::new(),
+        crashes: Vec::new(),
+    };
+    let output = dir.path().join("support-corrupt-log.zip");
+    export_support_bundle(&output, &metadata, &[corrupted, healthy]).unwrap();
+
+    let mut archive = zip::ZipArchive::new(fs::File::open(&output).unwrap()).unwrap();
+    assert_eq!(archive.len(), 2, "manifest plus the healthy log only");
+    let mut exported = String::new();
+    for index in 0..archive.len() {
+        archive
+            .by_index(index)
+            .unwrap()
+            .read_to_string(&mut exported)
+            .unwrap();
+    }
+    assert!(exported.contains("healthy_after_corruption"));
+    assert!(!exported.contains("corrupt"));
+}
+
+#[test]
 fn support_bundle_metadata_uses_managed_runtime_identities_without_private_paths() {
     let manifest = crate::runtime_manifest::parse_embedded_manifest().unwrap();
     let jobs = job_system::JobManager::new();

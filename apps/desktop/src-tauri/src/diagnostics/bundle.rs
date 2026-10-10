@@ -89,10 +89,10 @@ pub fn export_support_bundle(
         if file.metadata()?.len() > policy.max_file_bytes {
             continue;
         }
-        let mut raw = String::new();
+        let mut raw = Vec::new();
         Read::by_ref(&mut file)
             .take(policy.max_file_bytes.saturating_add(1))
-            .read_to_string(&mut raw)?;
+            .read_to_end(&mut raw)?;
         let raw_bytes = raw.len() as u64;
         if raw_bytes > policy.max_file_bytes
             || included_bytes
@@ -101,6 +101,12 @@ pub fn export_support_bundle(
         {
             continue;
         }
+
+        // A stale/corrupted log must not abort the entire support export.
+        // Skip invalid UTF-8 rather than serializing unchecked replacement text.
+        let Ok(raw) = String::from_utf8(raw) else {
+            continue;
+        };
 
         included_bytes += raw_bytes;
         log_index += 1;

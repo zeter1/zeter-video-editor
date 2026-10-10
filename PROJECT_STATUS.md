@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-10
 
+## Latest checkpoint — 2026-10-10 — invalid UTF-8 support-log resilience (PR #11)
+
+- Exact-head Windows CI #115 on `bae73828d24852d4bbeb8103fac0641f19cc0df2` completed SUCCESS: rustfmt, frontend, pinned FFmpeg, AI worker, Rust tests, Vitest, actual Tauri/WebView2 Playwright E2E, and debug NSIS smoke. https://github.com/zeter1/zeter-video-editor/actions/runs/38051607674 .
+- Found reliability gap: one stale or damaged `zeter-*.log` with invalid UTF-8 made `Read::read_to_string` abort the entire support archive despite other healthy logs.
+- Fix: retain bounded read through `Read::take(max_file_bytes + 1)`, use `read_to_end` then strict `String::from_utf8`, skip only bad-encoding logs, preserve valid logs plus per-line sanitization. Rust regression `support_bundle_skips_invalid_utf8_log_and_keeps_valid_logs` checks the export contains manifest and healthy log only.
+- New follow-up commit REQUIRES ITS OWN exact-head Windows CI. #115 belongs to previous SHA and is NOT verification of these changes. Local Rust/rustfmt/Windows execution unavailable; no locally observed RED/GREEN. No changes to main, stacked AI or updater PRs, no merge/tag/release/signing.
+- References: https://doc.rust-lang.org/std/io/trait.Read.html ; https://doc.rust-lang.org/std/string/struct.String.html ; https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html .
+
 ## Latest checkpoint — 2026-10-10 — GitHub OAuth/App token prefix redaction (PR #11)
 
 - Found a remaining credentials-in-logs gap: the generic diagnostic sanitizer recognized `ghp_` / `github_pat_`, but not the official GitHub OAuth / App token formats `gho_`, `ghu_`, `ghs_`, `ghr_`.
