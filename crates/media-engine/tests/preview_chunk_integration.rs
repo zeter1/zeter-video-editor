@@ -60,7 +60,11 @@ fn red_pixel_fraction(frame: &[u8]) -> f64 {
     red as f64 / (frame.len() / 3) as f64
 }
 
-fn audio_rms(runtime: &ManagedRuntime, video: &Path, at: &str) -> f64 {
+// Every sampler decodes exactly 200 ms at 16 kHz, so 440/880/1100 Hz
+// fall on exact 5-Hz frequency bins. This keeps the spectral oracle stable.
+const AUDIO_SAMPLE_RATE: f64 = 16_000.0;
+
+fn sampled_audio(runtime: &ManagedRuntime, video: &Path, at: &str) -> Vec<f64> {
     let output = Command::new(&runtime.ffmpeg_path)
         .args(["-hide_banner", "-loglevel", "error", "-i"])
         .arg(video)
@@ -90,12 +94,76 @@ fn audio_rms(runtime: &ManagedRuntime, video: &Path, at: &str) -> f64 {
     );
     assert!(output.stdout.len() >= 4 * 1000);
     assert_eq!(output.stdout.len() % 4, 0);
-    let samples = output.stdout.chunks_exact(4);
-    let (power, count) = samples.fold((0.0, 0usize), |(power, count), bytes| {
-        let sample = f32::from_le_bytes(bytes.try_into().unwrap()) as f64;
-        (power + sample * sample, count + 1)
-    });
-    (power / count as f64).sqrt()
+    output
+        .stdout
+        .chunks_exact(4)
+        .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()) as f64)
+        .collect()
+}
+
+fn rms(samples: &[f64]) -> f64 {
+    (samples.iter().map(|sample| sample * sample).sum::<f64>() / samples.len() as f64).sqrt()
+}
+
+fn audio_rms(runtime: &ManagedRuntime, video: &Path, at: &str) -> f64 {
+    rms(&sampled_audio(runtime, video, at))
+}
+
+// Single-bin Goertzel DFT. Comparing *known* fixture frequencies detects
+// wrong-source audio that energy-only RMS/export-vs-preview parity can miss.
+fn tone_amplitude(samples: &[f64], hz: f64) -> f64 {
+    assert!(!samples.is_empty());
+    let omega = 2.0 * std::f64::consts::PI * hz / AUDIO_SAMPLE_RATE;
+    let coefficient = 2.0 * omega.cos();
+    let (mut previous, mut older) = (0.0, 0.0);
+    for &sample in samples {
+        let current = sample + coefficient * previous - older;
+        older = previous;
+        previous = current;
+    }
+    let power = previous * previous + older * older - coefficient * previous * older;
+    2.0 * power.max(0.0).sqrt() / samples.len() as f64
+}
+
+fn checked_standalone_tone_rms(
+    runtime: &ManagedRuntime,
+    video: &Path,
+    at: &str,
+    label: &str,
+) -> f64 {
+    let samples = sampled_audio(runtime, video, at);
+    let level = rms(&samples);
+    assert!(
+        level > 0.02,
+        "{label} lost standalone audio-only track: RMS={level:.4}"
+    );
+    let expected = tone_amplitude(&samples, 1100.0);
+    let wrong_source = tone_amplitude(&samples, 440.0).max(tone_amplitude(&samples, 880.0));
+    assert!(
+        expected > level * std::f64::consts::SQRT_2 * 0.65,
+        "{label} lacks the expected 1100-Hz WAV tone: amplitude={expected:.4}, RMS={level:.4}"
+    );
+    assert!(
+        expected > wrong_source * 4.0,
+        "{label} has a wrong-source tone: 1100-Hz={expected:.4}, 440/880-Hz={wrong_source:.4}"
+    );
+    level
+}
+
+#[test]
+fn standalone_tone_oracle_rejects_wrong_frequency_and_silence() {
+    let sine = |hz: f64| {
+        (0..3200)
+            .map(|index| {
+                0.2 * (2.0 * std::f64::consts::PI * hz * index as f64 / AUDIO_SAMPLE_RATE).sin()
+            })
+            .collect::<Vec<_>>()
+    };
+    let expected = sine(1100.0);
+    let wrong = sine(440.0);
+    assert!(tone_amplitude(&expected, 1100.0) > 0.19);
+    assert!(tone_amplitude(&wrong, 1100.0) < 0.01);
+    assert!(tone_amplitude(&[0.0; 3200], 1100.0) < 1e-9);
 }
 
 #[test]
@@ -496,16 +564,9 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
     // audible source is the separate 1100-Hz WAV on TrackKind::Audio.
     // Checking each output against a minimum energy (not just each other)
     // catches a shared exporter/preview bug that silently drops audio-only.
-    let independent_full_rms = audio_rms(&runtime, &full, "1.600");
-    let independent_chunk_rms = audio_rms(&runtime, &chunk, "1.100");
-    assert!(
-        independent_full_rms > 0.02,
-        "full export lost standalone audio-only track: RMS={independent_full_rms:.4}"
-    );
-    assert!(
-        independent_chunk_rms > 0.02,
-        "preview chunk lost standalone audio-only track: RMS={independent_chunk_rms:.4}"
-    );
+    let independent_full_rms = checked_standalone_tone_rms(&runtime, &full, "1.600", "full export");
+    let independent_chunk_rms =
+        checked_standalone_tone_rms(&runtime, &chunk, "1.100", "preview chunk");
     let standalone_relative_error =
         (independent_full_rms - independent_chunk_rms).abs() / independent_full_rms;
     assert!(
