@@ -50,6 +50,16 @@ fn sampled_frame(runtime: &ManagedRuntime, video: &Path, at: &str) -> Vec<u8> {
     output.stdout
 }
 
+// An independent color oracle: export/chunk parity alone can pass even when
+// both render paths accidentally omit the upper video layer.
+fn red_pixel_fraction(frame: &[u8]) -> f64 {
+    let red = frame
+        .chunks_exact(3)
+        .filter(|pixel| pixel[0] > 160 && pixel[1] < 90 && pixel[2] < 90)
+        .count();
+    red as f64 / (frame.len() / 3) as f64
+}
+
 fn audio_rms(runtime: &ManagedRuntime, video: &Path, at: &str) -> f64 {
     let output = Command::new(&runtime.ffmpeg_path)
         .args(["-hide_banner", "-loglevel", "error", "-i"])
@@ -439,6 +449,48 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
     assert!(
         gap_level < 12.0,
         "uncovered timeline gap is not black: {gap_level:.2}"
+    );
+
+    // Unlike comparing the same filtergraph with itself, this oracle checks
+    // the fixture's known *red* V2 source against actual rendered pixels.
+    // Check both overlap with V1 and the upper-only section, in both outputs.
+    for (at_full, at_chunk) in [("0.800", "0.300"), ("1.200", "0.700")] {
+        for (label, output, at) in [
+            ("full", full.as_path(), at_full),
+            ("chunk", chunk.as_path(), at_chunk),
+        ] {
+            let red_fraction = red_pixel_fraction(&sampled_frame(&runtime, output, at));
+            assert!(
+                red_fraction > 0.85,
+                "{label} lost the red V2 layer at {at}: red fraction={red_fraction:.3}"
+            );
+        }
+    }
+
+    // Ensure the lower source reappears after V2 ends and the black gap.
+    // A completely black output could otherwise pass both-path parity.
+    for (label, output, at) in [
+        ("full", full.as_path(), "2.300"),
+        ("chunk", chunk.as_path(), "1.800"),
+    ] {
+        let frame = sampled_frame(&runtime, output, at);
+        let mean = frame.iter().map(|value| f64::from(*value)).sum::<f64>() / frame.len() as f64;
+        assert!(
+            mean > 25.0,
+            "{label} lost the V1 return at {at}: mean RGB={mean:.2}"
+        );
+        assert!(
+            red_pixel_fraction(&frame) < 0.85,
+            "{label} incorrectly retains the red V2 layer at {at}"
+        );
+    }
+
+    let chunk_gap = sampled_frame(&runtime, &chunk, "1.200");
+    let chunk_gap_level =
+        chunk_gap.iter().map(|value| f64::from(*value)).sum::<f64>() / chunk_gap.len() as f64;
+    assert!(
+        chunk_gap_level < 12.0,
+        "preview chunk uncovered gap is not black: {chunk_gap_level:.2}"
     );
 
     // The independently generated 440/880-Hz sources should produce audible
