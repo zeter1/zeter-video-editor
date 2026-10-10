@@ -180,7 +180,7 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   // The real WebView2 must decode and display bytes from the project-scoped
   // media scheme, not only render a decorative empty preview.
   await page.reload();
-  const liveVideo = page.getByRole("video", { name: "Предпросмотр видео" });
+  const liveVideo = page.locator("video.preview-media");
   await expect(liveVideo).toBeVisible();
   await expect.poll(() => liveVideo.evaluate((el) =>
     (el as HTMLVideoElement).readyState), { timeout: 15_000 }).toBeGreaterThan(0);
@@ -189,11 +189,11 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   // Keyboard zoom is timeline-only. The playhead must not move.
   const zoomInput = page.getByRole("slider", { name: "Масштаб таймлайна" });
   await expect(zoomInput).toHaveValue("1");
-  await page.keyboard.press("+");
+  await page.keyboard.press("Shift+=");
   await expect(zoomInput).toHaveValue("1.25");
   await page.keyboard.press("-");
   await expect(zoomInput).toHaveValue("1");
-  await page.keyboard.press("+");
+  await page.keyboard.press("Shift+=");
   await page.keyboard.press("0");
   await expect(zoomInput).toHaveValue("1");
 
