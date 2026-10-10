@@ -512,7 +512,7 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
     let graph_index = graph_spec
         .args
         .iter()
-        .position(|arg| arg == "-filter_complex")
+        .position(|arg| arg.to_string_lossy() == "-filter_complex")
         .expect("full export has filtergraph");
     let graph = graph_spec.args[graph_index + 1].to_string_lossy();
     assert!(
