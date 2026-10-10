@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+### Fixed
+- Diagnostic logs/support bundles now redact all documented GitHub credential prefixes (`gho_`, `ghu_`, `ghs_`, `ghr_` plus existing `ghp_`, `github_pat_`), including nested free-text messages; added Rust regression covering OAuth, GitHub App and PAT token types.
+
 ### Added
 - Начат Task 1 утверждённого MVP implementation plan: Cargo workspace, desktop/AI-worker scaffolding, базовый React/Vite toolchain и Windows CI.
 - Добавлены первые TDD-контракты для стабильных идентификаторов и микросекундного времени доменного слоя.
