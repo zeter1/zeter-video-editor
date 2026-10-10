@@ -11,6 +11,16 @@ pub fn sanitize_named_value(name: &str, value: &str) -> String {
         return placeholder.into();
     }
 
+    if is_path_field(name) {
+        return sanitize_path(Path::new(value));
+    }
+    if is_args_field(name) {
+        return "[REDACTED ARGS]".into();
+    }
+    sanitize_untrusted_text(value)
+}
+
+fn is_path_field(name: &str) -> bool {
     let key = name.to_ascii_lowercase();
     // Diagnostic producers also use fileName, asset-file-name and sourceFile.
     // Treat these as path-bearing fields so bare filenames cannot leak PII.
@@ -18,19 +28,17 @@ pub fn sanitize_named_value(name: &str, value: &str) -> String {
         .chars()
         .filter(|ch| ch.is_ascii_alphanumeric())
         .collect::<String>();
-    if key.contains("path")
+    key.contains("path")
         || key.ends_with("_file")
         || key.ends_with("-file")
         || key == "file"
         || name.ends_with("File")
         || compact_key.contains("filename")
-    {
-        return sanitize_path(Path::new(value));
-    }
-    if key.contains("args") || key.contains("command_line") || key.contains("commandline") {
-        return "[REDACTED ARGS]".into();
-    }
-    sanitize_untrusted_text(value)
+}
+
+fn is_args_field(name: &str) -> bool {
+    let key = name.to_ascii_lowercase();
+    key.contains("args") || key.contains("command_line") || key.contains("commandline")
 }
 
 pub fn sanitize_path(path: &Path) -> String {
@@ -117,6 +125,21 @@ fn sanitize_json_value(key: Option<&str>, value: &mut Value) {
     if let Some(placeholder) = key.and_then(sensitive_key_placeholder) {
         *value = Value::String(placeholder.into());
         return;
+    }
+
+    // Key-aware string redaction is not enough for path/args containers.
+    // Hide the entire object/array before recursion can expose child values.
+    if matches!(value, Value::Object(_) | Value::Array(_)) {
+        if let Some(name) = key {
+            if is_path_field(name) {
+                *value = Value::String("<path>".into());
+                return;
+            }
+            if is_args_field(name) {
+                *value = Value::String("[REDACTED ARGS]".into());
+                return;
+            }
+        }
     }
 
     match value {

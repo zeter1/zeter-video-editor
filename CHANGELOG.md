@@ -5,6 +5,7 @@
 ## Unreleased
 
 ### Fixed
+- Диагностические JSON-поля путей, имён файлов и аргументов процесса теперь скрывают целые вложенные объекты/массивы, а не пропускают приватные значения через дочерние ключи. Добавлен Rust regression для сохранения безопасных event/request_id/metrics (PR #11; требуется exact-head CI).
 - Диагностические поля имён файлов в camelCase/kebab-case/snake_case (`fileName`, `originalFileName`, `asset-file-name`, `sourceFile`) теперь скрывают приватное имя, сохраняя только разрешённое расширение. Добавлен тест вложенного JSON и metadata (PR #11; требуется новый exact-head Windows CI).
 - Приватные поля диагностического JSON теперь одинаково редактируются при snake_case, camelCase, kebab-case и смешанных разделителях: `privateKey`, `api-key`, `sessionId`, `rawAudio`, `rawVideo`, `frameData`, `userContent`, `projectJson`. Сохранены безопасные поля событий, добавлен регрессионный Rust-тест (PR #11; нужен exact-head Windows CI).
 - Экспорт диагностического ZIP не прерывается из-за повреждённого лога с некорректным UTF-8: файл пропускается, остальные корректные логи сохраняются. Добавлен Rust regression; ограничения чтения и очистка содержимого сохранены (PR #11; новый exact-head CI ожидается).

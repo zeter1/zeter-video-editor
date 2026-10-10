@@ -173,6 +173,31 @@ fn filename_metadata_variants_are_sanitized_in_structured_diagnostics() {
 }
 
 #[test]
+fn path_and_process_args_containers_are_redacted_without_exposing_nested_names() {
+    let record = r#"{"event":"render_progress","request_id":"safe-request","sourcePath":{"label":"Private Project Folder","item":"Customer Cut.mp4"},"fileName":["Alice Reveal.mp4","Bob Private.mov"],"commandLineArgs":["--input","Personal Raw Title"],"nested":{"source_file":{"display":"Hidden Client Source"}},"metrics":{"count":7}}"#;
+    let sanitized = sanitize_log_line(record);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["sourcePath"], "<path>");
+    assert_eq!(json["fileName"], "<path>");
+    assert_eq!(json["commandLineArgs"], "[REDACTED ARGS]");
+    assert_eq!(json["nested"]["source_file"], "<path>");
+    assert_eq!(json["event"], "render_progress");
+    assert_eq!(json["request_id"], "safe-request");
+    assert_eq!(json["metrics"]["count"], 7);
+    for secret in [
+        "Private Project Folder",
+        "Customer Cut",
+        "Alice Reveal",
+        "Bob Private",
+        "Personal Raw Title",
+        "Hidden Client Source",
+    ] {
+        assert!(!sanitized.contains(secret), "leaked nested value: {secret}");
+    }
+}
+
+#[test]
 fn github_oauth_app_and_personal_access_tokens_are_redacted_from_logs() {
     // GitHub's documented prefixes include OAuth, GitHub App user,
     // installation and refresh tokens as well as both PAT formats.

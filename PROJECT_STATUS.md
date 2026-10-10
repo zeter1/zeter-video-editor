@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-10
 
+## Latest checkpoint — 2026-10-10 — structured path/arguments container privacy (PR #11)
+
+- Root cause: JSON diagnostic path/file-name and process-args fields were sanitized only for string values. A producer could send a nested object or array (e.g. `sourcePath: {label: "..."}` or `commandLineArgs: ["..."]`) and expose private filenames, project names or command arguments through child keys not classified as sensitive.
+- Fix: extract the existing scalar key classifiers without changing scalar behavior. Before recursively sanitizing JSON containers, replace object/array values of path-like keys with `<path>` and argument-like keys with `[REDACTED ARGS]`. Other diagnostic objects, event/request_id and numeric metrics preserve their existing contract. Sensitive-key masking still takes precedence.
+- Regression: `path_and_process_args_containers_are_redacted_without_exposing_nested_names` covers top-level and nested objects/arrays, both placeholders, preserved safe correlation fields and numeric metric. Scope: existing PR #11 only, four files (redaction.rs, task17_tests.rs, PROJECT_STATUS.md, CHANGELOG.md).
+- Verification: this GitHub-side change has NO locally observed Rust TDD RED/GREEN or Windows toolchain checks. New exact-head Windows CI required; older CI #118 SUCCESS only proves previous SHA `f027222`. CI #119 for `409f3ca` was in progress at start and does not verify this new change.
+- No merge, release, signing or tag. Actual platform face detection, live whisper model inference and production signed updater installation remain NOT VERIFIED. Security reference: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html .
+
 ## Latest checkpoint — 2026-10-10 — filename-field privacy across naming conventions (PR #11)
 
 - Root cause: `sanitize_named_value` handled `source_path`, `*_file` and `file` but not bare private filenames carried by `fileName`, `originalFileName`, `asset-file-name` or `sourceFile`. Unstructured bare names need key-based protection when they lack detectable drive-letter path syntax.
