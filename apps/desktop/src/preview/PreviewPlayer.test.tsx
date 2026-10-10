@@ -51,4 +51,36 @@ describe("PreviewPlayer", () => {
     expect(screen.getByTestId("preview-scale").textContent).toBe("100%");
     expect(onCommit).not.toHaveBeenCalled();
   });
+
+  it("shows the actual imported media stream at the timeline playhead, not the sequence label", () => {
+    const clip = {
+      id: "clip-1", kind: "Video" as const, media_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      source_in: 0, source_out: 4_000_000, timeline_start: 0, timeline_end: 4_000_000,
+      transform: { position_x: 0, position_y: 0, scale_x: 1, scale_y: 1, rotation_degrees: 0,
+        opacity: 1, crop: { left: 0, top: 0, right: 0, bottom: 0 } },
+      color: { exposure: 0, contrast: 0, highlights: 0, shadows: 0, saturation: 1, temperature: 0, tint: 0 },
+      audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+      speed: 1, transition: null, text: null,
+    };
+    const track = { id: "track-1", name: "Video", kind: "Video" as const,
+      muted: false, locked: false, hidden: false, clips: [clip] };
+    const media = [{ id: clip.media_id, absolute_path: "D:\\Private\\take.mp4",
+      project_relative_path: null, file_size: 1000, duration: 4_000_000, width: 1920, height: 1080 }];
+    const onSeek = vi.fn();
+    const { rerender } = render(<PreviewPlayer
+      sequence={{ ...sequence, tracks: [track] }}
+      media={media}
+      selectedClip={null} selectedTrackId={null}
+      playheadTimeUs={1_000_000} onSeek={onSeek} onCommit={vi.fn()}
+    />);
+    const video = screen.getByLabelText("Предпросмотр видео") as HTMLVideoElement;
+    expect(video.getAttribute("src")).toBe("http://zeter-media.localhost/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(video.getAttribute("src")).not.toContain("Private");
+    expect(screen.queryByText("Main")).toBeNull();
+    rerender(<PreviewPlayer sequence={{ ...sequence, tracks: [track] }} media={media}
+      selectedClip={null} selectedTrackId={null}
+      playheadTimeUs={7_000_000} onSeek={onSeek} onCommit={vi.fn()} />);
+    expect(screen.queryByLabelText("Предпросмотр видео")).toBeNull();
+    expect(screen.getByText("На позиции курсора нет видеоклипа.")).toBeTruthy();
+  });
 });

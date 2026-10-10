@@ -76,7 +76,7 @@ fn parse_range(value: &str, file_len: u64) -> Option<(u64, u64)> {
 }
 
 pub fn serve(app: &AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
-    if request.method() != "GET" && request.method() != "HEAD" {
+    if request.method().as_str() != "GET" && request.method().as_str() != "HEAD" {
         return failure(405);
     }
 
@@ -141,7 +141,7 @@ pub fn serve(app: &AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
         return failure(500);
     }
     let mut body = Vec::with_capacity(count as usize);
-    if request.method() != "HEAD"
+    if request.method().as_str() != "HEAD"
         && file.take(count).read_to_end(&mut body).is_err()
     {
         return failure(500);
