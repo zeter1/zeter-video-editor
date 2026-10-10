@@ -91,7 +91,10 @@ fn validate(snapshot: &RenderSnapshot) -> Result<HashMap<ClipId, &RenderAudio>, 
         if !clip.speed.is_finite() || clip.speed <= 0.0 {
             return Err(invalid("invalid clip speed"));
         }
-        let needs_media = matches!(clip.kind, ClipKind::Video | ClipKind::Audio | ClipKind::Image);
+        let needs_media = matches!(
+            clip.kind,
+            ClipKind::Video | ClipKind::Audio | ClipKind::Image
+        );
         if needs_media && clip.media_id.is_none() {
             return Err(invalid("media-backed clip has no media ID"));
         }
@@ -110,10 +113,7 @@ fn validate(snapshot: &RenderSnapshot) -> Result<HashMap<ClipId, &RenderAudio>, 
         if audio.insert(state.clip_id, state).is_some() {
             return Err(invalid("duplicate audio state"));
         }
-        if !state.volume.is_finite()
-            || state.volume < 0.0
-            || !state.gain_db.is_finite()
-        {
+        if !state.volume.is_finite() || state.volume < 0.0 || !state.gain_db.is_finite() {
             return Err(invalid("invalid audio settings"));
         }
     }
@@ -159,8 +159,14 @@ fn mode_at(
     audio: &HashMap<ClipId, &RenderAudio>,
     capabilities: &PreviewDecodeCapabilities,
 ) -> PreviewMode {
-    if snapshot.texts.iter().any(|text| active(text.timeline_start, text.timeline_end, at))
-        || snapshot.subtitles.iter().any(|sub| active(sub.start, sub.end, at))
+    if snapshot
+        .texts
+        .iter()
+        .any(|text| active(text.timeline_start, text.timeline_end, at))
+        || snapshot
+            .subtitles
+            .iter()
+            .any(|sub| active(sub.start, sub.end, at))
     {
         return PreviewMode::Composite;
     }
@@ -169,7 +175,13 @@ fn mode_at(
             clip.clip_id == transition.clip_id
                 && active(
                     clip.timeline_start,
-                    TimeUs::new(clip.timeline_start.get().saturating_add(transition.duration.get()).min(clip.timeline_end.get())).expect("bounded nonnegative transition time"),
+                    TimeUs::new(
+                        clip.timeline_start
+                            .get()
+                            .saturating_add(transition.duration.get())
+                            .min(clip.timeline_end.get()),
+                    )
+                    .expect("bounded nonnegative transition time"),
                     at,
                 )
         })
@@ -178,7 +190,11 @@ fn mode_at(
     }
 
     let mut visible: Option<&RenderClip> = None;
-    for clip in snapshot.clips.iter().filter(|clip| active(clip.timeline_start, clip.timeline_end, at)) {
+    for clip in snapshot
+        .clips
+        .iter()
+        .filter(|clip| active(clip.timeline_start, clip.timeline_end, at))
+    {
         let state = audio[&clip.clip_id];
         match clip.kind {
             ClipKind::Audio => {
@@ -214,10 +230,20 @@ fn mode_at(
             // All visible video/images were validated to carry a media identity.
             let media_id = clip.media_id.expect("validated media-backed clip");
             match clip.kind {
-                ClipKind::Image => PreviewMode::Still { media_id, clip_id: clip.clip_id },
-                ClipKind::Video if capabilities.direct_playback_media_ids.contains(&media_id) =>
-                    PreviewMode::Direct { media_id, clip_id: clip.clip_id },
-                ClipKind::Video => PreviewMode::Proxy { media_id, clip_id: clip.clip_id },
+                ClipKind::Image => PreviewMode::Still {
+                    media_id,
+                    clip_id: clip.clip_id,
+                },
+                ClipKind::Video if capabilities.direct_playback_media_ids.contains(&media_id) => {
+                    PreviewMode::Direct {
+                        media_id,
+                        clip_id: clip.clip_id,
+                    }
+                }
+                ClipKind::Video => PreviewMode::Proxy {
+                    media_id,
+                    clip_id: clip.clip_id,
+                },
                 _ => PreviewMode::Gap,
             }
         }
@@ -269,18 +295,20 @@ impl PreviewRangePlan {
         }
         for transition in &snapshot.transitions {
             // validate() guaranteed a matching clip, so this lookup cannot be orphaned.
-            let clip = snapshot.clips.iter().find(|c| c.clip_id == transition.clip_id)
+            let clip = snapshot
+                .clips
+                .iter()
+                .find(|c| c.clip_id == transition.clip_id)
                 .expect("validated transition owner");
             if clip.timeline_start == clip.timeline_end {
                 continue;
             }
             add(clip.timeline_start.get());
-            add(
-                clip.timeline_start
-                    .get()
-                    .saturating_add(transition.duration.get())
-                    .min(clip.timeline_end.get()),
-            );
+            add(clip
+                .timeline_start
+                .get()
+                .saturating_add(transition.duration.get())
+                .min(clip.timeline_end.get()));
         }
 
         let points: Vec<_> = boundaries.into_iter().collect();
