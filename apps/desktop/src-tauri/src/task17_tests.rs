@@ -112,6 +112,35 @@ fn sensitive_json_containers_are_redacted_before_visiting_children() {
 }
 
 #[test]
+fn github_oauth_app_and_personal_access_tokens_are_redacted_from_logs() {
+    // GitHub's documented prefixes include OAuth, GitHub App user,
+    // installation and refresh tokens as well as both PAT formats.
+    let line = r#"{"event":"fixture","message":"gho_oauth-private ghu_user-private, ghs_APPID_JWT-private; ghr_refresh-private","nested":[{"message":"ghp_classic-private and github_pat_fine-private"}]}"#;
+    let sanitized = sanitize_log_line(line);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(
+        json["message"],
+        "[REDACTED SECRET] [REDACTED SECRET], [REDACTED SECRET]; [REDACTED SECRET]"
+    );
+    assert_eq!(
+        json["nested"][0]["message"],
+        "[REDACTED SECRET] and [REDACTED SECRET]"
+    );
+    assert_eq!(json["event"], "fixture");
+    for private_token in [
+        "gho_oauth-private",
+        "ghu_user-private",
+        "ghs_APPID_JWT-private",
+        "ghr_refresh-private",
+        "ghp_classic-private",
+        "github_pat_fine-private",
+    ] {
+        assert!(!sanitized.contains(private_token), "leaked {private_token}");
+    }
+}
+
+#[test]
 fn diagnostic_messages_redact_every_bearer_token() {
     let line = r#"{"event":"fixture","message":"Bearer first-private-token and BEARER second-private-token; bearer third-private-token","nested":[{"message":"Bearer fourth-private-token"}]}"#;
     let sanitized = sanitize_log_line(line);
