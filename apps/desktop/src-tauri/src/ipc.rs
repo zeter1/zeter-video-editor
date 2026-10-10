@@ -117,6 +117,17 @@ pub fn export_support_bundle(
 }
 
 #[tauri::command]
+pub fn project_new(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<ProjectSnapshotDto, AppErrorDto> {
+    let mut project = state.project.lock().map_err(|_| state_error(None, None))?;
+    project
+        .create_new(&name)
+        .map_err(|error| diagnostic_error(error, None, None))
+}
+
+#[tauri::command]
 pub fn project_open(
     state: State<'_, AppState>,
     runtime: State<'_, ValidatedRuntime>,

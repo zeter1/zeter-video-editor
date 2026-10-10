@@ -7,6 +7,6 @@ describe("App", () => {
   it("renders the product name without requiring project state", () => {
     render(<App />);
 
-    expect(screen.getByText("Zeter Video Editor")).toBeTruthy();
+    expect(screen.getByText("Zeter Видеоредактор")).toBeTruthy();
   });
 });

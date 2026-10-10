@@ -25,9 +25,9 @@ export function TimelinePanel({
       data-testid="timeline-panel"
     >
       <div className="panel-heading">
-        <span>Timeline</span>
+        <span>Таймлайн</span>
         <span className="panel-meta">
-          {sequence ? `${sequence.tracks.length} tracks` : "No sequence"}
+          {sequence ? `${sequence.tracks.length} дорожек` : "Нет последовательности"}
         </span>
       </div>
       {sequence ? (
@@ -40,7 +40,7 @@ export function TimelinePanel({
         />
       ) : (
         <div className="empty-timeline">
-          <span className="empty-copy">Timeline tracks will appear here.</span>
+          <span className="empty-copy">Дорожки появятся здесь после добавления файлов.</span>
         </div>
       )}
     </section>

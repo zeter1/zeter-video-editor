@@ -204,3 +204,32 @@ fn generated_typescript_contract_matches_committed_file_byte_for_byte() {
 
     assert_eq!(fs::read(generated).unwrap(), expected);
 }
+
+#[test]
+fn new_project_can_import_and_save_and_invalid_name_preserves_state() {
+    let mut service = ProjectService::empty();
+    let new = service.create_new(" Монтаж ").unwrap();
+    assert_eq!(new.project.name, "Монтаж");
+    assert_eq!(new.revision, ProjectRevision::new(0));
+    assert_eq!(new.project.sequences[0].tracks.len(), 3);
+    assert!(service.current_path().is_none());
+    assert!(service.create_new(" ").is_err());
+    assert_eq!(service.snapshot().unwrap(), new);
+    let media = MediaRef {
+        id: MediaId::new(),
+        absolute_path: r"D:\media\take.mp4".into(),
+        project_relative_path: None,
+        file_size: 10,
+        duration: Some(time(2_000_000)),
+        width: Some(1920),
+        height: Some(1080),
+    };
+    service
+        .import_media(RequestId::new(), new.revision, media)
+        .unwrap();
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("montage.vcut");
+    service.save(&path).unwrap();
+    assert!(path.exists());
+    assert_eq!(project_io::load(&path).unwrap().project.media.len(), 1);
+}

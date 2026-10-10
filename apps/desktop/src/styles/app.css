@@ -957,3 +957,7 @@ button {
   font-size: 11px;
   line-height: 1.45;
 }
+
+.tool-grid button:disabled { cursor: not-allowed; opacity: .5; }
+.media-add { margin-left: auto; padding: 2px 8px; color: #e5edff; background: #263758; border: 1px solid #455875; border-radius: 5px; cursor: pointer; }
+.media-add:hover { background: #38548b; }

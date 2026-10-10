@@ -27,7 +27,7 @@ export function PreviewPanel({
       data-testid="preview-panel"
     >
       <div className="panel-heading">
-        <span>Preview</span>
+        <span>Предпросмотр</span>
         {sequence ? (
           <span className="panel-meta">
             {sequence.width}×{sequence.height} · {sequence.fps.toFixed(2)} fps
@@ -49,12 +49,12 @@ export function PreviewPanel({
           <div className="preview-stage">
             <div className="preview-frame">
               <span className="empty-copy">
-                Open a project to preview the active sequence.
+                Создайте проект или перетащите видео в окно.
               </span>
             </div>
           </div>
           <div className="preview-controls" aria-label="Preview controls">
-            <span className="quality-pill">Full</span>
+            <span className="quality-pill">Полный</span>
           </div>
         </>
       )}

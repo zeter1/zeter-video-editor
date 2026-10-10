@@ -11,7 +11,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Zeter Video Editor",
+        "title": "Zeter Видеоредактор",
         "width": 1440,
         "height": 900,
         "minWidth": 1100,
@@ -25,7 +25,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "createUpdaterArtifacts": true,
     "externalBin": [
       "binaries/ffmpeg",

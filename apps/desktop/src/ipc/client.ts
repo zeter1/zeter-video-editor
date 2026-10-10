@@ -15,6 +15,7 @@ import type {
 import type { ProjectStore } from "../state/projectStore";
 
 export interface IpcClient {
+  projectNew(name: string): Promise<ProjectSnapshotDto>;
   projectOpen(path: string): Promise<ProjectSnapshotDto>;
   projectOpenWithRelink(
     path: string,
@@ -86,6 +87,7 @@ async function call<T>(
 
 export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient {
   const client: IpcClient = {
+    projectNew: (name) => call(invokeFn, "project_new", { name }),
     projectOpen: (path) => call(invokeFn, "project_open", { path }),
     projectOpenWithRelink: (path, replacementPath) =>
       call(invokeFn, "project_open_with_relink", { path, replacementPath }),

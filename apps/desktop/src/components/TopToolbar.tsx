@@ -2,6 +2,7 @@ interface TopToolbarProps {
   projectName: string | null;
   revision: number | null;
   actionsEnabled?: boolean;
+  onNew: () => void;
   onOpen: () => void;
   onSave: () => void;
   onUndo: () => void;
@@ -13,6 +14,7 @@ export function TopToolbar({
   projectName,
   revision,
   actionsEnabled = false,
+  onNew,
   onOpen,
   onSave,
   onUndo,
@@ -27,33 +29,34 @@ export function TopToolbar({
       <div className="brand-block">
         <span className="brand-mark" aria-hidden="true">Z</span>
         <div>
-          <strong>Zeter Video Editor</strong>
+          <strong>Zeter Видеоредактор</strong>
           <span className="project-caption">
-            {projectName ?? "No project open"}
+            {projectName ?? "Нет открытого проекта"}
             {revision !== null ? ` · r${revision}` : ""}
           </span>
         </div>
       </div>
       <div className="toolbar-actions" role="toolbar" aria-label="Project toolbar">
-        <button type="button" aria-label="Open project" onClick={onOpen}>Open</button>
+        <button type="button" onClick={onNew}>Новый</button>
+        <button type="button" aria-label="Open project" onClick={onOpen}>Открыть</button>
         <button
           type="button"
           aria-label="Save project"
           onClick={onSave}
           disabled={!canMutate}
         >
-          Save
+          Сохранить
         </button>
         <span className="toolbar-divider" aria-hidden="true" />
-        <button type="button" onClick={onUndo} disabled={!canMutate}>Undo</button>
-        <button type="button" onClick={onRedo} disabled={!canMutate}>Redo</button>
+        <button type="button" onClick={onUndo} disabled={!canMutate}>Отменить</button>
+        <button type="button" onClick={onRedo} disabled={!canMutate}>Повторить</button>
         <span className="toolbar-divider" aria-hidden="true" />
         <button
           type="button"
           aria-label="Export support bundle"
           onClick={onExportSupportBundle}
         >
-          Support bundle
+          Диагностика
         </button>
       </div>
     </header>
