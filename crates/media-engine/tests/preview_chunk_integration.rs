@@ -304,10 +304,30 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
         .expect("generate managed FFmpeg layered video and audio fixtures");
     }
 
+    // This WAV has no video stream and must remain audible even while
+    // the video timeline is black. It is not another A/V clip.
+    let standalone_tone = temp.path().join("standalone-tone.wav");
+    run(&ProcessSpec::new(&runtime.ffmpeg_path)
+        .arg("-y")
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-f")
+        .arg("lavfi")
+        .arg("-i")
+        .arg("sine=frequency=1100:sample_rate=48000")
+        .arg("-t")
+        .arg("3")
+        .arg("-c:a")
+        .arg("pcm_s16le")
+        .arg(standalone_tone.as_os_str()))
+    .expect("generate audio-only WAV fixture");
+
     let lower_id = MediaId::new();
     let upper_id = MediaId::new();
+    let standalone_id = MediaId::new();
     let sequence_id = SequenceId::new();
-    let media = [(&background, lower_id), (&foreground, upper_id)]
+    let mut media: Vec<MediaRef> = [(&background, lower_id), (&foreground, upper_id)]
         .into_iter()
         .map(|(path, id)| MediaRef {
             id,
@@ -319,6 +339,15 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
             height: Some(180),
         })
         .collect();
+    media.push(MediaRef {
+        id: standalone_id,
+        absolute_path: standalone_tone.to_string_lossy().into_owned(),
+        project_relative_path: None,
+        file_size: std::fs::metadata(&standalone_tone).unwrap().len(),
+        duration: Some(t(3_000_000)),
+        width: None,
+        height: None,
+    });
 
     let clip = |media_id, source_in, source_out, start, end| Clip {
         id: ClipId::new(),
@@ -367,6 +396,18 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
                     locked: false,
                     hidden: false,
                     clips: vec![clip(upper_id, 200_000, 1_000_000, 600_000, 1_400_000)],
+                },
+                Track {
+                    id: TrackId::new(),
+                    name: "A1: audio-only tone in black video gap".into(),
+                    kind: TrackKind::Audio,
+                    muted: false,
+                    locked: false,
+                    hidden: false,
+                    clips: vec![Clip {
+                        kind: ClipKind::Audio,
+                        ..clip(standalone_id, 0, 400_000, 1_500_000, 1_900_000)
+                    }],
                 },
             ],
             subtitle_segments: Vec::new(),
@@ -449,6 +490,27 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
     assert!(
         gap_level < 12.0,
         "uncovered timeline gap is not black: {gap_level:.2}"
+    );
+
+    // At timeline 1.6..1.8s both video tracks are absent; the only possible
+    // audible source is the separate 1100-Hz WAV on TrackKind::Audio.
+    // Checking each output against a minimum energy (not just each other)
+    // catches a shared exporter/preview bug that silently drops audio-only.
+    let independent_full_rms = audio_rms(&runtime, &full, "1.600");
+    let independent_chunk_rms = audio_rms(&runtime, &chunk, "1.100");
+    assert!(
+        independent_full_rms > 0.02,
+        "full export lost standalone audio-only track: RMS={independent_full_rms:.4}"
+    );
+    assert!(
+        independent_chunk_rms > 0.02,
+        "preview chunk lost standalone audio-only track: RMS={independent_chunk_rms:.4}"
+    );
+    let standalone_relative_error =
+        (independent_full_rms - independent_chunk_rms).abs() / independent_full_rms;
+    assert!(
+        standalone_relative_error < 0.30,
+        "standalone audio-only parity error: {standalone_relative_error:.3}"
     );
 
     // Unlike comparing the same filtergraph with itself, this oracle checks
