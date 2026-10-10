@@ -78,11 +78,11 @@ The resulting plan copies only project_id, sequence_id, revision and ID-based cl
 - Let duration be the maximum timeline_end across clips and end across subtitles, including hidden/muted clips. Empty or zero-duration sequences return an empty ranges vector, not a fabricated one-microsecond frame. This mirrors RenderPlan::duration_seconds conceptually.
 - Boundaries include 0, duration, each nonzero clip's timeline_start/timeline_end, RenderText start/end, RenderSubtitle start/end, and transition window boundaries, clipped to [0, duration].
 - A transition is active from its associated clip timeline_start through min(clip.timeline_end, clip.timeline_start + transition.duration), exclusive. Compute safely using saturating or checked addition and min; an absent matching clip is invalid snapshot input rather than an invented timestamp.
-- Sort and deduplicate boundaries; create only [boundary_i, boundary_(i+1)) with strictly positive duration. A clip active at start and ended at end influences that range. Adjacent clips sharing an end/start do not create a gap at the shared instant.
+- Sort and deduplicate boundaries; create only [boundary_i, boundary_(i+1)) with strictly positive duration. A clip active at start and ended at end influences that range. Adjacent clips sharing an end/start do not create a gap at the shared instant. FFmpeg's existing overlay filter uses an inclusive between(t, start, end) expression; exact last-frame parity with planner half-open boundaries is a later compositor integration test, not a reason to misclassify the immutable timeline.
 - Do not merge adjacent results in the first implementation. This conservative choice preserves every source/overlay/audio/transition dependency boundary, even when the PreviewMode discriminant is the same.
 - Derive range state only from snapshot data. No proxy cache, dynamic clock state, filesystem or mutable render job state.
 
-If a standalone RenderText range does not coincide with a text clip, it still contributes its visible interval, matching export's RenderText processing. Subtitle segments contribute their time even when no media clip exists.
+Each RenderText must reference an existing RenderClip with the same clip_id and valid text span within that clip's timeline range. Text-only clips with their generated RenderText remain visible Composite regions. Orphan RenderText must be rejected as malformed rather than extending duration beyond the export plan; the current exporter measures duration from clip ends and subtitle ends, not orphan text. Subtitle segments independently contribute time even when no media clip exists.
 
 ## 6. Classification rules
 
@@ -105,7 +105,7 @@ The planner is deliberately conservative: if there is any doubt about effects, a
 ## 7. Validation and error boundaries
 
 - Before planning, ensure every media-backed Video, Audio and Image RenderClip has a Some(media_id) matching an entry in snapshot.media, **including hidden clips**. Missing media ID means a dedicated non-path-bearing invalid-snapshot error; unknown media ID can use MediaError::MissingRenderSource { media_id }. Never put the MediaRef absolute_path in this error.
-- Reject malformed source intervals (source_in >= source_out), timeline_end < timeline_start, non-finite/nonpositive speed, duplicated clip IDs and conflicting duplicate media IDs with a new MediaError::InvalidPreviewSnapshot { reason: &'static str } as needed. The planner must not silently "repair" invalid user input.
+- Reject malformed source intervals (source_in >= source_out), timeline_end < timeline_start, non-finite/nonpositive speed, duplicated clip IDs, conflicting duplicate media IDs, inverted text/subtitle spans, orphan text/transition references and text spans outside their clip's timeline with a new MediaError::InvalidPreviewSnapshot { reason: &'static str } as needed. The planner must not silently "repair" invalid user input.
 - Zero-length timeline clips are valid in core model but have no active interval. No zero-length PreviewRange is emitted.
 - Media with an unavailable file on disk is not identifiable by this pure function and must not be reported as a missing-on-disk failure. Later runtime stages own file existence/proxy validity.
 - Avoid overflow near i64::MAX and avoid indexing by unchecked time arithmetic. No panic on malformed or empty snapshot.
@@ -124,7 +124,7 @@ Rust unit tests under crates/media-engine/src/preview_ranges.rs, running alongsi
 7. Active transition window (clip start to bounded transition duration) -> Composite, while following unmodified portion can Direct; non-unit clip speed -> Composite.
 8. Trim/source_in and source_out do not alter timeline range boundaries or snapshot reference; source mapping is not recomputed by the planner.
 9. Known WebView2 support ID -> Direct; unknown/unverified ID -> Proxy only (never claims that proxy exists).
-10. Unknown media ID, media-less Video/Image/Audio, malformed timing or NaN speed return a structured error; no raw absolute source paths in diagnostics.
+10. Unknown media ID, media-less Video/Image/Audio, malformed timing, orphan text/transition, or NaN speed return a structured error; no raw absolute source paths in diagnostics.
 11. i64::MAX time edge, zero-duration clip, duplicate boundaries and neighboring clips do not panic and do not produce empty intervals.
 12. Plan inherits project_id/sequence_id/revision and leaves snapshot unchanged. Two logically equivalent input orders produce the same time/mode classification.
 
