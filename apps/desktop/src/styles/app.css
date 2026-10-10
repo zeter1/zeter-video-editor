@@ -961,3 +961,34 @@ button {
 .tool-grid button:disabled { cursor: not-allowed; opacity: .5; }
 .media-add { margin-left: auto; padding: 2px 8px; color: #e5edff; background: #263758; border: 1px solid #455875; border-radius: 5px; cursor: pointer; }
 .media-add:hover { background: #38548b; }
+
+
+/* The preview has a real media surface; overlays stay above the decoded frame. */
+.preview-frame {
+  position: relative;
+  overflow: hidden;
+}
+.preview-media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.preview-frame.preview-scale-100 {
+  width: min(100%, 1920px);
+}
+.preview-media-error {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  padding: 8px;
+  background: rgba(50, 12, 16, .95);
+  color: #ffe6e6;
+  text-align: center;
+  font-size: 12px;
+}
+.preview-controls button:disabled {
+  cursor: not-allowed;
+  opacity: .35;
+}
