@@ -22,9 +22,14 @@ describe("AppShell", () => {
 
     const shell = screen.getByTestId("app-shell");
     expect(shell.getAttribute("data-theme")).toBe("dark");
-    expect(screen.getByRole("banner", { name: "Editor toolbar" })).toBeTruthy();
+    expect(screen.getByRole("banner", { name: "Панель редактора" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Медиа и инструменты" })).toBeTruthy();
+    expect(screen.getByRole("toolbar", { name: "Управление проектом" })).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Фоновые задачи" })).toBeTruthy();
     expect(screen.getByTestId("left-panel")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Предпросмотр" })).toBeTruthy();
     expect(screen.getByTestId("preview-panel")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Таймлайн" })).toBeTruthy();
     expect(screen.getByTestId("timeline-panel")).toBeTruthy();
     expect(screen.getByTestId("inspector-panel")).toBeTruthy();
     expect(screen.getByTestId("job-status")).toBeTruthy();
@@ -44,8 +49,8 @@ describe("AppShell", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Open project" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
+    fireEvent.click(screen.getByRole("button", { name: "Открыть проект" }));
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить проект" }));
     fireEvent.click(screen.getByRole("button", { name: "Отменить" }));
     fireEvent.click(screen.getByRole("button", { name: "Повторить" }));
 
@@ -90,7 +95,7 @@ describe("AppShell diagnostics", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Export support bundle" }),
+      screen.getByRole("button", { name: "Экспорт диагностики" }),
     );
 
     await vi.waitFor(() =>
@@ -311,7 +316,7 @@ describe("AppShell missing-media recovery", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Open project" }));
+    fireEvent.click(screen.getByRole("button", { name: "Открыть проект" }));
 
     const relink = await screen.findByRole("button", { name: "Relink media" });
     fireEvent.click(relink);

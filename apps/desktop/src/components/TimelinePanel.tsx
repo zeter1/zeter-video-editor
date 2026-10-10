@@ -21,7 +21,7 @@ export function TimelinePanel({
     <section
       className="timeline-panel panel"
       role="region"
-      aria-label="Timeline"
+      aria-label="Таймлайн"
       data-testid="timeline-panel"
     >
       <div className="panel-heading">

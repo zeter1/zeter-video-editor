@@ -4,6 +4,9 @@ Last updated: 2026-10-07
 
 ## Active engineering checkpoint — 2026-10-10 — Clip Inspector RU (separate PR)
 
+- CI #135 (`38062674994`) for `219cdd16e4a94149f570e9c7391a63ab881d8569` FAILED at the real Windows WebView2 Playwright MVP workflow (60s timeout), while rustfmt, frontend build, Rust tests, and Vitest PASS. Root cause: E2E locators still expected previous English inspector accessible names after localization. This follow-up synchronizes six selectors, provides Russian accessible names for the workspace and updates AppShell regression tests. All E2E gates remain enabled; exact NEW HEAD CI is required before calling the fix verified.
+
+
 - Ветка `feat/ru-clip-inspector-20261010` основана на `main` `90cb2490542f153a2f02a04b62121b283f4a94f6` и содержит локализацию основных элементов панели свойств, тесты и документацию. `TransitionKind` и `TextStyle.alignment` остаются неизменными; никаких изменений `.vcut`/Rust не вносится.
 - PR #14 с preview transport остаётся отдельным и пока не merged; CI #134 требует терминального подтверждения. Для новой ветки требуется exact-HEAD Windows CI, в том числе Vitest, реальный WebView2 E2E и NSIS smoke. Пока эти проверки НЕ выполнены.
 - G:\\бинарь видеоредактора не менялся. Не merge автоматически без разрешения пользователя.
