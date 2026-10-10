@@ -15,10 +15,10 @@ export const APPROVED_TRANSITIONS: ReadonlyArray<{
   kind: TransitionKind;
   label: string;
 }> = [
-  { kind: "CrossDissolve", label: "Cross Dissolve" },
-  { kind: "Fade", label: "Fade" },
-  { kind: "DipToBlack", label: "Dip to Black" },
-  { kind: "DipToWhite", label: "Dip to White" },
+  { kind: "CrossDissolve", label: "Растворение" },
+  { kind: "Fade", label: "Затухание" },
+  { kind: "DipToBlack", label: "Через чёрный" },
+  { kind: "DipToWhite", label: "Через белый" },
 ];
 
 interface TransitionInspectorProps {
@@ -84,11 +84,11 @@ export function TransitionInspector({
 
   return (
     <fieldset className="inspector-section">
-      <legend>Transition</legend>
+      <legend>Переход</legend>
       <label>
-        Transition
+        Переход
         <select
-          aria-label="Transition"
+          aria-label="Переход"
           value={kind}
           onChange={(event) => {
             const next = event.target.value as TransitionKind;
@@ -104,9 +104,9 @@ export function TransitionInspector({
         </select>
       </label>
       <label>
-        Duration (ms)
+        Длительность (мс)
         <input
-          aria-label="Transition duration"
+          aria-label="Длительность перехода"
           type="number"
           min="1"
           value={Math.round(duration / 1_000)}

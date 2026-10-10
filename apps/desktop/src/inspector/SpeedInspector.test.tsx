@@ -16,7 +16,7 @@ describe("SpeedInspector", () => {
       />,
     );
 
-    const speed = screen.getByRole("spinbutton", { name: "Speed" }) as HTMLInputElement;
+    const speed = screen.getByRole("spinbutton", { name: "Скорость" }) as HTMLInputElement;
     fireEvent.change(speed, { target: { value: "1.5" } });
     fireEvent.blur(speed);
 

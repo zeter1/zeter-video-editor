@@ -2,6 +2,12 @@
 
 Last updated: 2026-10-07
 
+## Active engineering checkpoint — 2026-10-10 — Clip Inspector RU (separate PR)
+
+- Ветка `feat/ru-clip-inspector-20261010` основана на `main` `90cb2490542f153a2f02a04b62121b283f4a94f6` и содержит локализацию основных элементов панели свойств, тесты и документацию. `TransitionKind` и `TextStyle.alignment` остаются неизменными; никаких изменений `.vcut`/Rust не вносится.
+- PR #14 с preview transport остаётся отдельным и пока не merged; CI #134 требует терминального подтверждения. Для новой ветки требуется exact-HEAD Windows CI, в том числе Vitest, реальный WebView2 E2E и NSIS smoke. Пока эти проверки НЕ выполнены.
+- G:\\бинарь видеоредактора не менялся. Не merge автоматически без разрешения пользователя.
+
 ## Current phase
 
 Superpowers — **MVP integrated / post-MVP stabilization and release readiness**.

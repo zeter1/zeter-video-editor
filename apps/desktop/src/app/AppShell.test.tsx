@@ -221,7 +221,7 @@ describe("AppShell edit gateway", () => {
       />,
     );
 
-    const opacity = screen.getByRole("slider", { name: "Opacity" });
+    const opacity = screen.getByRole("slider", { name: "Непрозрачность" });
     fireEvent.change(opacity, { target: { value: "0.75" } });
     fireEvent.pointerUp(opacity);
     fireEvent.blur(opacity);
