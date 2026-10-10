@@ -49,6 +49,9 @@ pub enum MediaError {
     #[error("normalized transcription audio is missing or invalid at {path:?}")]
     InvalidTranscriptionAudioOutput { path: PathBuf },
 
+    #[error("invalid preview snapshot: {reason}")]
+    InvalidPreviewSnapshot { reason: &'static str },
+
     #[error("render snapshot references missing media {media_id:?}")]
     MissingRenderSource { media_id: MediaId },
 
