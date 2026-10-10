@@ -122,7 +122,9 @@ pub fn project_new(
     name: String,
 ) -> Result<ProjectSnapshotDto, AppErrorDto> {
     let mut project = state.project.lock().map_err(|_| state_error(None, None))?;
-    project.create_new(&name).map_err(|error| diagnostic_error(error, None, None))
+    project
+        .create_new(&name)
+        .map_err(|error| diagnostic_error(error, None, None))
 }
 
 #[tauri::command]

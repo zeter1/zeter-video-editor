@@ -224,7 +224,9 @@ fn new_project_can_import_and_save_and_invalid_name_preserves_state() {
         width: Some(1920),
         height: Some(1080),
     };
-    service.import_media(RequestId::new(), new.revision, media).unwrap();
+    service
+        .import_media(RequestId::new(), new.revision, media)
+        .unwrap();
     let dir = tempdir().unwrap();
     let path = dir.path().join("montage.vcut");
     service.save(&path).unwrap();
