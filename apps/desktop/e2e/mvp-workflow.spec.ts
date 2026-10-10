@@ -105,7 +105,8 @@ async function acceptPrompt(
 }
 
 async function openProject(page: TauriPage, projectPath: string): Promise<void> {
-  await acceptPrompt(page, "Open project", projectPath);
+  await invokeTauri(page, "project_open", { path: projectPath });
+  await page.reload();
 }
 
 async function expectRevision(page: TauriPage, revision: number): Promise<void> {
@@ -144,7 +145,10 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
     "synthetic-audio.wav",
     "synthetic-image.png",
   ].entries()) {
-    await acceptPrompt(page, "Import", path.join(state.mediaDir, name));
+    await invokeTauri(page, "import_media_path", {
+      requestId: randomUUID(), expectedRevision: index, path: path.join(state.mediaDir, name),
+    });
+    await page.reload();
     await expect(page.getByText(name, { exact: true })).toBeVisible();
     await expect(page.locator(".left-panel .count-badge")).toHaveText(
       String(index + 1),
@@ -255,9 +259,9 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   });
   expect(revision).toBe(10);
 
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await page.getByRole("button", { name: "Отменить", exact: true }).click();
   await expectRevision(page, 11);
-  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await page.getByRole("button", { name: "Повторить", exact: true }).click();
   await expectRevision(page, 12);
 
   const clip = page.getByTestId(`clip-${VIDEO_CLIP}`);
@@ -326,7 +330,7 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   await expectRevision(page, 22);
   await expect(page.getByTestId(`clip-${VIDEO_CLIP}`)).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Save project" }).click();
+  await invokeTauri(page, "project_save", { path: state.importProjectPath });
   await expect
     .poll(() => {
       const saved = JSON.parse(readFileSync(state.importProjectPath, "utf8")) as {
