@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "./AppShell";
+const dialogs = vi.hoisted(() => ({ open: vi.fn(), save: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialogs.open, save: dialogs.save }));
 import { createProjectStore } from "../state/projectStore";
 import { createTransientStore } from "../state/transientStore";
 
@@ -44,8 +46,8 @@ describe("AppShell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open project" }));
     fireEvent.click(screen.getByRole("button", { name: "Save project" }));
-    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
-    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Отменить" }));
+    fireEvent.click(screen.getByRole("button", { name: "Повторить" }));
 
     expect(openProject).toHaveBeenCalledOnce();
     expect(saveProject).toHaveBeenCalledOnce();
@@ -61,6 +63,7 @@ describe("AppShell diagnostics", () => {
       .fn()
       .mockResolvedValue("C:\\support\\zeter-support.zip");
     const client = {
+      projectNew: vi.fn(),
       projectOpen: vi.fn(),
       projectOpenWithRelink: vi.fn(),
       projectSave: vi.fn(),
@@ -76,9 +79,7 @@ describe("AppShell diagnostics", () => {
       exportSupportBundle,
       reconcileCommandResult: vi.fn(),
     };
-    vi.spyOn(window, "prompt").mockReturnValueOnce(
-      "C:\\support\\zeter-support.zip",
-    );
+    dialogs.save.mockResolvedValueOnce("C:\\support\\zeter-support.zip");
 
     render(
       <AppShell
@@ -195,6 +196,7 @@ describe("AppShell edit gateway", () => {
     });
     const reconcileCommandResult = vi.fn().mockResolvedValue("refreshed");
     const client = {
+      projectNew: vi.fn(),
       projectOpen: vi.fn(),
       projectOpenWithRelink: vi.fn(),
       projectSave: vi.fn(),
@@ -281,6 +283,7 @@ describe("AppShell missing-media recovery", () => {
     });
     const projectOpenWithRelink = vi.fn().mockResolvedValue(snapshot);
     const client = {
+      projectNew: vi.fn(),
       projectOpen,
       projectOpenWithRelink,
       projectSave: vi.fn(),
@@ -296,9 +299,9 @@ describe("AppShell missing-media recovery", () => {
       exportSupportBundle: vi.fn(),
       reconcileCommandResult: vi.fn(),
     };
-    vi.spyOn(window, "prompt")
-      .mockReturnValueOnce("C:\\projects\\missing.vcut")
-      .mockReturnValueOnce("D:\\media\\replacement.mp4");
+    dialogs.open
+      .mockResolvedValueOnce("C:\\projects\\missing.vcut")
+      .mockResolvedValueOnce("D:\\media\\replacement.mp4");
 
     render(
       <AppShell
