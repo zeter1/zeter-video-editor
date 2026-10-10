@@ -9,12 +9,12 @@ interface LeftPanelProps {
 
 export function LeftPanel({ media, onImport, onAddToTimeline, busy = false }: LeftPanelProps) {
   return (
-    <aside className="left-panel panel" role="region" aria-label="Media and tools" data-testid="left-panel">
+    <aside className="left-panel panel" role="region" aria-label="Медиа и инструменты" data-testid="left-panel">
       <div className="panel-heading">
         <span>Медиа и инструменты</span>
         <span className="count-badge">{media.length}</span>
       </div>
-      <div className="tool-grid" aria-label="Editing tools">
+      <div className="tool-grid" aria-label="Инструменты монтажа">
         <button type="button" disabled={busy} onClick={onImport}>{busy ? "Импорт…" : "Импорт"}</button>
         <button type="button" disabled title="Текст через свойства">Текст</button>
         <button type="button" disabled title="Субтитры через свойства">Субтитры</button>

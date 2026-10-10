@@ -13,6 +13,11 @@ interface TransformInspectorProps {
   onCommit: EditCommit;
 }
 
+const CROP_LABELS: Record<keyof Transform["crop"], string> = {
+  left: "Обрезка слева", top: "Обрезка сверху",
+  right: "Обрезка справа", bottom: "Обрезка снизу",
+};
+
 export function TransformInspector({
   sequenceId,
   trackId,
@@ -63,11 +68,11 @@ export function TransformInspector({
 
   return (
     <fieldset className="inspector-section">
-      <legend>Transform</legend>
+      <legend>Трансформация</legend>
       <label>
-        Position X
+        Позиция X
         <input
-          aria-label="Position X"
+          aria-label="Позиция X"
           type="number"
           step="0.01"
           value={draft.position_x}
@@ -76,9 +81,9 @@ export function TransformInspector({
         />
       </label>
       <label>
-        Position Y
+        Позиция Y
         <input
-          aria-label="Position Y"
+          aria-label="Позиция Y"
           type="number"
           step="0.01"
           value={draft.position_y}
@@ -87,9 +92,9 @@ export function TransformInspector({
         />
       </label>
       <label>
-        Scale X
+        Масштаб X
         <input
-          aria-label="Scale X"
+          aria-label="Масштаб X"
           type="number"
           min="0.01"
           step="0.01"
@@ -99,9 +104,9 @@ export function TransformInspector({
         />
       </label>
       <label>
-        Scale Y
+        Масштаб Y
         <input
-          aria-label="Scale Y"
+          aria-label="Масштаб Y"
           type="number"
           min="0.01"
           step="0.01"
@@ -111,9 +116,9 @@ export function TransformInspector({
         />
       </label>
       <label>
-        Rotation
+        Поворот
         <input
-          aria-label="Rotation"
+          aria-label="Поворот"
           type="number"
           step="1"
           value={draft.rotation_degrees}
@@ -122,9 +127,9 @@ export function TransformInspector({
         />
       </label>
       <label>
-        Opacity
+        Непрозрачность
         <input
-          aria-label="Opacity"
+          aria-label="Непрозрачность"
           type="range"
           min="0"
           max="1"
@@ -137,9 +142,9 @@ export function TransformInspector({
       </label>
       {(["left", "top", "right", "bottom"] as const).map((edge) => (
         <label key={edge}>
-          Crop {edge}
+          {CROP_LABELS[edge]}
           <input
-            aria-label={`Crop ${edge}`}
+            aria-label={CROP_LABELS[edge]}
             type="number"
             min="0"
             max="1"

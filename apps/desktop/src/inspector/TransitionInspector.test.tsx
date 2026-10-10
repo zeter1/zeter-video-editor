@@ -50,10 +50,10 @@ function clip(): Clip {
 describe("TransitionInspector", () => {
   it("exposes only the four approved MVP transitions and emits their typed kind", () => {
     expect(APPROVED_TRANSITIONS).toEqual([
-      { kind: "CrossDissolve", label: "Cross Dissolve" },
-      { kind: "Fade", label: "Fade" },
-      { kind: "DipToBlack", label: "Dip to Black" },
-      { kind: "DipToWhite", label: "Dip to White" },
+      { kind: "CrossDissolve", label: "Растворение" },
+      { kind: "Fade", label: "Затухание" },
+      { kind: "DipToBlack", label: "Через чёрный" },
+      { kind: "DipToWhite", label: "Через белый" },
     ]);
 
     const onCommit = vi.fn();
@@ -66,14 +66,14 @@ describe("TransitionInspector", () => {
       />,
     );
 
-    const transition = screen.getByRole("combobox", { name: "Transition" });
+    const transition = screen.getByRole("combobox", { name: "Переход" });
     expect(
       Array.from((transition as HTMLSelectElement).options).map((option) => option.text),
     ).toEqual([
-      "Cross Dissolve",
-      "Fade",
-      "Dip to Black",
-      "Dip to White",
+      "Растворение",
+      "Затухание",
+      "Через чёрный",
+      "Через белый",
     ]);
 
     fireEvent.change(transition, { target: { value: "DipToWhite" } });
@@ -98,7 +98,7 @@ describe("TransitionInspector", () => {
       />,
     );
 
-    const transition = screen.getByRole("combobox", { name: "Transition" }) as HTMLSelectElement;
+    const transition = screen.getByRole("combobox", { name: "Переход" }) as HTMLSelectElement;
     fireEvent.change(transition, { target: { value: "Fade" } });
 
     await vi.waitFor(() => {

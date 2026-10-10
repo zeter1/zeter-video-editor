@@ -18,7 +18,7 @@ describe("inspector commit boundaries", () => {
       />,
     );
 
-    const exposure = screen.getByRole("slider", { name: "Exposure" });
+    const exposure = screen.getByRole("slider", { name: "Экспозиция" });
     fireEvent.change(exposure, { target: { value: "1.25" } });
     expect(onCommit).not.toHaveBeenCalled();
 
@@ -48,7 +48,7 @@ describe("inspector commit boundaries", () => {
       />,
     );
 
-    const exposure = screen.getByRole("slider", { name: "Exposure" });
+    const exposure = screen.getByRole("slider", { name: "Экспозиция" });
     fireEvent.change(exposure, { target: { value: "1.25" } });
     fireEvent.pointerUp(exposure);
     await vi.waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
@@ -64,7 +64,7 @@ describe("inspector commit boundaries", () => {
       />,
     );
 
-    fireEvent.blur(screen.getByRole("slider", { name: "Exposure" }));
+    fireEvent.blur(screen.getByRole("slider", { name: "Экспозиция" }));
     expect(onCommit).toHaveBeenCalledTimes(1);
   });
 
@@ -79,7 +79,7 @@ describe("inspector commit boundaries", () => {
       />,
     );
 
-    const volume = screen.getByRole("slider", { name: "Volume" });
+    const volume = screen.getByRole("slider", { name: "Громкость" });
     fireEvent.change(volume, { target: { value: "0.45" } });
     expect(onCommit).not.toHaveBeenCalled();
 
@@ -108,10 +108,10 @@ describe("inspector commit boundaries", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Stroke color")).toBeTruthy();
-    expect(screen.getByLabelText("Text background")).toBeTruthy();
+    expect(screen.getByLabelText("Цвет обводки")).toBeTruthy();
+    expect(screen.getByLabelText("Фон текста")).toBeTruthy();
 
-    const opacity = screen.getByRole("slider", { name: "Text opacity" });
+    const opacity = screen.getByRole("slider", { name: "Непрозрачность текста" });
     fireEvent.change(opacity, { target: { value: "0.7" } });
     fireEvent.pointerUp(opacity);
     fireEvent.blur(opacity);

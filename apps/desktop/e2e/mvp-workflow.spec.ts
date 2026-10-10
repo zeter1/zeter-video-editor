@@ -287,32 +287,32 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   const clip = page.getByTestId(`clip-${VIDEO_CLIP}`);
   await clip.dispatchEvent("click");
 
-  const positionX = page.getByRole("spinbutton", { name: "Position X" });
+  const positionX = page.getByRole("spinbutton", { name: "Позиция X" });
   await positionX.fill("0.15");
   await positionX.press("Tab");
   await expectRevision(page, 13);
 
-  const exposure = page.getByRole("slider", { name: "Exposure" });
+  const exposure = page.getByRole("slider", { name: "Экспозиция" });
   await exposure.focus();
   await exposure.press("ArrowRight");
   await exposure.press("Tab");
   await expectRevision(page, 14);
 
-  const speed = page.getByRole("spinbutton", { name: "Speed" });
+  const speed = page.getByRole("spinbutton", { name: "Скорость" });
   await speed.fill("1.25");
   await speed.press("Tab");
   await expectRevision(page, 15);
 
-  const gain = page.getByRole("spinbutton", { name: "Gain dB" });
+  const gain = page.getByRole("spinbutton", { name: "Усиление (дБ)" });
   await gain.fill("1.5");
   await gain.press("Tab");
   await expectRevision(page, 16);
 
-  await page.getByRole("combobox", { name: "Transition" }).selectOption("Fade");
+  await page.getByRole("combobox", { name: "Переход" }).selectOption("Fade");
   await expectRevision(page, 17);
 
   await page.getByTestId(`clip-${TEXT_CLIP}`).dispatchEvent("click");
-  const textSize = page.getByRole("spinbutton", { name: "Text size" });
+  const textSize = page.getByRole("spinbutton", { name: "Размер текста" });
   await textSize.fill("60");
   await textSize.press("Tab");
   await expectRevision(page, 18);

@@ -56,7 +56,7 @@ describe("TransformInspector", () => {
       />,
     );
 
-    const opacity = screen.getByRole("slider", { name: "Opacity" });
+    const opacity = screen.getByRole("slider", { name: "Непрозрачность" });
     fireEvent.change(opacity, { target: { value: "0.8" } });
     fireEvent.change(opacity, { target: { value: "0.7" } });
     fireEvent.change(opacity, { target: { value: "0.6" } });
@@ -96,7 +96,7 @@ describe("TransformInspector", () => {
       />,
     );
 
-    const opacity = screen.getByRole("slider", { name: "Opacity" }) as HTMLInputElement;
+    const opacity = screen.getByRole("slider", { name: "Непрозрачность" }) as HTMLInputElement;
     fireEvent.change(opacity, { target: { value: "0.4" } });
     fireEvent.pointerUp(opacity);
 
