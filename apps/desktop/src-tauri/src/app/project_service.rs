@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use ai_engine::{HighlightCandidate, SilenceRange, TranscriptResult};
 use editor_core::{
     ClipId, ClipKind, Crop, DomainError, EditCommand, EditRequest, Editor, MediaRef, Project,
-    ProjectRevision, RenderSnapshot, RequestId, Sequence, SequenceId, SubtitleSegment, TimeUs,
-    TimelineRange, Track, TrackId,
+    ProjectId, ProjectRevision, ProjectSettings, RenderSnapshot, RequestId, Sequence, SequenceId,
+    SubtitleSegment, SubtitleStyle, TimeUs, TimelineRange, Track, TrackId, TrackKind,
 };
 use job_system::{JobKind, JobSnapshot, JobState};
 use media_engine::MediaProbe;
@@ -26,6 +26,54 @@ impl ProjectService {
             editor: None,
             project_path: None,
         }
+    }
+
+    pub fn create_new(&mut self, name: &str) -> Result<ProjectSnapshotDto, AppError> {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > 100 {
+            return Err(DomainError::InvalidEdit {
+                reason: "project name must have between 1 and 100 characters",
+            }
+            .into());
+        }
+        let settings = ProjectSettings::default();
+        let tracks = [
+            (TrackKind::Video, "Видео 1"),
+            (TrackKind::Audio, "Аудио 1"),
+            (TrackKind::Text, "Текст 1"),
+        ]
+        .into_iter()
+        .map(|(kind, name)| Track {
+            id: TrackId::new(),
+            name: name.into(),
+            kind,
+            muted: false,
+            locked: false,
+            hidden: false,
+            clips: Vec::new(),
+        })
+        .collect();
+        let project = Project {
+            id: ProjectId::new(),
+            name: name.into(),
+            settings: settings.clone(),
+            media: Vec::new(),
+            sequences: vec![Sequence {
+                id: SequenceId::new(),
+                name: "Основная".into(),
+                width: settings.default_sequence_width,
+                height: settings.default_sequence_height,
+                fps: settings.default_sequence_fps,
+                tracks,
+                subtitle_segments: Vec::new(),
+                subtitle_style: SubtitleStyle::default(),
+                markers: Vec::new(),
+            }],
+        };
+        let editor = Editor::from_revision(project, ProjectRevision::new(0))?;
+        self.editor = Some(editor);
+        self.project_path = None;
+        self.snapshot()
     }
 
     pub fn from_project(project: Project, revision: ProjectRevision) -> Result<Self, AppError> {

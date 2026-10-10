@@ -26,6 +26,7 @@ mod task19_tests;
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(app::AppState::new())
         .setup(|app| {
             let log_dir = app.path().app_log_dir()?;
@@ -60,6 +61,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             ipc::export_support_bundle,
+            ipc::project_new,
             ipc::project_open,
             ipc::project_open_with_relink,
             ipc::write_recovery_snapshot,
