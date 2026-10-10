@@ -48,11 +48,15 @@ pub fn sanitize_process_args(program: &str, args: &[String]) -> String {
 
 pub fn sanitize_log_line(line: &str) -> String {
     match serde_json::from_str::<Value>(line) {
-        Ok(mut value) => {
-            sanitize_json_value(None, &mut value);
-            serde_json::to_string(&value).unwrap_or_else(|_| "[INVALID DIAGNOSTIC RECORD]".into())
+        // Structured diagnostics are JSON objects. A valid JSON array or
+        // scalar is still an unstructured record and must fail closed: it
+        // could contain arbitrary transcript or project content.
+        Ok(Value::Object(mut fields)) => {
+            sanitize_object(&mut fields);
+            serde_json::to_string(&fields)
+                .unwrap_or_else(|_| "[INVALID DIAGNOSTIC RECORD]".into())
         }
-        Err(_) => "[UNSTRUCTURED LOG RECORD REDACTED]".into(),
+        _ => "[UNSTRUCTURED LOG RECORD REDACTED]".into(),
     }
 }
 

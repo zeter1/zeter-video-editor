@@ -72,6 +72,28 @@ fn redaction_removes_private_content_secrets_paths_raw_process_args_and_log_inje
 }
 
 #[test]
+fn non_object_json_log_records_are_redacted_instead_of_leaking_content() {
+    for record in [
+        r#""private transcript phrase""#,
+        r#"["private transcript phrase"]"#,
+        r#"["safe", {"message": "private transcript phrase"}]"#,
+        "false",
+        "null",
+        "42",
+    ] {
+        assert_eq!(
+            sanitize_log_line(record),
+            "[UNSTRUCTURED LOG RECORD REDACTED]"
+        );
+    }
+
+    let structured = sanitize_log_line(r#"{"event":"fixture","message":"safe"}"#);
+    let json: serde_json::Value = serde_json::from_str(&structured).unwrap();
+    assert_eq!(json["event"], "fixture");
+    assert_eq!(json["message"], "safe");
+}
+
+#[test]
 fn sensitive_json_containers_are_redacted_before_visiting_children() {
     let line = r#"{"event":"fixture","token":{"value":"unguarded-token-value"},"credentials":["unguarded-credential-value"],"transcript_segments":[{"text":"private spoken words"}],"project_json":{"name":"Private Creator Project"},"password":42,"safe":{"count":2},"request_id":"request-fixture"}"#;
     let sanitized = sanitize_log_line(line);
