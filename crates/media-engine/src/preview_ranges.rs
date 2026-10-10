@@ -129,7 +129,7 @@ fn validate(snapshot: &RenderSnapshot) -> Result<HashMap<ClipId, &RenderAudio>, 
         if !text_ids.insert(text.clip_id) {
             return Err(invalid("duplicate text state"));
         }
-        if text.timeline_start >= text.timeline_end
+        if text.timeline_start > text.timeline_end
             || text.timeline_start < owner.timeline_start
             || text.timeline_end > owner.timeline_end
         {
