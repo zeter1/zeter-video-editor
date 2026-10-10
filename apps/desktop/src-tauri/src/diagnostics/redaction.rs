@@ -37,8 +37,16 @@ fn is_path_field(name: &str) -> bool {
 }
 
 fn is_args_field(name: &str) -> bool {
-    let key = name.to_ascii_lowercase();
-    key.contains("args") || key.contains("command_line") || key.contains("commandline")
+    // Argument vectors can be called argv, processArgv or cliArguments.
+    let key = name
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .map(|ch| ch.to_ascii_lowercase())
+        .collect::<String>();
+    key.contains("args")
+        || key.contains("arguments")
+        || key.contains("commandline")
+        || key.ends_with("argv")
 }
 
 pub fn sanitize_path(path: &Path) -> String {

@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-10
 
+## Latest checkpoint — 2026-10-10 — argv / arguments alias privacy (PR #11)
+
+- Previous exact-head Windows CI #120 on `7cc644c13929dd1c6d76703304adc964c6bfd612` COMPLETED SUCCESS: rustfmt, frontend build, pinned FFmpeg, AI worker fixture, Rust workspace tests, Vitest, real Tauri/WebView2 E2E and debug NSIS smoke. https://github.com/zeter1/zeter-video-editor/actions/runs/38055012360 . This does not verify a newer commit.
+- Gap: `is_args_field` previously recognized `args` and `commandLine` but did not classify `argv`, `processArgv` or `cliArguments`, allowing raw process input values to escape redaction inside diagnostic JSON object/array and support metadata.
+- Fix: normalize only classifier key to ASCII lowercase alphanumeric, recognize `args`, `arguments`, `commandline` and `*argv`; preserve existing `[REDACTED ARGS]` redaction, original keys and safe event/request_id/count. New Rust regression `argv_and_arguments_aliases_are_redacted_without_exposing_process_inputs` tests scalar, nested object/array, metadata and safe fields.
+- Exactly 4 files changed in existing OPEN unmerged PR #11: `redaction.rs`, `task17_tests.rs`, `PROJECT_STATUS.md`, `CHANGELOG.md`. New exact-head Windows CI is mandatory; no local Rust/rustfmt/Windows or observed local RED/GREEN. If failing, inspect logs and repair on the same branch without weakening gates. No merge, tag, release, signing.
+- NOT VERIFIED: real whisper.cpp speech inference with model, Windows face detection, Authenticode, signed updater installation. Reference: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html .
+
 ## Latest checkpoint — 2026-10-10 — structured path/arguments container privacy (PR #11)
 
 - Root cause: JSON diagnostic path/file-name and process-args fields were sanitized only for string values. A producer could send a nested object or array (e.g. `sourcePath: {label: "..."}` or `commandLineArgs: ["..."]`) and expose private filenames, project names or command arguments through child keys not classified as sensitive.

@@ -198,6 +198,40 @@ fn path_and_process_args_containers_are_redacted_without_exposing_nested_names()
 }
 
 #[test]
+fn argv_and_arguments_aliases_are_redacted_without_exposing_process_inputs() {
+    let record = r#"{"event":"render_progress","request_id":"safe-request","argv":["--source","Private Client.mov","--password","unguarded-secret"],"nested":{"processArgv":{"first":"Hidden Client Video.mp4"},"cliArguments":["Private cut.vcut"],"command-line-arguments":"--input Secret Cut.mp4"},"safe":{"count":3}}"#;
+    let sanitized = sanitize_log_line(record);
+    let json: serde_json::Value = serde_json::from_str(&sanitized).unwrap();
+
+    assert_eq!(json["argv"], "[REDACTED ARGS]");
+    assert_eq!(json["nested"]["processArgv"], "[REDACTED ARGS]");
+    assert_eq!(json["nested"]["cliArguments"], "[REDACTED ARGS]");
+    assert_eq!(json["nested"]["command-line-arguments"], "[REDACTED ARGS]");
+    assert_eq!(json["event"], "render_progress");
+    assert_eq!(json["request_id"], "safe-request");
+    assert_eq!(json["safe"]["count"], 3);
+    for secret in [
+        "Private Client",
+        "unguarded-secret",
+        "Hidden Client Video",
+        "Private cut",
+        "Secret Cut",
+    ] {
+        assert!(!sanitized.contains(secret), "leaked argument: {secret}");
+    }
+
+    // Support-bundle metadata maps share the same field classifier.
+    assert_eq!(
+        sanitize_named_value("process_argv", "--input Customer Footage.mov"),
+        "[REDACTED ARGS]"
+    );
+    assert_eq!(
+        sanitize_named_value("programArguments", "--token unguarded-secret"),
+        "[REDACTED ARGS]"
+    );
+}
+
+#[test]
 fn github_oauth_app_and_personal_access_tokens_are_redacted_from_logs() {
     // GitHub's documented prefixes include OAuth, GitHub App user,
     // installation and refresh tokens as well as both PAT formats.
