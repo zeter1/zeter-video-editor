@@ -7,8 +7,8 @@ use std::{
 };
 
 use tauri::{
-    http::{Request, Response},
     AppHandle, Manager,
+    http::{Request, Response},
 };
 
 use crate::app::AppState;
@@ -141,9 +141,7 @@ pub fn serve(app: &AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
         return failure(500);
     }
     let mut body = Vec::with_capacity(count as usize);
-    if request.method().as_str() != "HEAD"
-        && file.take(count).read_to_end(&mut body).is_err()
-    {
+    if request.method().as_str() != "HEAD" && file.take(count).read_to_end(&mut body).is_err() {
         return failure(500);
     }
     let mut result = Response::builder()
