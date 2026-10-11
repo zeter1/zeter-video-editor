@@ -40,9 +40,10 @@ describe("standalone audio preview tracks", () => {
     expect(audio.playbackRate).toBe(2);
     expect(audio.volume).toBeCloseTo(0.5);
     rerender(<PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_500_000} playing />);
-    expect(play).toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled(); // New source-clock seek has not completed.
     expect(audio.currentTime).toBe(3);
     fireEvent.seeked(audio);
+    expect(play).toHaveBeenCalled();
     rerender(<PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_500_000} playing={false} />);
     expect(pause).toHaveBeenCalled();
   });
