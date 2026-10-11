@@ -92,6 +92,40 @@ test("invalid date, downgrade and numeric-leading-zero prerelease cannot mutate 
   }
 }));
 
+test("version check detects malformed version headings instead of silently ignoring them", () => fixture((folder) => {
+  const path = join(folder, "CHANGELOG.md");
+  const original = readFileSync(path, "utf8");
+  assert.equal(script(folder, "check-version.mjs").status, 0);
+  for (const heading of [
+    "## [0.0.1] — yesterday",
+    "## [0.0.1]",
+    "## [0.0.1] — 2026-10-07 extra",
+    "## Other changes",
+  ]) {
+    writeFileSync(path, original.replace("## [0.0.1] — 2026-10-07", heading));
+    const result = script(folder, "check-version.mjs");
+    assert.notEqual(result.status, 0, heading);
+    assert.match(result.stderr, /Every level-two CHANGELOG heading/);
+  }
+}));
+
+test("version bump rejects pre-existing manifest drift without modifying another file", () => fixture((folder) => {
+  const tauri = join(folder, "apps/desktop/src-tauri/tauri.conf.json");
+  const before = readFileSync(tauri, "utf8");
+  const modified = before.replace('"version": "0.1.0-alpha.1"', '"version": "0.1.0-alpha.9"');
+  assert.notEqual(modified, before);
+  writeFileSync(tauri, modified);
+  const snapshot = files.map((name) => [name, readFileSync(join(folder, name), "utf8")]);
+  const result = script(folder, "set-version.mjs", [
+    "0.1.0-alpha.2", "--note", note, "--date", "2026-10-12",
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Cannot bump an inconsistent desktop version/);
+  for (const [name, content] of snapshot) {
+    assert.equal(readFileSync(join(folder, name), "utf8"), content, name);
+  }
+}));
+
 test("version check refuses mismatched manifests and incorrectly ordered changelog", () => fixture((folder) => {
   const packagePath = join(folder, "apps/desktop/package.json");
   const originalPackage = readFileSync(packagePath, "utf8");
