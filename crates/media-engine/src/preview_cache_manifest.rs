@@ -16,7 +16,20 @@ use sha2::{Digest, Sha256};
 use crate::{MediaError, cache_key::CacheKey};
 
 pub const PREVIEW_CACHE_SCHEMA_VERSION: u32 = 1;
-const MAX_MANIFEST_BYTES: u64 = 16 * 1024;
+pub(crate) const MAX_MANIFEST_BYTES: u64 = 16 * 1024;
+
+/// Enforce the byte ceiling on the actual stream, not just an earlier stat.
+/// One sentinel byte distinguishes an oversized file from a valid boundary.
+/// Callers treat an empty or oversized manifest as an ordinary cache miss.
+pub(crate) fn read_bounded_manifest_bytes(reader: impl Read) -> io::Result<Option<Vec<u8>>> {
+    let mut bounded = reader.take(MAX_MANIFEST_BYTES + 1);
+    let mut bytes = Vec::new();
+    bounded.read_to_end(&mut bytes)?;
+    if bytes.is_empty() || bytes.len() as u64 > MAX_MANIFEST_BYTES {
+        return Ok(None);
+    }
+    Ok(Some(bytes))
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -141,7 +154,14 @@ pub fn lookup_verified_preview_cache(
         return Ok(None);
     }
 
-    let manifest: PreviewCacheManifest = match serde_json::from_reader(manifest_file) {
+    // The file may grow after metadata().len(): parsing must only see a
+    // bounded snapshot of bytes actually read from this open handle.
+    let Some(manifest_bytes) = read_bounded_manifest_bytes(manifest_file)
+        .map_err(|source| cache_io(&manifest_path, source))?
+    else {
+        return Ok(None);
+    };
+    let manifest: PreviewCacheManifest = match serde_json::from_slice(&manifest_bytes) {
         Ok(manifest) => manifest,
         Err(_) => return Ok(None),
     };
@@ -259,6 +279,49 @@ fn cache_input_error(path: &Path, reason: &'static str) -> MediaError {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    // Simulate a file whose initial size check looked safe but whose reader
+    // can now deliver substantially more than the manifest size ceiling.
+    // The reader must never be asked to deliver more than ceiling + sentinel.
+    #[test]
+    fn bounded_manifest_reader_stops_at_limit_plus_one_even_after_growth() {
+        use std::{cell::Cell, rc::Rc};
+
+        struct GrowingReader {
+            remaining: usize,
+            consumed: Rc<Cell<usize>>,
+        }
+
+        impl Read for GrowingReader {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                let size = self.remaining.min(buffer.len());
+                buffer[..size].fill(b' ');
+                self.remaining -= size;
+                self.consumed.set(self.consumed.get() + size);
+                Ok(size)
+            }
+        }
+
+        let consumed = Rc::new(Cell::new(0));
+        let reader = GrowingReader {
+            remaining: MAX_MANIFEST_BYTES as usize * 32,
+            consumed: Rc::clone(&consumed),
+        };
+        assert!(read_bounded_manifest_bytes(reader).unwrap().is_none());
+        assert_eq!(consumed.get(), MAX_MANIFEST_BYTES as usize + 1);
+
+        let at_limit = vec![b' '; MAX_MANIFEST_BYTES as usize];
+        assert_eq!(
+            read_bounded_manifest_bytes(&at_limit[..]).unwrap(),
+            Some(at_limit)
+        );
+        assert!(read_bounded_manifest_bytes(&b""[..]).unwrap().is_none());
+        assert!(
+            read_bounded_manifest_bytes(&vec![b' '; MAX_MANIFEST_BYTES as usize + 1][..])
+                .unwrap()
+                .is_none()
+        );
+    }
 
     fn key() -> String {
         "b".repeat(64)

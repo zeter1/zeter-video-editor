@@ -127,8 +127,8 @@ enum StageCopyOutcome {
 use crate::{
     MediaError,
     preview_cache_manifest::{
-        PreviewCacheManifest, capture_preview_cache_manifest, lookup_verified_preview_cache,
-        source_set_sha256,
+        MAX_MANIFEST_BYTES, PreviewCacheManifest, capture_preview_cache_manifest,
+        lookup_verified_preview_cache, read_bounded_manifest_bytes, source_set_sha256,
     },
 };
 
@@ -461,10 +461,26 @@ fn manifest_matches(
     expected_json: &[u8],
 ) -> Result<bool, MediaError> {
     let metadata = fs::symlink_metadata(path).map_err(|source| cache_io(path, source))?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > 16 * 1024 {
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() > MAX_MANIFEST_BYTES
+    {
         return Ok(false);
     }
-    let bytes = fs::read(path).map_err(|source| cache_io(path, source))?;
+    let file = File::open(path).map_err(|source| cache_io(path, source))?;
+    if !file
+        .metadata()
+        .map_err(|source| cache_io(path, source))?
+        .is_file()
+    {
+        return Ok(false);
+    }
+    // The path can grow or be replaced after lstat: cap reads on the
+    // opened handle as well. Full no-follow/reparse hardening is separate.
+    let Some(bytes) = read_bounded_manifest_bytes(file).map_err(|source| cache_io(path, source))?
+    else {
+        return Ok(false);
+    };
     // Equal structured data are insufficient if there were concurrent writes.
     Ok(bytes == expected_json
         && serde_json::from_slice::<PreviewCacheManifest>(&bytes)
@@ -496,6 +512,32 @@ mod tests {
     use super::*;
     use std::sync::{Arc, Barrier};
     use tempfile::tempdir;
+
+    #[test]
+    fn existing_manifest_comparison_rejects_modified_or_oversized_bytes() {
+        let dir = tempdir().unwrap();
+        let render = dir.path().join("source.mp4");
+        fs::write(&render, fake_mp4(b"render")).unwrap();
+        let digest = source_set_sha256(&[]).unwrap();
+        let manifest = capture_preview_cache_manifest(&render, &key(), &digest, "ffmpeg-8.0.1")
+            .unwrap()
+            .unwrap();
+        let json = serde_json::to_vec(&manifest).unwrap();
+        let path = dir.path().join("existing.manifest.json");
+
+        fs::write(&path, &json).unwrap();
+        assert!(manifest_matches(&path, &manifest, &json).unwrap());
+
+        let mut trailing = json.clone();
+        trailing.push(b' ');
+        fs::write(&path, trailing).unwrap();
+        assert!(!manifest_matches(&path, &manifest, &json).unwrap());
+
+        fs::write(&path, vec![b' '; MAX_MANIFEST_BYTES as usize + 1]).unwrap();
+        assert!(!manifest_matches(&path, &manifest, &json).unwrap());
+        fs::write(&path, b"").unwrap();
+        assert!(!manifest_matches(&path, &manifest, &json).unwrap());
+    }
 
     fn key() -> String {
         "a".repeat(64)
