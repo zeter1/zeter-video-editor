@@ -228,6 +228,63 @@ describe("PreviewPlayer continuous transport", () => {
     expect(onSeek).toHaveBeenLastCalledWith(50_000);
   });
 
+  it("pauses standalone audio until video starts and during video buffering or seeking", () => {
+    const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const nativePause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const videoClip = {
+      id: "video-clock", kind: "Video", media_id: mediaId,
+      source_in: 0, source_out: 1_000_000, timeline_start: 0, timeline_end: 1_000_000,
+      speed: 1, audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+    } as Sequence["tracks"][number]["clips"][number];
+    const audioClip = {
+      ...videoClip, id: "audio-clock", kind: "Audio", source_out: 2_000_000,
+      timeline_end: 2_000_000,
+    } as Sequence["tracks"][number]["clips"][number];
+    const sequence = {
+      ...baseSequence,
+      tracks: [
+        { id: "video-track", kind: "Video", hidden: false, muted: false, clips: [videoClip] },
+        { id: "audio-track", kind: "Audio", hidden: false, muted: false, clips: [audioClip] },
+      ],
+    } as Sequence;
+    const props = {
+      sequence, media: [{ id: mediaId }] as import("../generated/ipc").MediaRef[],
+      selectedClip: null, selectedTrackId: null, onSeek: vi.fn(), onCommit: vi.fn(),
+    };
+    const { rerender, container } = render(<PreviewPlayer {...props} playheadTimeUs={500_000} />);
+    const video = container.querySelector("video.preview-media") as HTMLVideoElement;
+    const audio = screen.getByTestId("preview-audio-audio-clock") as HTMLAudioElement;
+    const audioPlays = () => nativePlay.mock.instances.filter((element) => element === audio).length;
+    const audioPauses = () => nativePause.mock.instances.filter((element) => element === audio).length;
+    Object.defineProperty(video, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
+    Object.defineProperty(video, "paused", { configurable: true, value: false });
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(audioPlays()).toBe(0); // An unbuffered video has not started its clock.
+    fireEvent.playing(video);
+    expect(audioPlays()).toBe(1);
+    const beforeWaiting = audioPauses();
+    fireEvent.waiting(video);
+    expect(audioPauses()).toBeGreaterThan(beforeWaiting);
+    expect(audioPlays()).toBe(1);
+
+    fireEvent.playing(video);
+    expect(audioPlays()).toBe(2);
+    const beforeSeeking = audioPauses();
+    fireEvent.seeking(video);
+    expect(audioPauses()).toBeGreaterThan(beforeSeeking);
+    fireEvent.seeked(video);
+    expect(audioPlays()).toBe(3);
+
+    // Audio-only gap resumes from the common playhead, even if prior video stalled.
+    fireEvent.waiting(video);
+    rerender(<PreviewPlayer {...props} playheadTimeUs={1_200_000} />);
+    expect(container.querySelector("video.preview-media")).toBeNull();
+    expect(audioPlays()).toBe(4);
+    expect(props.onCommit).not.toHaveBeenCalled();
+  });
+
   it("disables the transport when the edit contains no clips", () => {
     render(<PreviewPlayer
       sequence={baseSequence}
