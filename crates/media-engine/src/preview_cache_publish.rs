@@ -73,7 +73,10 @@ fn verify_managed_mp4(ffprobe: &Path, artifact: &Path) -> Result<(), MediaError>
         .output()
         .map_err(|source| cache_io(ffprobe, source))?;
     if !output.status.success() {
-        return Err(cache_invalid(artifact, "managed ffprobe rejected rendered MP4"));
+        return Err(cache_invalid(
+            artifact,
+            "managed ffprobe rejected rendered MP4",
+        ));
     }
     let response: serde_json::Value = serde_json::from_slice(&output.stdout)
         .map_err(|_| cache_invalid(artifact, "managed ffprobe returned malformed JSON"))?;
@@ -94,7 +97,10 @@ fn verify_managed_mp4(ffprobe: &Path, artifact: &Path) -> Result<(), MediaError>
             })
         });
     if !mp4 || !has_stream {
-        return Err(cache_invalid(artifact, "render is not a recognized MP4 with A/V streams"));
+        return Err(cache_invalid(
+            artifact,
+            "render is not a recognized MP4 with A/V streams",
+        ));
     }
     Ok(())
 }
@@ -115,12 +121,18 @@ where
     F: FnOnce(&Path) -> Result<(), MediaError>,
 {
     if !valid_digest(key) || !valid_digest(expected_source_digest) {
-        return Err(cache_invalid(cache_root, "cache key and source digest must be SHA-256"));
+        return Err(cache_invalid(
+            cache_root,
+            "cache key and source digest must be SHA-256",
+        ));
     }
-    let root_metadata = fs::symlink_metadata(cache_root)
-        .map_err(|source| cache_io(cache_root, source))?;
+    let root_metadata =
+        fs::symlink_metadata(cache_root).map_err(|source| cache_io(cache_root, source))?;
     if !root_metadata.is_dir() || root_metadata.file_type().is_symlink() {
-        return Err(cache_invalid(cache_root, "cache root must be a real directory"));
+        return Err(cache_invalid(
+            cache_root,
+            "cache root must be a real directory",
+        ));
     }
     if cancellation.is_cancelled() {
         return Ok(PreviewCachePublishOutcome::Cancelled);
@@ -134,16 +146,22 @@ where
     let render_metadata = fs::symlink_metadata(completed_render)
         .map_err(|source| cache_io(completed_render, source))?;
     if !render_metadata.is_file() || render_metadata.file_type().is_symlink() {
-        return Err(cache_invalid(completed_render, "render must be a regular file"));
+        return Err(cache_invalid(
+            completed_render,
+            "render must be a regular file",
+        ));
     }
-    let mut render = File::open(completed_render)
-        .map_err(|source| cache_io(completed_render, source))?;
+    let mut render =
+        File::open(completed_render).map_err(|source| cache_io(completed_render, source))?;
     if !render
         .metadata()
         .map_err(|source| cache_io(completed_render, source))?
         .is_file()
     {
-        return Err(cache_invalid(completed_render, "render is not a regular file"));
+        return Err(cache_invalid(
+            completed_render,
+            "render is not a regular file",
+        ));
     }
     let mut staged_video =
         NamedTempFile::new_in(cache_root).map_err(|source| cache_io(cache_root, source))?;
@@ -248,7 +266,11 @@ fn manifest_matches(
     }
     let bytes = fs::read(path).map_err(|source| cache_io(path, source))?;
     // Equal structured data are insufficient if there were concurrent writes.
-    Ok(bytes == expected_json && serde_json::from_slice::<PreviewCacheManifest>(&bytes).ok().as_ref() == Some(expected))
+    Ok(bytes == expected_json
+        && serde_json::from_slice::<PreviewCacheManifest>(&bytes)
+            .ok()
+            .as_ref()
+            == Some(expected))
 }
 
 fn valid_digest(value: &str) -> bool {
@@ -293,7 +315,16 @@ mod tests {
         digest: &str,
         cancel: &CancellationToken,
     ) -> Result<PreviewCachePublishOutcome, MediaError> {
-        publish_with_probe(cache, render, &key(), sources, digest, "ffmpeg-8.0.1", cancel, |_| Ok(()))
+        publish_with_probe(
+            cache,
+            render,
+            &key(),
+            sources,
+            digest,
+            "ffmpeg-8.0.1",
+            cancel,
+            |_| Ok(()),
+        )
     }
 
     #[test]
@@ -335,13 +366,19 @@ mod tests {
         let cache = dir.path().join("cache");
         fs::create_dir(&cache).unwrap();
         let outcome = publish_with_probe(
-            &cache, &render, &key(), &sources, &digest, "ffmpeg-8.0.1",
+            &cache,
+            &render,
+            &key(),
+            &sources,
+            &digest,
+            "ffmpeg-8.0.1",
             &CancellationToken::new(),
             |_| {
                 fs::write(&source, b"source-two").unwrap();
                 Ok(())
             },
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(outcome, PreviewCachePublishOutcome::SourceChanged);
         assert_eq!(fs::read_dir(&cache).unwrap().count(), 0);
     }
@@ -358,7 +395,14 @@ mod tests {
         let path = cache.join(format!("{}.mp4", key()));
         fs::write(&path, fake_mp4(b"other")).unwrap();
 
-        let outcome = publish_test(&cache, &render, &sources, &digest, &CancellationToken::new()).unwrap();
+        let outcome = publish_test(
+            &cache,
+            &render,
+            &sources,
+            &digest,
+            &CancellationToken::new(),
+        )
+        .unwrap();
         assert_eq!(outcome, PreviewCachePublishOutcome::Conflict);
         assert_eq!(fs::read(&path).unwrap(), fake_mp4(b"other"));
         assert!(!cache.join(format!("{}.manifest.json", key())).exists());
@@ -375,7 +419,14 @@ mod tests {
         fs::create_dir(&cache).unwrap();
         fs::write(cache.join(format!("{}.mp4", key())), fake_mp4(b"good")).unwrap();
 
-        let outcome = publish_test(&cache, &render, &sources, &digest, &CancellationToken::new()).unwrap();
+        let outcome = publish_test(
+            &cache,
+            &render,
+            &sources,
+            &digest,
+            &CancellationToken::new(),
+        )
+        .unwrap();
         assert!(matches!(outcome, PreviewCachePublishOutcome::Published(_)));
         assert_eq!(fs::read_dir(&cache).unwrap().count(), 2);
     }
@@ -398,7 +449,12 @@ mod tests {
         assert_eq!(fs::read_dir(&cache).unwrap().count(), 0);
 
         let failed = publish_with_probe(
-            &cache, &render, &key(), &sources, &digest, "ffmpeg-8.0.1",
+            &cache,
+            &render,
+            &key(),
+            &sources,
+            &digest,
+            "ffmpeg-8.0.1",
             &CancellationToken::new(),
             |_| Err(cache_invalid(&render, "probe rejected file")),
         );
@@ -428,10 +484,15 @@ mod tests {
         }
         barrier.wait();
         let results: Vec<_> = threads.into_iter().map(|t| t.join().unwrap()).collect();
-        assert!(results.iter().any(|outcome| matches!(outcome, PreviewCachePublishOutcome::Published(_))));
+        assert!(
+            results
+                .iter()
+                .any(|outcome| matches!(outcome, PreviewCachePublishOutcome::Published(_)))
+        );
         assert!(results.iter().all(|outcome| matches!(
             outcome,
-            PreviewCachePublishOutcome::Published(_) | PreviewCachePublishOutcome::AlreadyPresent(_)
+            PreviewCachePublishOutcome::Published(_)
+                | PreviewCachePublishOutcome::AlreadyPresent(_)
         )));
         assert_eq!(fs::read_dir(&cache).unwrap().count(), 2);
     }
@@ -446,7 +507,8 @@ mod tests {
         let manifest_path = cache.join(format!("{}.manifest.json", key()));
         fs::write(&manifest_path, b"invalid").unwrap();
         let digest = source_set_sha256(&[]).unwrap();
-        let outcome = publish_test(&cache, &render, &[], &digest, &CancellationToken::new()).unwrap();
+        let outcome =
+            publish_test(&cache, &render, &[], &digest, &CancellationToken::new()).unwrap();
         assert_eq!(outcome, PreviewCachePublishOutcome::Conflict);
         assert_eq!(fs::read(&manifest_path).unwrap(), b"invalid");
     }
