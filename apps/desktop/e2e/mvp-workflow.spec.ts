@@ -542,6 +542,9 @@ test("rejects incomplete Whisper model import without mutating the real project"
   await page.getByRole("button", { name: "AI-инструменты" }).click();
   await expect(page.getByText(/Для автоматических субтитров выберите/)).toBeVisible();
   await page.locator(".timeline-clip-video").first().click();
+  // Selecting a clip must not emit a no-op MoveClip / increment Rust revision.
+  expect((await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot")).revision)
+    .toBe(before.revision);
   await expect(page.getByRole("button", { name: "Generate subtitles" })).toBeVisible();
   await expect(invokeTauri(page, "start_transcription", {
     mediaId: media.id,

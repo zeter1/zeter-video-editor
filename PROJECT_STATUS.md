@@ -1,3 +1,11 @@
+# PRODUCT-CODE CHECKPOINT — 2026-10-11 — PR #42 NO-OP TIMELINE EDIT + AI REVIEW RESET (DRAFT)
+
+- Предыдущий HEAD ce58bc1736bd2e2b144413c0ecf2a36b6dcab6e8: Windows CI https://github.com/zeter1/zeter-video-editor/actions/runs/38144447163 завершился FAILURE в WebView2 E2E, test "rejects incomplete Whisper model import without mutating the real project". Rust fmt/tests, frontend build/Vitest PASSED (9/10 WebView2 tests PASS), NSIS skipped. Exact failure: revision 0→1 ещё до failed model import; clicked timeline clip blindly committed no-op MoveClip.
+- Производственное исправление в interaction.ts: если previewTimeUs совпадает с исходным timelineStartUs, commit() завершает transient drag без IPC/Undo/revision; Vitest проверяет click-only и snapped-back. В E2E добавлен assert revision прямо после выбора без ослабления прежнего полного сравнения snapshot after/before.
+- TranscriptionRuntimePanel.tsx сбрасывает завершённый transcript review/jobId/running при смене mediaId/sequenceId, не предлагает ошибочный Apply к другому клипу; React regression test. Поздний Apply отпускает UI блокировку.
+- PR #42 https://github.com/zeter1/zeter-video-editor/pull/42, branch feat/ai-transcription-modern-workspace-20261011 stacked DRAFT на #41. Main не затронут. Версия 0.1.0-alpha.1, .vcut не менялась. Новый exact-head CI после push — NOT VERIFIED, проверить факт terminal SUCCESS на точном SHA, не переносить PASS с предыдущих запусков. Нет merge/release/signing.
+- NEXT PRODUCT-CODE TASK: CI exact-head (Rust/TS/Vitest/Windows WebView2/NSIS), исправление ошибок без skip tests; затем настоящий локальный Whisper fixture end-to-end (модель → FFmpeg → worker → review → Apply → Undo, stale revision reject), а не docs-only задача.
+
 # PRODUCT-CODE CHECKPOINT — 2026-10-11 — PR #42 LOCAL WHISPER CI REPAIR + SAFE APPLY (DRAFT)
 
 - В production Rust `apps/desktop/src-tauri/src/error.rs` добавлен отсутствовавший `AppError::AiAnalysis` с типизированной безопасной Job DTO: причина Windows Rust E0599 в PR #42, run 38143462197, компиляция раньше блокировала остальные тесты. Rust-регрессия включена. React `TranscriptionRuntimePanel.tsx` и `TranscriptionPanel.tsx` предотвращают двойное применение одной транскрипции, игнорируют поздний ответ после смены выбранного клипа/sequence или размонтирования. React-тесты покрывают double Apply + media switch. CHANGELOG обновлён.

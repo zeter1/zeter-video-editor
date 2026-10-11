@@ -56,9 +56,15 @@ export function TranscriptionRuntimePanel({
   const generationRef = useRef(0);
 
   // The job runs independently in Rust. Discard late UI responses after a
-  // different clip/sequence is selected or the panel is closed.
-  useEffect(() => () => {
-    generationRef.current += 1;
+  // different clip/sequence is selected or the panel is closed. A completed
+  // transcript review must also be cleared before another clip can be edited.
+  useEffect(() => {
+    setResult(null);
+    setJobId(null);
+    setRunning(false);
+    return () => {
+      generationRef.current += 1;
+    };
   }, [mediaId, sequenceId]);
 
   async function run(
@@ -165,7 +171,8 @@ export function TranscriptionRuntimePanel({
       }
     } finally {
       applyingRef.current = false;
-      if (generation === generationRef.current) setApplying(false);
+      // A pending Apply for the previous clip must not lock this panel forever.
+      setApplying(false);
     }
   }
 

@@ -31,6 +31,7 @@ export interface MoveClipInteractionOptions {
 
 export type MoveClipCommitResult =
   | { kind: "committed"; result: CommandResultDto }
+  | { kind: "unchanged" }
   | { kind: "rejected"; error: AppErrorDto };
 
 function defaultRequestId(): RequestId {
@@ -96,6 +97,13 @@ export function createMoveClipInteraction(options: MoveClipInteractionOptions) {
       }
 
       finished = true;
+      // Selecting a clip is not a project edit. A drag that returns to its
+      // original time must not change Rust revision or add to Undo history.
+      if (current.previewTimeUs === options.confirmedTimelineStartUs) {
+        options.transientStore.endClipDrag();
+        return { kind: "unchanged" };
+      }
+
       const request: EditRequest = {
         request_id: (options.requestIdFactory ?? defaultRequestId)(),
         expected_revision: revision,

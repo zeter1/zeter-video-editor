@@ -158,6 +158,34 @@ describe("commit-on-release clip movement", () => {
     expect(transientStore.getState().drag).toBeNull();
   });
 
+  it("does not create a revision or edit for click-only and snapped-back drags", async () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    projectStore.applySnapshot(snapshot(7));
+    const executeEditCommand = vi.fn();
+    const reconcile = vi.fn();
+    const interaction = createMoveClipInteraction({
+      sequenceId: "sequence-1",
+      trackId: "track-1",
+      clipId: "clip-1",
+      confirmedTimelineStartUs: 1_000_000,
+      projectStore,
+      transientStore,
+      executeEditCommand,
+      reconcileCommandResult: reconcile,
+    });
+    interaction.begin();
+    expect(await interaction.commit()).toEqual({ kind: "unchanged" });
+    interaction.begin();
+    interaction.preview(1_200_000);
+    interaction.preview(1_000_000);
+    expect(await interaction.commit()).toEqual({ kind: "unchanged" });
+    expect(executeEditCommand).not.toHaveBeenCalled();
+    expect(reconcile).not.toHaveBeenCalled();
+    expect(projectStore.getState().revision).toBe(7);
+    expect(transientStore.getState().drag).toBeNull();
+  });
+
   it("restores the confirmed position and surfaces a typed stale error on rejection", async () => {
     const projectStore = createProjectStore();
     const transientStore = createTransientStore();

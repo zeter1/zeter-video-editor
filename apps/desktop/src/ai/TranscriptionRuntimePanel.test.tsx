@@ -94,6 +94,33 @@ describe("modern local transcription review-before-apply", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it("clears a completed review and Apply action when the selected clip changes", async () => {
+    vi.mocked(startTranscription).mockResolvedValue({
+      job_id: "job-old", state: "Completed",
+    } as Awaited<ReturnType<typeof startTranscription>>);
+    vi.mocked(getTranscriptionResult).mockResolvedValue(transcript);
+    const onApplied = vi.fn();
+    const onError = vi.fn();
+    const { rerender } = render(
+      <TranscriptionRuntimePanel mediaId="media-1" sequenceId="sequence-1"
+        onApplied={onApplied} onError={onError} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate subtitles" }));
+    await screen.findByText("Проверка");
+    expect(screen.getByRole("button", { name: "Apply subtitles" })).toBeTruthy();
+
+    rerender(<TranscriptionRuntimePanel mediaId="media-2" sequenceId="sequence-1"
+      onApplied={onApplied} onError={onError} />);
+    await waitFor(() => {
+      expect(screen.queryByText("Проверка")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Apply subtitles" })).toBeNull();
+    });
+    expect(screen.getByRole("button", { name: "Generate subtitles" }).hasAttribute("disabled")).toBe(false);
+    expect(applyTranscription).not.toHaveBeenCalled();
+    expect(onApplied).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it("preserves review for a failed revision-checked Apply", async () => {
     vi.mocked(startTranscription).mockResolvedValue({
       job_id: "job-2", state: "Completed",
