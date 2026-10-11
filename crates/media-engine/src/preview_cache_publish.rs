@@ -511,6 +511,33 @@ mod tests {
     use std::sync::{Arc, Barrier};
     use tempfile::tempdir;
 
+    #[test]
+    fn existing_manifest_comparison_rejects_modified_or_oversized_bytes() {
+        let dir = tempdir().unwrap();
+        let render = dir.path().join("source.mp4");
+        fs::write(&render, fake_mp4(b"render")).unwrap();
+        let digest = source_set_sha256(&[]).unwrap();
+        let manifest =
+            capture_preview_cache_manifest(&render, &key(), &digest, "ffmpeg-8.0.1")
+                .unwrap()
+                .unwrap();
+        let json = serde_json::to_vec(&manifest).unwrap();
+        let path = dir.path().join("existing.manifest.json");
+
+        fs::write(&path, &json).unwrap();
+        assert!(manifest_matches(&path, &manifest, &json).unwrap());
+
+        let mut trailing = json.clone();
+        trailing.push(b' ');
+        fs::write(&path, trailing).unwrap();
+        assert!(!manifest_matches(&path, &manifest, &json).unwrap());
+
+        fs::write(&path, vec![b' '; MAX_MANIFEST_BYTES as usize + 1]).unwrap();
+        assert!(!manifest_matches(&path, &manifest, &json).unwrap());
+        fs::write(&path, b"").unwrap();
+        assert!(!manifest_matches(&path, &manifest, &json).unwrap());
+    }
+
     fn key() -> String {
         "a".repeat(64)
     }
