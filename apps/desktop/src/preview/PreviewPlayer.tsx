@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Clip, MediaRef, Sequence, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
+import { PreviewAudioTracks } from "./PreviewAudioTracks";
 import {
   advanceGapTimeUs,
   mediaTimeToTimelineUs,
@@ -205,6 +206,7 @@ export function PreviewPlayer({
           ) : null}
         </div>
       </div>
+      <PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={playheadTimeUs} playing={playing} />
       <div className="preview-controls" aria-label="Preview controls">
         <button
           type="button"
