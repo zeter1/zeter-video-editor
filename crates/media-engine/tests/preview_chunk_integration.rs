@@ -66,7 +66,11 @@ fn sampled_frame_number(runtime: &ManagedRuntime, video: &Path, index: usize) ->
         "numbered frame {index} sample failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(output.stdout.len(), 64 * 36 * 3, "missing decoded frame {index}");
+    assert_eq!(
+        output.stdout.len(),
+        64 * 36 * 3,
+        "missing decoded frame {index}"
+    );
     output.stdout
 }
 
