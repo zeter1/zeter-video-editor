@@ -461,7 +461,10 @@ fn manifest_matches(
     expected_json: &[u8],
 ) -> Result<bool, MediaError> {
     let metadata = fs::symlink_metadata(path).map_err(|source| cache_io(path, source))?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > MAX_MANIFEST_BYTES {
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() > MAX_MANIFEST_BYTES
+    {
         return Ok(false);
     }
     let file = File::open(path).map_err(|source| cache_io(path, source))?;
