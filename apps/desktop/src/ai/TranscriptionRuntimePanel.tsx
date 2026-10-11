@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   AppErrorDto,
@@ -51,8 +51,18 @@ export function TranscriptionRuntimePanel({
   const [result, setResult] = useState<TranscriptResultView | null>(null);
   const [running, setRunning] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
+  const applyingRef = useRef(false);
+  const generationRef = useRef(0);
+
+  // The job runs independently in Rust. Discard late UI responses after a
+  // different clip/sequence is selected or the panel is closed.
+  useEffect(() => () => {
+    generationRef.current += 1;
+  }, [mediaId, sequenceId]);
 
   async function run(
+    generation: number,
     modelPath?: string,
     manifestPath?: string,
   ): Promise<void> {
@@ -69,31 +79,38 @@ export function TranscriptionRuntimePanel({
       modelPath,
       manifestPath,
     });
+    if (generation !== generationRef.current) return;
     setJobId(job.job_id);
 
     while (job.state === "Queued" || job.state === "Running") {
       await new Promise((resolve) => window.setTimeout(resolve, 200));
+      if (generation !== generationRef.current) return;
       job = await getTranscriptionJob(job.job_id);
     }
 
+    if (generation !== generationRef.current) return;
     if (job.state !== "Completed") {
       throw new Error(
         job.failure?.safe_message ?? "Automatic subtitle generation did not complete.",
       );
     }
 
-    setResult(await getTranscriptionResult(job.job_id));
+    const transcript = await getTranscriptionResult(job.job_id);
+    if (generation === generationRef.current) setResult(transcript);
   }
 
   async function handleStart(): Promise<void> {
+    if (running || applyingRef.current) return;
+    const generation = ++generationRef.current;
     setRunning(true);
     setResult(null);
     setJobId(null);
 
     try {
       try {
-        await run();
+        await run(generation);
       } catch (error) {
+        if (generation !== generationRef.current) return;
         const typed = typedError(error);
         if (typed?.category !== "AiModel" || typed.code !== "model_unavailable") {
           throw error;
@@ -111,32 +128,44 @@ export function TranscriptionRuntimePanel({
         if (!manifestPath) {
           return;
         }
-        await run(modelPath, manifestPath);
+        if (generation !== generationRef.current) return;
+        await run(generation, modelPath, manifestPath);
       }
     } catch (error) {
-      onError(
-        errorMessage(error, "Automatic subtitle generation failed."),
-      );
+      if (generation === generationRef.current) {
+        onError(errorMessage(error, "Automatic subtitle generation failed."));
+      }
     } finally {
-      setRunning(false);
+      if (generation === generationRef.current) setRunning(false);
     }
   }
 
   async function handleApply(
-    transcript: TranscriptResultView,
+    _transcript: TranscriptResultView,
   ): Promise<void> {
-    if (!jobId) {
+    if (running || applyingRef.current) return;
+    if (!jobId || !result) {
       onError("Generate automatic subtitles before applying them.");
       return;
     }
 
+    applyingRef.current = true;
+    setApplying(true);
+    const generation = generationRef.current;
     try {
       const applied = await applyTranscription(jobId, crypto.randomUUID());
+      if (generation !== generationRef.current) return;
       await onApplied(applied);
+      if (generation !== generationRef.current) return;
       setResult(null);
       setJobId(null);
     } catch (error) {
-      onError(errorMessage(error, "Automatic subtitles could not be applied."));
+      if (generation === generationRef.current) {
+        onError(errorMessage(error, "Automatic subtitles could not be applied."));
+      }
+    } finally {
+      applyingRef.current = false;
+      if (generation === generationRef.current) setApplying(false);
     }
   }
 
@@ -144,6 +173,7 @@ export function TranscriptionRuntimePanel({
     <TranscriptionPanel
       result={result}
       running={running}
+      applying={applying}
       onStart={() => void handleStart()}
       onApply={(transcript) => void handleApply(transcript)}
     />
