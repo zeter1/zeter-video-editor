@@ -348,6 +348,17 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   await timecode.press("Enter");
   await expect(playhead).toHaveAttribute("aria-valuenow", "2000000");
   await expect(timecode).toHaveValue("00:00:02:00");
+  // Verify actual keyboard frame nudges in the Windows WebView2 timeline.
+  await playhead.focus();
+  await playhead.press("ArrowRight");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "2033333");
+  await expect(playhead).toHaveAttribute("aria-valuetext", "00:00:02:01");
+  await playhead.press("Shift+ArrowLeft");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "1866667");
+  await playhead.press("Shift+ArrowRight");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "2033333");
+  await playhead.press("ArrowLeft");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "2000000");
 
   await clip.hover();
   await page.getByRole("button", { name: `Split ${VIDEO_CLIP}` }).click();
