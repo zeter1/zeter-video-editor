@@ -555,8 +555,9 @@ describe("PreviewPlayer continuous transport", () => {
             source_in: 0, source_out: 3_000_000, timeline_start: 0, timeline_end: 3_000_000 }] },
       ] } as Sequence;
       const onSeek = vi.fn(), onCommit = vi.fn();
-      const { container } = render(<PreviewPlayer
-        sequence={sequence} media={[{ id: mediaId }] as import("../generated/ipc").MediaRef[]}
+      const media = [{ id: mediaId }] as import("../generated/ipc").MediaRef[];
+      const { container, rerender } = render(<PreviewPlayer
+        sequence={sequence} media={media}
         selectedClip={null} selectedTrackId={null}
         playheadTimeUs={1_000_000} onSeek={onSeek} onCommit={onCommit}
       />);
@@ -592,6 +593,27 @@ describe("PreviewPlayer continuous transport", () => {
       present(4.1);
       expect(onSeek).toHaveBeenLastCalledWith(1_100_000);
       expect(callbacks.size).toBe(1);
+
+      // Live scrub INSIDE the same clip: its key does not change. Setting
+      // decoder.currentTime jumps to 4.4 synchronously, but the compositor
+      // still has the 4.1 frame. Do not restart audio on this false readiness.
+      const pausesBeforeScrub = nativePause.mock.instances.filter((node) => node === audio).length;
+      rerender(<PreviewPlayer
+        sequence={sequence} media={media}
+        selectedClip={null} selectedTrackId={null}
+        playheadTimeUs={1_400_000} onSeek={onSeek} onCommit={onCommit}
+      />);
+      expect(video.currentTime).toBeCloseTo(4.4);
+      expect(nativePause.mock.instances.filter((node) => node === audio).length)
+        .toBeGreaterThan(pausesBeforeScrub);
+      audio.currentTime = 1.4;
+      fireEvent.seeked(audio);
+      expect(audioPlays()).toBe(1);
+      present(4.1); // Old frame must not authorize playback after the seek.
+      expect(audioPlays()).toBe(1);
+      present(4.4); // Real WebView2 compositor has submitted the new frame.
+      expect(audioPlays()).toBe(2);
+
       fireEvent.click(screen.getByRole("button", { name: "Stop" }));
       expect(onSeek).toHaveBeenLastCalledWith(0);
       expect(callbacks.size).toBe(0);
