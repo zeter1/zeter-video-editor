@@ -47,15 +47,18 @@ pub fn resolve_transcription_model(
     import_model: Option<(&Path, &Path)>,
 ) -> Result<InstalledModel, TranscriptionRuntimeError> {
     let manager = ModelManager::new(models_root, runtime_compatibility(runtime)?);
-    if let Some(model) = manager.available_models()?.into_iter().next() {
-        return Ok(model);
+    // Explicit user selection takes precedence over a previously installed model.
+    // This ensures even an invalid selected manifest cannot be silently skipped.
+    if let Some((model_path, manifest_path)) = import_model {
+        let manifest = serde_json::from_slice::<ModelManifest>(&fs::read(manifest_path)?)?;
+        return Ok(manager.import_offline(model_path, &manifest)?);
     }
 
-    let Some((model_path, manifest_path)) = import_model else {
-        return Err(TranscriptionRuntimeError::ModelUnavailable);
-    };
-    let manifest = serde_json::from_slice::<ModelManifest>(&fs::read(manifest_path)?)?;
-    Ok(manager.import_offline(model_path, &manifest)?)
+    manager
+        .available_models()?
+        .into_iter()
+        .next()
+        .ok_or(TranscriptionRuntimeError::ModelUnavailable)
 }
 
 pub fn run_transcription_analysis(

@@ -557,6 +557,83 @@ test("rejects incomplete Whisper model import without mutating the real project"
   expect(after).toEqual(before);
 });
 
+test("runs local Whisper through modern AI workspace, Undo and stale revision", async () => {
+  test.setTimeout(120_000);
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  const before = await invokeTauri<Snapshot & AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(before.revision).toBe(0);
+  const audioMedia = before.project.media.find((m) => m.absolute_path.endsWith("synthetic-audio.wav"));
+  expect(audioMedia).toBeDefined();
+
+  await page.getByRole("button", { name: "AI-инструменты" }).click();
+  await page.getByTestId(`clip-${AUDIO_CLIP}`).click();
+  const transcription = page.getByRole("region", { name: "Automatic subtitles" });
+  await expect(transcription).toBeVisible();
+  expect((await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot")).revision).toBe(0);
+
+  const prompts = [state.modelPath, state.modelManifestPath];
+  const onDialog = async (dialog: import("@playwright/test").Dialog) => {
+    const value = prompts.shift();
+    if (value) await dialog.accept(value);
+    else await dialog.dismiss();
+  };
+  page.on("dialog", onDialog);
+  try {
+    await transcription.getByRole("button", { name: "Generate subtitles" }).click();
+    await expect(transcription.getByText("English · 1 segments", { exact: true }))
+      .toBeVisible({ timeout: 45_000 });
+    await expect(transcription.getByText("Production runtime subtitle", { exact: true })).toBeVisible();
+  } finally {
+    page.off("dialog", onDialog);
+  }
+
+  const preview = await invokeTauri<Snapshot & AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(preview).toEqual(before); // local worker review is not a project edit
+
+  await transcription.getByRole("button", { name: "Apply subtitles" }).click();
+  await expectRevision(page, 1);
+  const applied = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(applied.project.sequences[0].subtitle_segments).toHaveLength(
+    before.project.sequences[0].subtitle_segments.length + 1,
+  );
+  expect(applied.project.sequences[0].subtitle_segments).toContainEqual({
+    start: 250_000, end: 900_000, text: "Production runtime subtitle",
+  });
+
+  await page.getByRole("button", { name: "Отменить", exact: true }).click();
+  await expectRevision(page, 2);
+  const undone = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(undone.project.sequences[0].subtitle_segments)
+    .toEqual(before.project.sequences[0].subtitle_segments);
+
+  // Explicit invalid model must be refused even when a valid one is installed.
+  await expect(invokeTauri(page, "start_transcription", {
+    mediaId: audioMedia!.id, sequenceId: SEQUENCE, language: "auto",
+    modelPath: state.modelPath, manifestPath: state.modelPath,
+  })).rejects.toThrow(/model_install_failed/);
+  expect((await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot")).revision).toBe(2);
+
+  const started = await invokeTauri<ExportJobView>(page, "start_transcription", {
+    mediaId: audioMedia!.id, sequenceId: SEQUENCE, language: "auto",
+    modelPath: state.modelPath, manifestPath: state.modelManifestPath,
+  });
+  const completed = await waitForJob(page, started.job_id, 45_000);
+  expect(completed.state, completed.failure?.technical_detail).toBe("Completed");
+  expect(completed.source_revision).toBe(2);
+  await edit(page, 2, {
+    AddMarker: {
+      sequence_id: SEQUENCE,
+      marker: { id: randomUUID(), time: 1_500_000, label: "edited during transcript review" },
+    },
+  });
+  const beforeRejectedApply = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  await expect(invokeTauri(page, "apply_transcription", {
+    jobId: started.job_id, requestId: randomUUID(),
+  })).rejects.toThrow(/revision|stale/i);
+  expect(await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot")).toEqual(beforeRejectedApply);
+});
+
 test("runs deterministic local AI fixture analysis and applies results as undoable project state", async () => {
   const { page, state } = await connectTauri();
   await openProject(page, state.workflowProjectPath);
