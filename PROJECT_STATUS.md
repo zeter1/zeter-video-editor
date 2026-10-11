@@ -1,3 +1,10 @@
+# PRODUCT-CODE CHECKPOINT — 2026-10-11 — NATIVE WHISPER MODEL PICKER (DRAFT PR #42)
+
+- **Реальная функциональность редактора:** `TranscriptionRuntimePanel.tsx` использует Tauri Dialog для выбора model `.bin` и matching manifest `.json` вместо ручного ввода абсолютных путей. `TranscriptionPanel.tsx` поясняет сценарий. В текущем WebView2 уже разрешено `dialog:default`, новый npm/plugin не нужен. Rust модель валидирует как раньше, источник и проект не меняются до явного Apply.
+- **Product tests:** 3 React/Vitest в `TranscriptionRuntimePanel.test.tsx`: верные пути в Tauri IPC, бездействие после cancel, защита от stale clip во время file picker. Перечисление тестов не означает их PASS до exact-head CI. Перед изменением текущий HEAD `362dd243bacdb0ace072b9244a23f743cac9c138` успешно прошёл Windows CI `38148432467`; новый head, проверку build/Vitest/WebView2/NSIS смотреть по PR #42 после push.
+- **Ветка/ограничения:** https://github.com/zeter1/zeter-video-editor/pull/42 — stacked DRAFT на #41, не main; desktop `0.1.0-alpha.1` development, schema `.vcut` без изменений. Нет merge/tag/release/signing/manual Windows model-picker QA; настоящая speech inference ещё не доказана.
+- **NEXT PRODUCT-CODE TASK:** проверить exact-head CI нового commit, при FAIL исправить первопричину в этой же ветке с регрессией. После PASS — связать локальный Silence backend из существующих draft PR с современным AI workspace в безопасном review → explicit revisioned Apply → Undo вертикальном сценарии; не трогать main и не делать docs-only проходку. Альтернатива если backend не подходит — Stage C audio/video preview clock с проверкой синхронизации.
+
 # PRODUCT-CODE CHECKPOINT — 2026-10-11 — WHISPER SINGLE-FLIGHT (DRAFT PR #42)
 
 - Production: `apps/desktop/src/ai/TranscriptionRuntimePanel.tsx` предотвращает два одновременных запуска native Whisper при быстрых кликах до React render. `startingRef` блокирует обработчик синхронно, освобождается только своим generation; при переключении клипа старый request становится stale, новый запуск доступен.
