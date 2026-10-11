@@ -85,21 +85,23 @@ fn verify_managed_mp4(ffprobe: &Path, artifact: &Path) -> Result<(), MediaError>
         .and_then(|value| value.get("format_name"))
         .and_then(serde_json::Value::as_str)
         .is_some_and(|names| names.split(',').any(|name| name == "mp4" || name == "mov"));
-    let has_stream = response
+    // An audio-only MP4 is valid media, but it cannot supply video frames
+    // to the preview player. Audio tracks may still accompany the video.
+    let has_video = response
         .get("streams")
         .and_then(serde_json::Value::as_array)
         .is_some_and(|streams| {
             streams.iter().any(|stream| {
                 matches!(
                     stream.get("codec_type").and_then(serde_json::Value::as_str),
-                    Some("video" | "audio")
+                    Some("video")
                 )
             })
         });
-    if !mp4 || !has_stream {
+    if !mp4 || !has_video {
         return Err(cache_invalid(
             artifact,
-            "render is not a recognized MP4 with A/V streams",
+            "render is not a recognized MP4 with a video stream",
         ));
     }
     Ok(())
