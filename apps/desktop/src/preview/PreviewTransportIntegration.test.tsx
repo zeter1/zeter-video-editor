@@ -177,6 +177,51 @@ describe("PreviewPlayer continuous transport", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+
+  it("scales native video seek thresholds by 2x speed while playing and paused", () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const clip = {
+      id: "video-speed-drift", kind: "Video", media_id: mediaId,
+      source_in: 1_000_000, source_out: 5_000_000,
+      timeline_start: 0, timeline_end: 2_000_000, speed: 2,
+      audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+    } as Sequence["tracks"][number]["clips"][number];
+    const sequence = {
+      ...baseSequence,
+      tracks: [{ id: "video-track", kind: "Video", hidden: false, muted: false, clips: [clip] }],
+    } as Sequence;
+    const props = {
+      sequence, media: [{ id: mediaId }] as import("../generated/ipc").MediaRef[],
+      selectedClip: null, selectedTrackId: null, onSeek: vi.fn(), onCommit: vi.fn(),
+    };
+    const { container, rerender } = render(<PreviewPlayer {...props} playheadTimeUs={1_000_000} />);
+    const video = container.querySelector("video.preview-media") as HTMLVideoElement;
+    expect(video.currentTime).toBeCloseTo(3); // source_in=1s + 1s*2x
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+
+    // 150ms SOURCE = 75ms timeline: safe decoder jitter, not a seek.
+    video.currentTime = 3.15;
+    rerender(<PreviewPlayer {...props} playheadTimeUs={1_000_001} />);
+    expect(video.currentTime).toBeCloseTo(3.15);
+
+    // 260ms SOURCE = 130ms timeline: past the 120ms playing budget.
+    video.currentTime = 3.26;
+    rerender(<PreviewPlayer {...props} playheadTimeUs={1_000_002} />);
+    expect(video.currentTime).toBeCloseTo(3.000004, 5);
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    // The 1ms paused timeline budget equals 2ms on a 2x SOURCE clock.
+    video.currentTime = 3.0015;
+    rerender(<PreviewPlayer {...props} playheadTimeUs={1_000_003} />);
+    expect(video.currentTime).toBeCloseTo(3.0015);
+    video.currentTime = 3.004;
+    rerender(<PreviewPlayer {...props} playheadTimeUs={1_000_004} />);
+    expect(video.currentTime).toBeCloseTo(3.000008, 5);
+    expect(props.onCommit).not.toHaveBeenCalled();
+  });
+
   it("Stop during playback rewinds the transient transport without committing an edit", () => {
     const onSeek = vi.fn();
     const onCommit = vi.fn();

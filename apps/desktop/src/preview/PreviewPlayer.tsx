@@ -155,7 +155,10 @@ export function PreviewPlayer({
     current.playbackRate = active.speed > 0 ? active.speed : 1;
     // Paused one-frame steps must actually seek the native decoder. During
     // playback allow small decoder jitter instead of seeking on every frame.
-    const tolerance = playing ? 0.12 : 0.001;
+    // currentTime counts SOURCE seconds; drift budget is in TIMELINE seconds.
+    // Scale both Play (120ms) and paused frame-step (1ms) tolerances by speed.
+    const speed = active.speed > 0 ? active.speed : 1;
+    const tolerance = (playing ? 0.12 : 0.001) * speed;
     if (Number.isFinite(requested) && Math.abs(current.currentTime - requested) > tolerance) {
       current.currentTime = Math.max(0, requested);
     }

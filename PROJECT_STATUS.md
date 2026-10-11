@@ -1,3 +1,14 @@
+# CURRENT CHECKPOINT — 2026-10-11 — Stage C video seek jitter at speed 2x (draft #44)
+
+- PRODUCT: In `apps/desktop/src/preview/PreviewPlayer.tsx`, native decoder drift tolerance is now 120ms of TIMELINE time while playing and 1ms while paused, multiplied by positive clip.speed to compare against HTMLVideoElement.currentTime in SOURCE seconds. This fixes over-eager native seeks on 2x/4x clips and aligns video with previously fixed audio seek tolerance; trims/source_in, source media, Rust snapshot, .vcut v2, export and desktop version 0.1.0-alpha.1 unchanged.
+- REGRESSION: `apps/desktop/src/preview/PreviewTransportIntegration.test.tsx` verifies trimmed source_in=1s at 2x: 150ms source drift ignored (75ms timeline), 260ms source drift corrected (130ms timeline), paused 1ms timeline threshold, no Rust onCommit. Authored, not yet claimed green.
+- CI BASELINE: preceding HEAD 8778fe9e722fe2dfea8012b684b870a9b295f86e Windows run https://github.com/zeter1/zeter-video-editor/actions/runs/38166184986 was IN_PROGRESS when initially checked. Earlier c5c5d3c Windows run https://github.com/zeter1/zeter-video-editor/actions/runs/38165388181 was completed SUCCESS, but does NOT validate this code. Check terminal exact-HEAD Windows frontend/Vitest, Rust, WebView2 and NSIS; if failed read logs and fix. No local Windows/npm toolchain available.
+- GITHUB: https://github.com/zeter1/zeter-video-editor/pull/44 OPEN DRAFT, stacked #44→#43→#42→#41→#40→#39→main (main had e11cd4b at initial check). NO main merge, signing, tag, release, installer. Manual Windows GUI/speaker QA and independent review remain NOT VERIFIED.
+- NEXT PRODUCT-CODE TASK: actual WebView2 E2E: `requestVideoFrameCallback.metadata.mediaTime` vs separate native WAV decoder timeline during same-clip scrub/seek at 2x; fallback for legacy WebView2 without frame API; measure A/V drift. Then Direct/Proxy/Composite/RenderSnapshot preview/export parity; do not do docs-only passes.
+- References: https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/requestVideoFrameCallback
+
+---
+
 # CURRENT CHECKPOINT — 2026-10-11 21:56+03 — Stage C audio drift at 2x (draft PR #44)
 
 - Product code: PreviewAudioTracks.tsx normalizes native audio clock tolerance by clip.speed, keeping a 120ms timeline drift budget while playing and 1ms timeline budget when paused. Previously a fixed 0.12s in source time caused repeated unnecessary pause/seek on 2x/4x clips. New PreviewAudioTracks.test.tsx regression proves 2x source clock drift 150ms (75ms timeline) stays playing, but 260ms (130ms timeline) seeks and waits for seeked. CHANGELOG.md updated.
