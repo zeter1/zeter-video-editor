@@ -4,6 +4,13 @@ Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
 Desktop source version: `0.1.0-alpha.1` (not a signed release; verify GitHub Releases before claiming publication)
 
+## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
+
+- **В этой ветке:** `apps/desktop/src/app/AppShell.tsx` — реальные горячие клавиши Ctrl+S/Ctrl+Z/Ctrl+Shift+Z/Ctrl+Y/Ctrl+K/Delete через Rust командную систему; защита при typing, locked track, drag, inactive project и границах split. `apps/desktop/src/app/AppShellShortcuts.test.tsx` — пользовательские React regression tests. Предыдущий вариант имел кнопки Split/Delete и toolbar Undo/Redo, но не связывал их с рабочими hotkeys.
+- **Ветка:** `feat/editor-keyboard-shortcuts-20261011` от `chore/versioned-changelog-20261011` (версионированный CHANGELOG из draft #39), proposal only; НЕ merged в `main`. Не повышать `0.1.0-alpha.1` без нового явного release decision.
+- **Verification:** exact HEAD CI и Windows WebView2 E2E после нового коммита требуют проверки; не считать тесты запущенными/прошедшими до результатов GitHub Actions. Keyboard edit требует ручного GUI acceptance перед merge.
+- **NEXT PRODUCT-CODE TASK:** интеграция AI tools из draft #7–#9 с текущим production `apps/desktop/src/app/AppShell.tsx` и `apps/desktop/src/components/LeftPanel.tsx` с реальными capabilities, review-before-apply, проверкой stale revision и минимум одним GUI/E2E сценарием. Эти ветки содержат legacy UI; интегрировать, а не перезаписывать новые Windows import/open/drag/drop. Далее Stage C A/V preview clock. Не начинать очередную docs-only проходку.
+
 ## NEXT PRODUCT-CODE TASK — mandatory start for the next development dialog (2026-10-11)
 
 **DO NOT START ANOTHER DOCUMENTATION / VERSIONING-ONLY PASS.** The previous sessions already addressed SemVer, CHANGELOG and CI; those remain supporting controls. First inspect the exact GitHub product code and active draft/stacked PRs to avoid duplicating implemented work, then make a bounded, tested change that improves the usable video editor.
