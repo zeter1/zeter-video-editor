@@ -91,6 +91,12 @@ export function PreviewPlayer({
     setMediaError(null);
   }, [key]);
 
+  // A paused transport cannot reuse readiness from an earlier play session:
+  // wait for the native decoder's next playing/seeked signal on restart.
+  useEffect(() => {
+    if (!playing) setSyncedVideoKey(null);
+  }, [playing]);
+
   // Embedded video audio uses the same gain/fade envelope as separate Audio
   // clips, while muting the track never hides the video picture.
   useEffect(() => {
