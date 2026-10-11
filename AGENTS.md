@@ -64,6 +64,7 @@ The implementation plan is approved and complete. For stabilization inside the a
 ## Mandatory versioning and change history
 
 - Read `docs/CHANGELOG_GUIDE.md` before changing versioned desktop behavior, API, security boundaries, build, UI, dependencies, or user documentation.
+- **At the start of every new development session** follow the complete, ordered section `Обязательная инструкция для следующего диалога` in `docs/CHANGELOG_GUIDE.md`. Verify current GitHub branch, exact SHA, app version, changelog and CI instead of trusting old conversation checkpoints. At the end, update `PROJECT_STATUS.md` and the Google continuity checkpoint with precise facts.
 - Every meaningful change submitted for integration MUST add a descriptive entry to the current version section of `CHANGELOG.md`; include what changed, why, user impact, migrations/compatibility, tests and caveats. No bare SHA-only or generic "fix bugs" entries.
 - `main` changelog describes changes present on `main` only. Draft PR behavior is described in the PR until integrated; do not present open PRs as shipping features.
 - No undated/unversioned `Unreleased` heading: changes are collected under the current explicit SemVer development version. Versions may be prereleases without implying a signed release.
