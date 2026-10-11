@@ -44,7 +44,7 @@ pub fn source_set_sha256(sources: &[(String, PathBuf)]) -> Result<String, MediaE
         if id.is_empty() || previous_id == Some(id.as_str()) {
             return Err(cache_input_error(path, "source IDs must be nonempty and unique"));
         }
-        previous_id = Some(id);
+        previous_id = Some(id.as_str());
         let file = open_regular_file(path)?
             .ok_or_else(|| cache_input_error(path, "missing or non-regular source"))?;
         let (content_sha256, size) = hash_reader(file).map_err(|source| cache_io(path, source))?;
@@ -301,10 +301,11 @@ mod tests {
     #[test]
     fn invalid_key_cannot_escape_root_or_form_a_filename() {
         let dir = tempdir().unwrap();
-        for invalid in ["../outside", "A".repeat(64).as_str(), "00", "f/".repeat(32).as_str()] {
+        for invalid in ["../outside".to_owned(), "A".repeat(64), "00".to_owned(), "f/".repeat(32)] {
             assert_eq!(
-                lookup_verified_preview_cache(dir.path(), invalid, &source_digest(), "ffmpeg"),
-                Ok(None)
+                lookup_verified_preview_cache(dir.path(), &invalid, &source_digest(), "ffmpeg")
+                    .unwrap(),
+                None
             );
         }
     }
