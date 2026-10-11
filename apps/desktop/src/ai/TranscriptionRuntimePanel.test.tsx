@@ -48,8 +48,7 @@ describe("modern local transcription review-before-apply", () => {
     expect(button.hasAttribute("disabled")).toBe(true);
 
     await act(async () => {
-      resolveFirst({ job_id: "job-first", state: "Completed" }
-        as Awaited<ReturnType<typeof startTranscription>>);
+      resolveFirst({ job_id: "job-first", state: "Completed" } as Awaited<ReturnType<typeof startTranscription>>);
     });
     await screen.findByText("Проверка");
     expect(button.hasAttribute("disabled")).toBe(false);
@@ -79,15 +78,13 @@ describe("modern local transcription review-before-apply", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generate subtitles" }));
     expect(startTranscription).toHaveBeenCalledTimes(2);
     await act(async () => {
-      pending[0]({ job_id: "old", state: "Completed" }
-        as Awaited<ReturnType<typeof startTranscription>>);
+      pending[0]({ job_id: "old", state: "Completed" } as Awaited<ReturnType<typeof startTranscription>>);
     });
     expect(getTranscriptionResult).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Generating…" }).hasAttribute("disabled")).toBe(true);
 
     await act(async () => {
-      pending[1]({ job_id: "new", state: "Completed" }
-        as Awaited<ReturnType<typeof startTranscription>>);
+      pending[1]({ job_id: "new", state: "Completed" } as Awaited<ReturnType<typeof startTranscription>>);
     });
     await screen.findByText("Проверка");
     expect(getTranscriptionResult).toHaveBeenCalledWith("new");
