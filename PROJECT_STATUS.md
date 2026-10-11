@@ -2,6 +2,8 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
+Desktop source version: `0.1.0-alpha.1` (not a signed release; verify GitHub Releases before claiming publication)
+
 ## Latest versioning checkpoint (proposed on a separate branch)
 
 - Draft proposal to version the desktop app `0.1.0-alpha.1` (not a public release). App/Tauri/Cargo/lock/runtime manifest align and the UI will display the version; no code has been installed on Windows PCs.

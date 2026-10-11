@@ -31,6 +31,10 @@ for (const [name, value] of Object.entries({
 })) {
   assert(value === packageVersion, `${name}: expected ${packageVersion}, got ${value}`);
 }
+assert(read("README.md").includes(`**${packageVersion}** — версия исходного кода`),
+  "README.md current desktop version differs from package.json");
+assert(read("PROJECT_STATUS.md").includes(`Desktop source version: \\`${packageVersion}\\``),
+  "PROJECT_STATUS.md current desktop version differs from package.json");
 const aiWorkerVersion = cargoVersion("apps/ai-worker/Cargo.toml", "zeter-ai-worker");
 assert(json("release/runtime-manifest.json").ai_worker.build_identity === aiWorkerVersion,
   "AI worker manifest identity and worker Cargo version differ");

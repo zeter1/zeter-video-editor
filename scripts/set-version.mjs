@@ -40,11 +40,17 @@ updateJson("apps/desktop/src-tauri/tauri.conf.json", (obj) => { obj.version = ta
 updateJson("release/runtime-manifest.json", (obj) => { obj.app.version = target; });
 function replaceOnce(path, before, after) {
   const data = read(path);
-  if (data.split(before).length !== 2) throw new Error(`Expected exactly one match in ${path}`);
-  writes.set(path, data.replace(before, after));
+  const eol = data.includes("\r\n") ? "\r\n" : "\n";
+  const find = before.replace(/\r?\n/g, eol);
+  const put = after.replace(/\r?\n/g, eol);
+  if (data.split(find).length !== 2) throw new Error(`Expected exactly one match in ${path}`);
+  writes.set(path, data.replace(find, put));
 }
 replaceOnce("apps/desktop/src-tauri/Cargo.toml", `version = "${current}"`, `version = "${target}"`);
 replaceOnce("Cargo.lock", `name = "zeter-desktop-tauri"\nversion = "${current}"`, `name = "zeter-desktop-tauri"\nversion = "${target}"`);
+replaceOnce("README.md", `**${current}** — версия исходного кода`, `**${target}** — версия исходного кода`);
+replaceOnce("PROJECT_STATUS.md", `Desktop source version: \\`${current}\\``, `Desktop source version: \\`${target}\\``);
+
 const log = read("CHANGELOG.md");
 const first = log.search(/^## \[/m);
 if (first < 0 || !log.startsWith("## [".concat(current, "]"), first))
