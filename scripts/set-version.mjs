@@ -2,24 +2,25 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseDesktopVersion, compareDesktopVersions, isValidCalendarDate } from "./version-policy.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const file = (path) => resolve(root, path);
 const read = (path) => readFileSync(file(path), "utf8");
-const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 const [target, ...args] = process.argv.slice(2);
 const noteIndex = args.indexOf("--note");
 const note = noteIndex >= 0 ? args[noteIndex + 1]?.trim() : null;
 const dateIndex = args.indexOf("--date");
 const date = dateIndex >= 0 ? args[dateIndex + 1] : new Date().toISOString().slice(0, 10);
-if (!semver.test(target ?? "") || !note || note.length < 25 ||
-    note.includes("\n") || !/^\d{4}-\d\d-\d\d$/.test(date)) {
+if (!parseDesktopVersion(target) || !note || note.length < 25 ||
+    note.includes("\n") || !isValidCalendarDate(date)) {
   console.error('Usage: node scripts/set-version.mjs <semver> --note "Detailed change (25+ chars)" [--date YYYY-MM-DD]');
   process.exit(1);
 }
 const current = JSON.parse(read("apps/desktop/package.json")).version;
-if (current === target) {
-  console.error(`Version is already ${target}; add changes directly to CHANGELOG.md`);
+if (!parseDesktopVersion(current)) throw new Error(`Invalid current desktop version: ${current}`);
+if (compareDesktopVersions(target, current) <= 0) {
+  console.error(`Version ${target} must be newer than ${current}; edit CHANGELOG.md for same-version changes`);
   process.exit(1);
 }
 const writes = new Map();

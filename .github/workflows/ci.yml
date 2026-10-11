@@ -40,6 +40,9 @@ jobs:
           cargo --version
           rustfmt --version
 
+      - name: Test version and release scripts
+        run: node --test scripts/version-policy.test.mjs
+
       - name: Verify app version and changelog
         run: node scripts/check-version.mjs
 

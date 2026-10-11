@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { parseDesktopVersion } from "./version-policy.mjs";
 import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const [version, ...args] = process.argv.slice(2);
-const matchVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/;
-if (!matchVersion.test(version ?? "")) {
+if (!parseDesktopVersion(version)) {
   console.error("Usage: node scripts/release-notes.mjs <semver> [--output file.md]");
   process.exit(1);
 }
