@@ -467,6 +467,7 @@ export function AppShell({
               sequence={activeSequence}
               playheadTimeUs={transient.playheadTimeUs}
               onCommit={handleEditCommand}
+              selectedClipId={selectedClip?.id ?? null}
               mediaId={selectedClip?.kind === "Video" || selectedClip?.kind === "Audio"
                 ? selectedClip.media_id : null}
               onTranscriptionApplied={async (result) => {

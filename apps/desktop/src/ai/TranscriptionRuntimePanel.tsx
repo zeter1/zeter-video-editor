@@ -160,7 +160,8 @@ export function TranscriptionRuntimePanel({
     const generation = generationRef.current;
     try {
       const applied = await applyTranscription(jobId, crypto.randomUUID());
-      if (generation !== generationRef.current) return;
+      // The user already confirmed this Rust edit: even if selection changed,
+      // the authoritative project state must be reconciled with the UI.
       await onApplied(applied);
       if (generation !== generationRef.current) return;
       setResult(null);

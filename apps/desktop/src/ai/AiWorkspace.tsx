@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CommandResultDto, EditCommand, MediaId, Sequence, SubtitleSegment } from "../generated/ipc";
+import type { ClipId, CommandResultDto, EditCommand, MediaId, Sequence, SubtitleSegment } from "../generated/ipc";
 import { TranscriptionRuntimePanel } from "./TranscriptionRuntimePanel";
 
 interface AiWorkspaceProps {
@@ -7,6 +7,7 @@ interface AiWorkspaceProps {
   playheadTimeUs: number;
   onCommit: (command: EditCommand) => Promise<boolean>;
   mediaId?: MediaId | null;
+  selectedClipId?: ClipId | null;
   onTranscriptionApplied?: (result: CommandResultDto) => Promise<void>;
   onTranscriptionError?: (message: string) => void;
 }
@@ -19,7 +20,7 @@ function parseTimeUs(seconds: string): number | null {
   return Number.isSafeInteger(result) ? result : null;
 }
 
-export function AiWorkspace({ sequence, playheadTimeUs, onCommit, mediaId, onTranscriptionApplied, onTranscriptionError }: AiWorkspaceProps) {
+export function AiWorkspace({ sequence, playheadTimeUs, onCommit, mediaId, selectedClipId, onTranscriptionApplied, onTranscriptionError }: AiWorkspaceProps) {
   const [text, setText] = useState("");
   const [start, setStart] = useState(() => (playheadTimeUs / 1_000_000).toFixed(2));
   const [end, setEnd] = useState(() => (playheadTimeUs / 1_000_000 + 2).toFixed(2));
@@ -69,9 +70,9 @@ export function AiWorkspace({ sequence, playheadTimeUs, onCommit, mediaId, onTra
         <li>Удаление тишины — production backend из draft PR ещё не интегрирован.</li>
         <li>Поиск хайлайтов — production backend из draft PR ещё не интегрирован.</li>
       </ul>
-      {sequence && mediaId && onTranscriptionApplied && onTranscriptionError ? (
+      {sequence && mediaId && selectedClipId && onTranscriptionApplied && onTranscriptionError ? (
         <TranscriptionRuntimePanel
-          key={`${sequence.id}:${mediaId}`}
+          key={`${sequence.id}:${selectedClipId}:${mediaId}`}
           mediaId={mediaId}
           sequenceId={sequence.id}
           onApplied={onTranscriptionApplied}
