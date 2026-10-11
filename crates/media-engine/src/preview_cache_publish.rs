@@ -128,7 +128,8 @@ use crate::{
     MediaError,
     preview_cache_manifest::{
         MAX_MANIFEST_BYTES, PreviewCacheManifest, capture_preview_cache_manifest,
-        lookup_verified_preview_cache, read_bounded_manifest_bytes, source_set_sha256,
+        lookup_verified_preview_cache, open_regular_file, read_bounded_manifest_bytes,
+        source_set_sha256,
     },
 };
 
@@ -467,16 +468,13 @@ fn manifest_matches(
     {
         return Ok(false);
     }
-    let file = File::open(path).map_err(|source| cache_io(path, source))?;
-    if !file
-        .metadata()
-        .map_err(|source| cache_io(path, source))?
-        .is_file()
-    {
+    // The shared opener rejects a swapped Windows final-component reparse
+    // handle, in addition to the earlier lstat. Parent-directory reparse
+    // races remain out of scope.
+    let Some(file) = open_regular_file(path)? else {
         return Ok(false);
-    }
-    // The path can grow or be replaced after lstat: cap reads on the
-    // opened handle as well. Full no-follow/reparse hardening is separate.
+    };
+    // The path can grow or be replaced after lstat: cap actual bytes read.
     let Some(bytes) = read_bounded_manifest_bytes(file).map_err(|source| cache_io(path, source))?
     else {
         return Ok(false);

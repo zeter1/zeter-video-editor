@@ -5,10 +5,13 @@
 //! freshness after rendering. Legacy lookup_preview_cache remains unchanged.
 
 use std::{
-    fs::{self, File},
+    fs::{self, File, Metadata},
     io::{self, Read, Seek, SeekFrom},
     path::{Path, PathBuf},
 };
+
+#[cfg(windows)]
+use std::fs::OpenOptions;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -61,7 +64,7 @@ pub fn source_set_sha256(sources: &[(String, PathBuf)]) -> Result<String, MediaE
             ));
         }
         previous_id = Some(id.as_str());
-        let file = open_regular_file(path)?
+        let file = open_imported_source_file(path)?
             .ok_or_else(|| cache_input_error(path, "missing or non-regular source"))?;
         let (content_sha256, size) = hash_reader(file).map_err(|source| cache_io(path, source))?;
         push_text(&mut hash, id);
@@ -188,10 +191,11 @@ pub fn lookup_verified_preview_cache(
     Ok(Some(artifact_path))
 }
 
-/// Reject a missing/non-regular file and direct symlinks before opening.
-/// The open itself follows an lstat and is not an atomic no-follow guarantee:
-/// Stage B2 must handle concurrent filesystem adversaries and TOCTOU.
-fn open_regular_file(path: &Path) -> Result<Option<File>, MediaError> {
+/// Preserve imported-file semantics for Windows cloud-backed media. Some
+/// OneDrive Files On-Demand placeholders have REPARSE_POINT, but must be read
+/// through normal hydration. Direct symlinks remain rejected; the lstat/open
+/// window for arbitrary imported source paths needs a snapshot-based design.
+fn open_imported_source_file(path: &Path) -> Result<Option<File>, MediaError> {
     let meta = match fs::symlink_metadata(path) {
         Ok(meta) => meta,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -200,9 +204,68 @@ fn open_regular_file(path: &Path) -> Result<Option<File>, MediaError> {
     if !meta.is_file() || meta.file_type().is_symlink() {
         return Ok(None);
     }
-    File::open(path)
-        .map(Some)
-        .map_err(|source| cache_io(path, source))
+    let file = File::open(path).map_err(|source| cache_io(path, source))?;
+    if !file
+        .metadata()
+        .map_err(|source| cache_io(path, source))?
+        .is_file()
+    {
+        return Ok(None);
+    }
+    Ok(Some(file))
+}
+
+/// Reject direct links before opening, then inspect the opened file handle.
+/// Windows opens the final component itself instead of following a swapped
+/// reparse point. Parent-directory substitutions remain a separate risk.
+pub(crate) fn open_regular_file(path: &Path) -> Result<Option<File>, MediaError> {
+    let meta = match fs::symlink_metadata(path) {
+        Ok(meta) => meta,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(source) => return Err(cache_io(path, source)),
+    };
+    if !plain_regular_file(&meta) {
+        return Ok(None);
+    }
+    let file = open_final_component_no_reparse(path).map_err(|source| cache_io(path, source))?;
+    let opened = file.metadata().map_err(|source| cache_io(path, source))?;
+    if !plain_regular_file(&opened) {
+        return Ok(None);
+    }
+    Ok(Some(file))
+}
+
+fn plain_regular_file(metadata: &Metadata) -> bool {
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+        if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            return false;
+        }
+    }
+    true
+}
+
+fn open_final_component_no_reparse(path: &Path) -> io::Result<File> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        // FILE_FLAG_OPEN_REPARSE_POINT: access the final link itself, not its
+        // target, then reject its reparse attribute on the opened handle.
+        const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+        OpenOptions::new()
+            .read(true)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(path)
+    }
+    #[cfg(not(windows))]
+    {
+        File::open(path)
+    }
 }
 
 fn mp4_digest(mut file: File, path: &Path) -> Result<Option<(String, u64)>, MediaError> {
@@ -321,6 +384,39 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn regular_file_handle_stays_readable() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("plain.mp4");
+        fs::write(&path, b"plain bytes").unwrap();
+        let mut file = open_regular_file(&path).unwrap().unwrap();
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).unwrap();
+        assert_eq!(bytes, b"plain bytes");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn final_component_reparse_handle_is_not_accepted_as_regular() {
+        use std::os::windows::fs::symlink_file;
+
+        let dir = tempdir().unwrap();
+        let target = dir.path().join("target.mp4");
+        let link = dir.path().join("link.mp4");
+        fs::write(&target, b"target bytes").unwrap();
+        if let Err(error) = symlink_file(&target, &link) {
+            // A runner without symlink privilege cannot exercise this fixture.
+            eprintln!("skipping symlink fixture (creation unavailable): {error}");
+            return;
+        }
+        assert!(open_regular_file(&link).unwrap().is_none());
+        // Simulates a final-component swap after a successful initial lstat.
+        // The opened link handle must fail closed even in that case.
+        if let Ok(file) = open_final_component_no_reparse(&link) {
+            assert!(!plain_regular_file(&file.metadata().unwrap()));
+        }
     }
 
     fn key() -> String {
