@@ -5,13 +5,24 @@
 
 use std::{
     fs::{self, File},
-    io::{self, Write},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
     process::Command,
 };
 
 use tempfile::NamedTempFile;
 use tokio_util::sync::CancellationToken;
+
+// This is a preview *chunk* cache, not a full-resolution export destination.
+// Cap disk staging even when a render grows after its initial metadata check.
+const MAX_PREVIEW_CACHE_STAGING_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+
+#[derive(Debug, PartialEq, Eq)]
+enum StageCopyOutcome {
+    Completed,
+    Cancelled,
+    TooLarge,
+}
 
 use crate::{
     MediaError,
@@ -55,6 +66,38 @@ pub fn publish_preview_cache(
         cancellation,
         |file| verify_managed_mp4(managed_ffprobe, file),
     )
+}
+
+/// Copy a completed render in bounded chunks, checking cancellation before
+/// and after every read. The extra byte detects growth beyond the allowed cap.
+/// The caller owns the NamedTempFile: any early return removes partial staging.
+fn stage_render<R: Read, W: Write>(
+    reader: &mut R,
+    writer: &mut W,
+    cancellation: &CancellationToken,
+    limit: u64,
+) -> io::Result<StageCopyOutcome> {
+    let mut copied = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        if cancellation.is_cancelled() {
+            return Ok(StageCopyOutcome::Cancelled);
+        }
+        let remaining_with_sentinel = limit - copied + 1;
+        let available = remaining_with_sentinel.min(buffer.len() as u64) as usize;
+        let read = reader.read(&mut buffer[..available])?;
+        if cancellation.is_cancelled() {
+            return Ok(StageCopyOutcome::Cancelled);
+        }
+        if read == 0 {
+            return Ok(StageCopyOutcome::Completed);
+        }
+        if read as u64 > limit - copied {
+            return Ok(StageCopyOutcome::TooLarge);
+        }
+        writer.write_all(&buffer[..read])?;
+        copied += read as u64;
+    }
 }
 
 /// External ffprobe must be a trusted, checksum-pinned managed runtime.
@@ -155,20 +198,40 @@ where
     }
     let mut render =
         File::open(completed_render).map_err(|source| cache_io(completed_render, source))?;
-    if !render
+    let opened_render_meta = render
         .metadata()
-        .map_err(|source| cache_io(completed_render, source))?
-        .is_file()
-    {
+        .map_err(|source| cache_io(completed_render, source))?;
+    if !opened_render_meta.is_file() {
         return Err(cache_invalid(
             completed_render,
             "render is not a regular file",
         ));
     }
+    if opened_render_meta.len() > MAX_PREVIEW_CACHE_STAGING_BYTES {
+        return Err(cache_invalid(
+            completed_render,
+            "preview render exceeds staging size limit",
+        ));
+    }
     let mut staged_video =
         NamedTempFile::new_in(cache_root).map_err(|source| cache_io(cache_root, source))?;
-    io::copy(&mut render, staged_video.as_file_mut())
-        .map_err(|source| cache_io(staged_video.path(), source))?;
+    let staging = stage_render(
+        &mut render,
+        staged_video.as_file_mut(),
+        cancellation,
+        MAX_PREVIEW_CACHE_STAGING_BYTES,
+    )
+    .map_err(|source| cache_io(staged_video.path(), source))?;
+    match staging {
+        StageCopyOutcome::Completed => {}
+        StageCopyOutcome::Cancelled => return Ok(PreviewCachePublishOutcome::Cancelled),
+        StageCopyOutcome::TooLarge => {
+            return Err(cache_invalid(
+                completed_render,
+                "preview render grew beyond staging size limit",
+            ));
+        }
+    }
     staged_video
         .as_file()
         .sync_all()
@@ -327,6 +390,55 @@ mod tests {
             cancel,
             |_| Ok(()),
         )
+    }
+
+    #[test]
+    fn staging_copy_respects_limit_and_exact_boundary() {
+        let cancel = CancellationToken::new();
+        let mut oversized = &b"abcdef"[..];
+        let mut staged = Vec::new();
+        assert_eq!(
+            stage_render(&mut oversized, &mut staged, &cancel, 5).unwrap(),
+            StageCopyOutcome::TooLarge
+        );
+        assert_eq!(staged, b"abcde");
+
+        let mut exact = &b"abcdef"[..];
+        let mut exact_staged = Vec::new();
+        assert_eq!(
+            stage_render(&mut exact, &mut exact_staged, &cancel, 6).unwrap(),
+            StageCopyOutcome::Completed
+        );
+        assert_eq!(exact_staged, b"abcdef");
+    }
+
+    #[test]
+    fn staging_copy_observes_cancellation_triggered_during_read() {
+        struct CancelDuringRead<'a> {
+            input: &'a [u8],
+            token: &'a CancellationToken,
+        }
+        impl Read for CancelDuringRead<'_> {
+            fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+                let count = self.input.read(output)?;
+                if count > 0 {
+                    self.token.cancel();
+                }
+                Ok(count)
+            }
+        }
+
+        let token = CancellationToken::new();
+        let mut reader = CancelDuringRead {
+            input: b"unfinished-video",
+            token: &token,
+        };
+        let mut staged = Vec::new();
+        assert_eq!(
+            stage_render(&mut reader, &mut staged, &token, 64).unwrap(),
+            StageCopyOutcome::Cancelled
+        );
+        assert!(staged.is_empty());
     }
 
     #[test]
