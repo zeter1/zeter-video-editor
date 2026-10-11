@@ -50,6 +50,30 @@ fn sampled_frame(runtime: &ManagedRuntime, video: &Path, at: &str) -> Vec<u8> {
     output.stdout
 }
 
+// Decode an exact output frame index. Time-based -ss can round to the next
+// packet at fractional FPS; the FFmpeg select filter uses decoded frame n.
+fn sampled_frame_number(runtime: &ManagedRuntime, video: &Path, index: usize) -> Vec<u8> {
+    let output = Command::new(&runtime.ffmpeg_path)
+        .args(["-hide_banner", "-loglevel", "error", "-i"])
+        .arg(video)
+        .arg("-vf")
+        .arg(format!("select='eq(n,{index})',scale=64:36"))
+        .args(["-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "-"])
+        .output()
+        .expect("run managed FFmpeg numbered frame sampler");
+    assert!(
+        output.status.success(),
+        "numbered frame {index} sample failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        output.stdout.len(),
+        64 * 36 * 3,
+        "missing decoded frame {index}"
+    );
+    output.stdout
+}
+
 // An independent color oracle: export/chunk parity alone can pass even when
 // both render paths accidentally omit the upper video layer.
 fn red_pixel_fraction(frame: &[u8]) -> f64 {
@@ -519,7 +543,7 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
                     muted: false,
                     locked: false,
                     hidden: false,
-                    clips: vec![clip(upper_id, 200_000, 1_000_000, 600_000, 1_400_000)],
+                    clips: vec![clip(upper_id, 200_000, 1_001_400, 600_000, 1_401_400)],
                 },
                 Track {
                     id: TrackId::new(),
@@ -556,9 +580,10 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
     )
     .expect("compile layered timeline");
 
-    // The V2 layer spans [0.6, 1.4) on the timeline. Inspect the actual
-    // FFmpeg graph rather than only comparing the two outputs, which can
-    // share the same inclusive-end error.
+    // V2 ends exactly at frame 42 (42 * 1001 / 30000 = 1.401400 s).
+    // Verify the real export graph, not a hand-built FFmpeg oracle. A rounded
+    // 29.970030 base-clock value is measurably before this boundary, and
+    // eof_action=pass can drop the final valid frame before its end.
     let graph_spec = build_export_spec(
         &runtime,
         &plan,
@@ -572,12 +597,25 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
         .expect("full export has filtergraph");
     let graph = graph_spec.args[graph_index + 1].to_string_lossy();
     assert!(
-        graph.contains("enable='gte(t,0.600000)*lt(t,1.400000)'"),
+        graph.contains("enable='gte(t,0.600000)*lt(t,1.401400)'"),
         "upper V2 overlay must end before its end timestamp: {graph}"
     );
     assert!(
-        !graph.contains("enable='between(t,0.600000,1.400000)'"),
+        !graph.contains("enable='between(t,0.600000,1.401400)'"),
         "inclusive-end overlay leaked into a half-open clip interval"
+    );
+
+    assert!(
+        graph.contains("color=c=black:s=320x180:r=30000/1001:"),
+        "fractional NTSC base clock must be the exact 30000/1001 ratio: {graph}"
+    );
+    assert!(
+        graph.contains("]fps=30000/1001,format=yuv420p[vout]"),
+        "fractional NTSC output fps filter must keep the exact ratio: {graph}"
+    );
+    assert!(
+        graph.contains("eof_action=repeat:enable='gte(t,0.600000)*lt(t,1.401400)'"),
+        "last in-range V2 frame must survive source EOF, without leaking beyond end: {graph}"
     );
 
     let full = temp.path().join("layered-full.mp4");
@@ -631,6 +669,20 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
             "layered picture parity at {at_full}/{at_chunk}: MAE={mean_abs_error:.2}"
         );
     }
+
+    // Independently sample real *editor export* pixels at n41/n42, not a
+    // separately constructed overlay expression or full/chunk parity alone.
+    // n41 is inside [0.6,1.4014); n42 is the exact exclusive end.
+    let before_end = red_pixel_fraction(&sampled_frame_number(&runtime, &full, 41));
+    let at_end = red_pixel_fraction(&sampled_frame_number(&runtime, &full, 42));
+    assert!(
+        before_end > 0.85,
+        "actual export loses V2 before fractional-NTSC end: n41 red fraction={before_end:.3}"
+    );
+    assert!(
+        at_end < 0.05,
+        "actual export leaks V2 at exact half-open end: n42 red fraction={at_end:.3}"
+    );
 
     // A black uncovered region must not accidentally retain the previous clip.
     let gap = sampled_frame(&runtime, &full, "1.700");

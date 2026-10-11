@@ -382,9 +382,12 @@ fn compile_timeline_filtergraph(
     input_clips: &[(usize, &RenderClip)],
     duration: f64,
 ) -> (String, bool) {
+    // Preserve exact NTSC rational timestamps across base and final fps.
+    // A rounded 29.970030 clock is just before frame 42 at 1.401400 s.
+    let frame_rate = ffmpeg_frame_rate(plan.fps);
     let mut parts = vec![format!(
-        "color=c=black:s={}x{}:r={:.6}:d={duration:.6}[vbase0]",
-        plan.width, plan.height, plan.fps
+        "color=c=black:s={}x{}:r={frame_rate}:d={duration:.6}[vbase0]",
+        plan.width, plan.height
     )];
 
     let mut base_label = "vbase0".to_string();
@@ -492,7 +495,7 @@ fn compile_timeline_filtergraph(
         // outgoing layer onto the first frame of the next clip.
         let enable = half_open_enable(timeline_start, timeline_end);
         parts.push(format!(
-            "[{base_label}][{clip_label}]overlay=x='{x}':y='{y}':eof_action=pass:enable='{enable}'[{next_base}]"
+            "[{base_label}][{clip_label}]overlay=x='{x}':y='{y}':eof_action=repeat:enable='{enable}'[{next_base}]"
         ));
         base_label = next_base;
         visual_index += 1;
@@ -534,8 +537,7 @@ fn compile_timeline_filtergraph(
     }
 
     parts.push(format!(
-        "[{base_label}]fps={:.6},format=yuv420p[vout]",
-        plan.fps
+        "[{base_label}]fps={frame_rate},format=yuv420p[vout]"
     ));
 
     let mut audio_labels = Vec::new();
@@ -666,6 +668,23 @@ fn drawtext_filter(
     format!("drawtext={}", options.join(":"))
 }
 
+// FFmpeg accepts exact rational frame rates; decimal rounding introduces
+// timebase drift at fractional NTSC frame boundaries. Keep both color source
+// and final fps output filters on the same canonical clock.
+fn ffmpeg_frame_rate(fps: f64) -> String {
+    for (numerator, denominator) in [
+        (24_000, 1001),
+        (30_000, 1001),
+        (60_000, 1001),
+        (120_000, 1001),
+    ] {
+        if (fps - numerator as f64 / denominator as f64).abs() < 0.000001 {
+            return format!("{numerator}/{denominator}");
+        }
+    }
+    format!("{fps:.6}")
+}
+
 // FFmpeg's between(t,a,b) includes b. The editor model's clip, text and
 // subtitle intervals are half-open; use one shared predicate for all three.
 fn half_open_enable(start: f64, end: f64) -> String {
@@ -696,7 +715,17 @@ fn escape_drawtext(value: &str) -> String {
 
 #[cfg(test)]
 mod half_open_enable_tests {
-    use super::half_open_enable;
+    use super::{ffmpeg_frame_rate, half_open_enable};
+
+    #[test]
+    fn preserves_exact_ntsc_fps_ratio_without_snapping_ordinary_fps() {
+        assert_eq!(ffmpeg_frame_rate(30_000.0 / 1001.0), "30000/1001");
+        assert_eq!(ffmpeg_frame_rate(29.970030), "30000/1001");
+        assert_eq!(ffmpeg_frame_rate(24_000.0 / 1001.0), "24000/1001");
+        assert_eq!(ffmpeg_frame_rate(60_000.0 / 1001.0), "60000/1001");
+        assert_eq!(ffmpeg_frame_rate(30.0), "30.000000");
+        assert_eq!(ffmpeg_frame_rate(29.97), "29.970000");
+    }
 
     #[test]
     fn uses_inclusive_start_exclusive_end_even_at_fractional_frame_boundary() {
