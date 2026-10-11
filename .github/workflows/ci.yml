@@ -40,6 +40,9 @@ jobs:
           cargo --version
           rustfmt --version
 
+      - name: Verify app version and changelog
+        run: node scripts/check-version.mjs
+
       - name: Rust format check
         run: cargo fmt --all -- --check
 

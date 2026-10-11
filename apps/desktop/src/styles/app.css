@@ -79,6 +79,13 @@ button {
   letter-spacing: 0.01em;
 }
 
+.app-version {
+  flex: none;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
 .brand-mark {
   display: grid;
   width: 30px;

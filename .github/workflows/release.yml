@@ -87,6 +87,9 @@ jobs:
           }
 
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          node scripts/check-version.mjs --tag "v$version"
+          node scripts/release-notes.mjs "$version" --output release-notes.md
+
           "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Download and verify pinned FFmpeg runtime
@@ -174,4 +177,4 @@ jobs:
           SIG_PATH: ${{ steps.artifacts.outputs.sig }}
         run: |
           if (gh release view $env:RELEASE_TAG 2>$null) { throw "Release $env:RELEASE_TAG already exists; production releases are immutable." }
-          gh release create $env:RELEASE_TAG $env:SETUP_PATH $env:SIG_PATH latest.json --target $env:GITHUB_SHA --title "Zeter Video Editor $env:RELEASE_TAG" --notes "Signed Windows release."
+          gh release create $env:RELEASE_TAG $env:SETUP_PATH $env:SIG_PATH latest.json --target $env:GITHUB_SHA --title "Zeter Video Editor $env:RELEASE_TAG" --notes-file release-notes.md

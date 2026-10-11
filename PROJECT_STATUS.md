@@ -1,6 +1,15 @@
 # Project Status
 
-Last updated: 2026-10-07
+Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
+
+## Latest versioning checkpoint (proposed on a separate branch)
+
+- Draft proposal to version the desktop app `0.1.0-alpha.1` (not a public release). App/Tauri/Cargo/lock/runtime manifest align and the UI will display the version; no code has been installed on Windows PCs.
+- `CHANGELOG.md` is organized under dated SemVer sections, with an explicit legacy `0.0.1` baseline instead of an indefinite pending-change section. Historical MVP details retained.
+- `docs/CHANGELOG_GUIDE.md` defines mandatory per-PR detailed updates. CI checks version coherence; release notes come from the versioned changelog.
+- This checkpoint applies to the dedicated versioning proposal, not the currently running unmerged timeline or cache PRs; do not claim those changes landed in main.
+- Before merging: verify exact-head Windows CI (fmt, frontend build, Rust, Vitest, WebView2, NSIS), review, and any required GUI acceptance. Signing/public release remain prohibited until qualified.
+
 
 ## Current phase
 

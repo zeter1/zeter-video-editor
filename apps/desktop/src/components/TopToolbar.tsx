@@ -1,3 +1,5 @@
+import packageInfo from "../../package.json";
+
 interface TopToolbarProps {
   projectName: string | null;
   revision: number | null;
@@ -35,6 +37,7 @@ export function TopToolbar({
             {revision !== null ? ` · r${revision}` : ""}
           </span>
         </div>
+        <span className="app-version" aria-label="Версия приложения">v{packageInfo.version}</span>
       </div>
       <div className="toolbar-actions" role="toolbar" aria-label="Project toolbar">
         <button type="button" onClick={onNew}>Новый</button>

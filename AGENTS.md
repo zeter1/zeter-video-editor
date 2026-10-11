@@ -61,6 +61,15 @@ The implementation plan is approved and complete. For stabilization inside the a
 - Add tests for domain/timeline behavior before or alongside implementation according to the active Superpowers TDD workflow.
 - Never claim a feature is complete without running relevant verification.
 
+## Mandatory versioning and change history
+
+- Read `docs/CHANGELOG_GUIDE.md` before changing versioned desktop behavior, API, security boundaries, build, UI, dependencies, or user documentation.
+- Every meaningful change submitted for integration MUST add a descriptive entry to the current version section of `CHANGELOG.md`; include what changed, why, user impact, migrations/compatibility, tests and caveats. No bare SHA-only or generic "fix bugs" entries.
+- `main` changelog describes changes present on `main` only. Draft PR behavior is described in the PR until integrated; do not present open PRs as shipping features.
+- No undated/unversioned `Unreleased` heading: changes are collected under the current explicit SemVer development version. Versions may be prereleases without implying a signed release.
+- Change desktop version only with `node scripts/set-version.mjs <semver> --note "detailed description"`; validate using `node scripts/check-version.mjs`. Version sources: desktop package.json/lock, Tauri config/Cargo, Cargo.lock, app runtime manifest and current changelog section. Do not bump unrelated internal crate versions or .vcut schema inadvertently.
+- Never publish a tag or installer without Windows CI, manual acceptance and separately verified release/signing prerequisites. Release notes must come from the version section of `CHANGELOG.md`.
+
 ## Continuity
 
 At the end of meaningful development sessions, update `PROJECT_STATUS.md` with:
