@@ -4,6 +4,7 @@ pub mod encoder;
 pub mod error;
 pub mod export;
 pub mod preview_cache;
+pub mod preview_cache_manifest;
 pub mod probe;
 pub mod process;
 pub mod proxy;
