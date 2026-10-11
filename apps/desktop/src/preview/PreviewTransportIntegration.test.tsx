@@ -264,24 +264,31 @@ describe("PreviewPlayer continuous transport", () => {
     expect(audioPlays()).toBe(0); // An unbuffered video has not started its clock.
     fireEvent.playing(video);
     expect(audioPlays()).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    const pausedAudioCount = audioPauses();
+    expect(pausedAudioCount).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(audioPlays()).toBe(1); // Old decoder readiness must not leak into restart.
+    fireEvent.playing(video);
+    expect(audioPlays()).toBe(2);
     const beforeWaiting = audioPauses();
     fireEvent.waiting(video);
     expect(audioPauses()).toBeGreaterThan(beforeWaiting);
-    expect(audioPlays()).toBe(1);
+    expect(audioPlays()).toBe(2);
 
     fireEvent.playing(video);
-    expect(audioPlays()).toBe(2);
+    expect(audioPlays()).toBe(3);
     const beforeSeeking = audioPauses();
     fireEvent.seeking(video);
     expect(audioPauses()).toBeGreaterThan(beforeSeeking);
     fireEvent.seeked(video);
-    expect(audioPlays()).toBe(3);
+    expect(audioPlays()).toBe(4);
 
     // Audio-only gap resumes from the common playhead, even if prior video stalled.
     fireEvent.waiting(video);
     rerender(<PreviewPlayer {...props} playheadTimeUs={1_200_000} />);
     expect(container.querySelector("video.preview-media")).toBeNull();
-    expect(audioPlays()).toBe(4);
+    expect(audioPlays()).toBe(5);
     expect(props.onCommit).not.toHaveBeenCalled();
   });
 
