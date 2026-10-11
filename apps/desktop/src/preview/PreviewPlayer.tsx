@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { Clip, MediaRef, Sequence, TrackId } from "../generated/ipc";
+import type { Clip, MediaRef, Sequence, Track, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
-import { PreviewAudioTracks } from "./PreviewAudioTracks";
+import { PreviewAudioTracks, previewAudioVolume } from "./PreviewAudioTracks";
 import {
   advanceGapTimeUs,
   mediaTimeToTimelineUs,
@@ -23,13 +23,13 @@ interface PreviewPlayerProps {
   onCommit: EditCommit;
 }
 
-function findVisibleClip(sequence: Sequence, timeUs: number): Clip | null {
+function findVisibleClip(sequence: Sequence, timeUs: number): { clip: Clip; track: Track } | null {
   // The last visible video/overlay track takes precedence in a composite.
   for (const track of [...sequence.tracks].reverse()) {
     if (track.hidden || (track.kind !== "Video" && track.kind !== "Overlay")) continue;
     for (const clip of [...track.clips].reverse()) {
       if ((clip.kind === "Video" || clip.kind === "Image") &&
-          clip.timeline_start <= timeUs && timeUs < clip.timeline_end) return clip;
+          clip.timeline_start <= timeUs && timeUs < clip.timeline_end) return { clip, track };
     }
   }
   return null;
@@ -71,10 +71,12 @@ export function PreviewPlayer({
   clockPositionRef.current = playheadTimeUs;
   onSeekRef.current = onSeek;
 
-  const active = useMemo(
+  const visible = useMemo(
     () => findVisibleClip(sequence, playheadTimeUs),
     [sequence, playheadTimeUs],
   );
+  const active = visible?.clip ?? null;
+  const activeTrack = visible?.track ?? null;
   const source = media.find((item) => item.id === active?.media_id) ?? null;
   const src = source ? mediaUrl(source.id) : null;
   const key = active && source ? `${active.id}:${source.id}` : "";
@@ -84,6 +86,14 @@ export function PreviewPlayer({
   useEffect(() => {
     setMediaError(null);
   }, [key]);
+
+  // Embedded video audio uses the same gain/fade envelope as separate Audio
+  // clips, while muting the track never hides the video picture.
+  useEffect(() => {
+    if (!videoSource || !active || !video.current) return;
+    video.current.muted = Boolean(activeTrack?.muted || active.audio.muted);
+    video.current.volume = previewAudioVolume(active, playheadTimeUs);
+  }, [videoSource, active, activeTrack?.muted, playheadTimeUs]);
 
   useEffect(() => {
     if (!videoSource || !active || !video.current) return;

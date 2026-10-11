@@ -135,6 +135,48 @@ describe("PreviewPlayer continuous transport", () => {
     expect(pending.size).toBe(0);
   });
 
+
+  it("applies embedded video audio envelopes and both mute controls without editing", () => {
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const onCommit = vi.fn();
+    const videoClip = {
+      id: "video-with-sound", kind: "Video",
+      media_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      source_in: 0, source_out: 2_000_000, timeline_start: 0,
+      timeline_end: 2_000_000, speed: 1,
+      audio: { volume: 0.6, gain_db: 0, muted: false, fade_in: 1_000_000, fade_out: 0 },
+    } as Sequence["tracks"][number]["clips"][number];
+    const videoTrack = {
+      id: "video-track", kind: "Video", hidden: false, muted: false, locked: false,
+      clips: [videoClip],
+    } as Sequence["tracks"][number];
+    const media = [{ id: videoClip.media_id }] as import("../generated/ipc").MediaRef[];
+    const props = {
+      media, selectedClip: null, selectedTrackId: null,
+      onSeek: vi.fn(), onCommit,
+    };
+    const { rerender, container } = render(
+      <PreviewPlayer {...props} sequence={{ ...baseSequence, tracks: [videoTrack] }} playheadTimeUs={500_000} />,
+    );
+    const video = container.querySelector("video.preview-media") as HTMLVideoElement;
+    expect(video).toBeTruthy();
+    expect(video.muted).toBe(false);
+    expect(video.volume).toBeCloseTo(0.3);
+
+    rerender(<PreviewPlayer {...props} sequence={{ ...baseSequence, tracks: [videoTrack] }} playheadTimeUs={1_000_000} />);
+    expect(container.querySelector("video.preview-media")).toBe(video);
+    expect(video.volume).toBeCloseTo(0.6);
+
+    rerender(<PreviewPlayer {...props} sequence={{ ...baseSequence, tracks: [{ ...videoTrack, muted: true }] }} playheadTimeUs={1_000_000} />);
+    expect(video.muted).toBe(true);
+    expect(video.isConnected).toBe(true);
+    rerender(<PreviewPlayer {...props} sequence={{ ...baseSequence, tracks: [{ ...videoTrack, clips: [{ ...videoClip, audio: { ...videoClip.audio, muted: true } }] }] }} playheadTimeUs={1_000_000} />);
+    expect(video.muted).toBe(true);
+    rerender(<PreviewPlayer {...props} sequence={{ ...baseSequence, tracks: [videoTrack] }} playheadTimeUs={1_000_000} />);
+    expect(video.muted).toBe(false);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("disables the transport when the edit contains no clips", () => {
     render(<PreviewPlayer
       sequence={baseSequence}

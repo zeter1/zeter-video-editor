@@ -1,3 +1,12 @@
+# NEXT PRODUCT-CODE TASK — 2026-10-11 ~18:34 Минск — VIDEO SOUND MUTE/VOLUME, DRAFT #44
+
+- **Внесён product-code, не docs-only:** `apps/desktop/src/preview/PreviewPlayer.tsx` определяет активные Clip + Video/Overlay Track и применяет к embedded video audio настройки `track.muted`, `clip.audio.muted`, `previewAudioVolume` (volume/gain/fades) как для отдельных Audio-дорожек. Mute не убирает видеокадр.
+- **Новые проверки:** React/Vitest `PreviewTransportIntegration.test.tsx` для громкости и mute, настоящий Windows WebView2 `apps/desktop/e2e/mvp-workflow.spec.ts` для `SetVolume`, `SetTrackMute`, изображения и revision-preserving Play/Pause. Exact-head CI НОВОГО кода обязательно проверить; предыдущий f125cd392047547b141ac0c4ffead03dac0c500e COMPLETED SUCCESS https://github.com/zeter1/zeter-video-editor/actions/runs/38151046519, но он до доработки.
+- **Статус:** stacked DRAFT PR https://github.com/zeter1/zeter-video-editor/pull/44 branch `feat/preview-continuous-transport-20261011`, base #43→#42→#41→#40→#39→main. main не merge; без tag/release/sign/install. Desktop `0.1.0-alpha.1` development only, `.vcut` v2 без изменений, ручной Windows GUI QA NOT VERIFIED.
+- **NEXT PRODUCT-CODE TASK:** проверить latest exact-head CI #44; при FAIL исправить production/test в этой ветке; затем WebView2 E2E video→gap→image→video, source_in/speed/seek clip boundaries и Stage C frame-accurate Direct/Proxy/Composite/RenderSnapshot parity. Не делать docs-only проходку, review и ручной QA до merge.
+
+---
+
 # NEXT PRODUCT-CODE TASK — 2026-10-11 ~18:27 Минск — STAGE C STANDALONE AUDIO PREVIEW, DRAFT #44
 
 - **В этой проходке изменён код приложения, не только документация.** Реально добавлен `apps/desktop/src/preview/PreviewAudioTracks.tsx`, подключён в `PreviewPlayer.tsx`: одновременно активные клипы на Audio-дорожках воспроизводятся через project-scoped WebView2 media protocol, по общему timeline playhead со скоростью и source-in; учитываются pause/seek, clip/track mute, volume/gain с native saturation и fade boundaries. Отдельные аудиодорожки теперь имеют слышимое preview поверх видео либо в audio-only участке. Pure React/Vitest `PreviewAudioTracks.test.tsx` проверяет source-in, 2x speed, mute, overlap, fade, end и отсутствие экспонирования дисковых путей; настоящий `apps/desktop/e2e/mvp-workflow.spec.ts` тестирует Audio WAV, паузу, mute и неизменность Rust snapshot от транспортных действий.

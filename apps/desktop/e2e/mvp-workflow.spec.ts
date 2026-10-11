@@ -1036,6 +1036,44 @@ test("exports a sanitized support bundle through the real desktop command bounda
 });
 
 
+
+test("applies native video audio volume and track mute in real WebView2", async () => {
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  await expectRevision(page, 0);
+
+  const video = page.locator("video.preview-media");
+  await expect(video).toHaveCount(1);
+  await expect.poll(
+    () => video.evaluate((element) => (element as HTMLVideoElement).readyState),
+    { timeout: 15_000 },
+  ).toBeGreaterThan(0);
+  expect(await video.evaluate((element) => (element as HTMLVideoElement).muted)).toBe(false);
+
+  await edit(page, 0, {
+    SetVolume: { sequence_id: SEQUENCE, track_id: VIDEO_TRACK, clip_id: VIDEO_CLIP, volume: 0.35 },
+  });
+  await page.reload();
+  await expect.poll(
+    () => page.locator("video.preview-media").evaluate((element) => (element as HTMLVideoElement).volume),
+  ).toBeCloseTo(0.35, 2);
+
+  await edit(page, 1, {
+    SetTrackMute: { sequence_id: SEQUENCE, track_id: VIDEO_TRACK, muted: true },
+  });
+  await page.reload();
+  await expect(page.locator("video.preview-media")).toHaveCount(1);
+  await expect.poll(
+    () => page.locator("video.preview-media").evaluate((element) => (element as HTMLVideoElement).muted),
+  ).toBe(true);
+
+  const beforeTransport = await invokeTauri<Snapshot>(page, "project_snapshot");
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  expect(await invokeTauri<Snapshot>(page, "project_snapshot")).toEqual(beforeTransport);
+});
+
 test("plays a standalone audio track in real WebView2 without editing the project", async () => {
   const { page, state } = await connectTauri();
   await openProject(page, state.workflowProjectPath);
