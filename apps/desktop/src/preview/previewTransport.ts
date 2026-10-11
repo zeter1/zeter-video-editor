@@ -1,5 +1,11 @@
 import type { Clip, Sequence } from "../generated/ipc";
 
+// A seek, pause or load can intentionally interrupt a pending native play().
+// This is not a codec error and should not alarm the editor user.
+export function isBenignMediaPlayRejection(reason: unknown): boolean {
+  return reason instanceof DOMException && reason.name === "AbortError";
+}
+
 // The ruler can extend past the edit, but the preview transport must stop at
 // the last actual timeline clip (including clips on audio-only tracks).
 export function sequencePlayableEndUs(sequence: Sequence): number {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Clip, MediaRef, Sequence, Track } from "../generated/ipc";
@@ -73,6 +73,34 @@ describe("standalone audio preview tracks", () => {
     expect(screen.queryByTestId("preview-audio-audio-1")).toBeNull();
     rerender(<PreviewAudioTracks sequence={sequence} media={[]} playheadTimeUs={1_000_000} playing />);
     expect(screen.queryByTestId("preview-audio-audio-1")).toBeNull();
+  });
+
+  it("ignores native AbortError, reports real audio failure and clears the alert on recovery", async () => {
+    const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    nativePlay.mockRejectedValueOnce(new DOMException("Seek interrupted play", "AbortError"));
+    nativePlay.mockRejectedValueOnce(new DOMException("Unsupported codec", "NotSupportedError"));
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const props = { sequence, media, playheadTimeUs: 1_000_000 };
+    const { rerender } = render(<PreviewAudioTracks {...props} playing />);
+    const audio = screen.getByTestId("preview-audio-audio-1") as HTMLAudioElement;
+    Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    fireEvent.loadedMetadata(audio);
+    fireEvent.seeked(audio);
+    await act(async () => { await Promise.resolve(); });
+    expect(nativePlay).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    rerender(<PreviewAudioTracks {...props} playing={false} />);
+    rerender(<PreviewAudioTracks {...props} playing />);
+    await act(async () => { await Promise.resolve(); });
+    expect(nativePlay).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("alert").textContent).toContain("Не удалось воспроизвести аудиоклип");
+
+    rerender(<PreviewAudioTracks {...props} playing={false} />);
+    rerender(<PreviewAudioTracks {...props} playing />);
+    await act(async () => { await Promise.resolve(); });
+    expect(nativePlay).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("clamps fades, mute envelope and positive gain to valid native volumes", () => {

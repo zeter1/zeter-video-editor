@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Clip, MediaRef, Sequence, Track } from "../generated/ipc";
+import { isBenignMediaPlayRejection } from "./previewTransport";
 
 interface PreviewAudioTracksProps {
   sequence: Sequence;
@@ -96,8 +97,10 @@ function ActiveAudioClip({
     // when an incoming timeline seek invalidates readiness in this render.
     if (playing && sourceReady && readyRef.current && !current.seeking &&
         current.readyState >= HTMLMediaElement.HAVE_METADATA) {
-      void current.play().catch(() => {
-        if (!cancelled) setError(true);
+      void current.play().then(() => {
+        if (!cancelled) setError(false); // A successful restart clears the previous decoder error.
+      }).catch((reason: unknown) => {
+        if (!cancelled && !isBenignMediaPlayRejection(reason)) setError(true);
       });
     } else {
       current.pause();

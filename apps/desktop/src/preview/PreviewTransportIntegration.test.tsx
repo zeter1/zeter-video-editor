@@ -228,6 +228,43 @@ describe("PreviewPlayer continuous transport", () => {
     expect(onSeek).toHaveBeenLastCalledWith(50_000);
   });
 
+  it("ignores interrupted video play but reports real unsupported decoder errors", async () => {
+    const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    nativePlay.mockRejectedValueOnce(new DOMException("Seek interrupted play", "AbortError"));
+    nativePlay.mockRejectedValueOnce(new DOMException("Unsupported media", "NotSupportedError"));
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const clip = {
+      id: "video-abort", kind: "Video", media_id: mediaId,
+      timeline_start: 0, timeline_end: 2_000_000, source_in: 0, source_out: 2_000_000,
+      speed: 1, audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+    } as Sequence["tracks"][number]["clips"][number];
+    const sequence = {
+      ...baseSequence,
+      tracks: [{ id: "video-track", kind: "Video", hidden: false, muted: false, clips: [clip] }],
+    } as Sequence;
+    const onCommit = vi.fn();
+    const { container } = render(<PreviewPlayer
+      sequence={sequence}
+      media={[{ id: mediaId }] as import("../generated/ipc").MediaRef[]}
+      selectedClip={null} selectedTrackId={null}
+      playheadTimeUs={500_000} onSeek={vi.fn()} onCommit={onCommit}
+    />);
+    expect(container.querySelector("video.preview-media")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole("alert").textContent).toContain("Не удалось запустить видео");
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(nativePlay).toHaveBeenCalledTimes(2);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("pauses standalone audio until video starts and during video buffering or seeking", () => {
     const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     const nativePause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});

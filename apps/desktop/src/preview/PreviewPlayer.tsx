@@ -6,6 +6,7 @@ import { OverlayHandles } from "./OverlayHandles";
 import { PreviewAudioTracks, previewAudioVolume } from "./PreviewAudioTracks";
 import {
   advanceGapTimeUs,
+  isBenignMediaPlayRejection,
   mediaTimeToTimelineUs,
   mediaClockMatchesTimeline,
   sequencePlayableEndUs,
@@ -147,10 +148,10 @@ export function PreviewPlayer({
     if (!current) return;
     let cancelled = false;
     if (playing && videoSource) {
-      void current.play().catch(() => {
-        // Changing clips can reject the old play() promise with AbortError.
-        // Do not stop the new clip's transport because the old node retired.
-        if (cancelled) return;
+      void current.play().catch((reason: unknown) => {
+        // Native seeking may interrupt play() without unmounting the element.
+        // That expected AbortError is not a decoder or codec failure.
+        if (cancelled || isBenignMediaPlayRejection(reason)) return;
         setPlaying(false);
         setMediaError("Не удалось запустить видео. Проверьте кодек файла.");
       });

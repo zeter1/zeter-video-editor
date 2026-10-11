@@ -1,3 +1,13 @@
+# NEXT PRODUCT-CODE TASK — 2026-10-11 — NATIVE PLAY() INTERRUPTION VS CODEC ERROR (#44)
+
+- PRODUCT: `HTMLMediaElement.play()` `AbortError` caused by native seek/pause/load no longer appears as a codec failure in PreviewPlayer.tsx and PreviewAudioTracks.tsx. Real `NotSupportedError` remains visible; a successful audio restart clears a stale error alert. Shared helper in previewTransport.ts; React/Vitest regressions for both media elements and no Rust project mutation.
+- BASELINE CI: #44 previous HEAD e6b2728831f860554019166c4330cb885d84a60e COMPLETED SUCCESS https://github.com/zeter1/zeter-video-editor/actions/runs/38160869084 for frontend, Rust, WebView2, NSIS smoke. This is NOT validation of the new change. MUST inspect new exact-HEAD CI before PASS claims.
+- DRAFT PR #44 stacked onto #43→#42→#41→#40→#39→main. No main merge, release, tag, signing, installer, version bump or .vcut migration. Manual Windows GUI/speaker QA and preview/export parity NOT VERIFIED.
+- NEXT: Check latest SHA and exact-head Windows CI; fix real failure in same PR without disabling tests. Then investigate requestVideoFrameCallback/WebView2 frame presentation timing and A/V drift while scrubbing; independent review plus manual acceptance before integration.
+- References: https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/play ; https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/requestVideoFrameCallback
+
+---
+
 # NEXT PRODUCT-CODE TASK — 2026-10-11 — AUDIO NATIVE SEEK ACK + LIVE SCRUB (#44)
 
 - **PRODUCT CODE:** `apps/desktop/src/preview/PreviewAudioTracks.tsx`: pendingSeekRef blocks `play()` until native `seeked` acknowledges a programmatic currentTime jump; clock mismatch re-seeks and pauses. `apps/desktop/src/preview/PreviewPlayer.tsx`: standalone audio release additionally checks the live video decoder clock on React render, so scrubbing during Play pauses audio even before the asynchronous video `seeking` event. No Rust project mutations or user-media changes.
