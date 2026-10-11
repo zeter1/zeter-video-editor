@@ -401,7 +401,18 @@ mod tests {
             stage_render(&mut oversized, &mut staged, &cancel, 5).unwrap(),
             StageCopyOutcome::TooLarge
         );
-        assert_eq!(staged, b"abcde");
+        // The over-limit read is rejected before writing any of its bytes.
+        assert!(staged.is_empty());
+
+        // Earlier complete blocks are also bounded to the exact limit.
+        let larger = vec![b'x'; 64 * 1024 + 1];
+        let mut larger_reader = larger.as_slice();
+        let mut larger_staged = Vec::new();
+        assert_eq!(
+            stage_render(&mut larger_reader, &mut larger_staged, &cancel, 64 * 1024).unwrap(),
+            StageCopyOutcome::TooLarge
+        );
+        assert_eq!(larger_staged, vec![b'x'; 64 * 1024]);
 
         let mut exact = &b"abcdef"[..];
         let mut exact_staged = Vec::new();
