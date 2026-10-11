@@ -6,7 +6,7 @@ import { TimecodeInput } from "./TimecodeInput";
 describe("TimecodeInput", () => {
   it("commits an exact frame on Enter, leaving ordinary typing alone", () => {
     const onSeek = vi.fn();
-    render(<TimecodeInput fps={30} timeUs={1_000_000} onSeek={onSeek} />);
+    const { rerender } = render(<TimecodeInput fps={30} timeUs={1_000_000} onSeek={onSeek} />);
     const input = screen.getByRole("textbox", { name: "Таймкод" }) as HTMLInputElement;
     expect(input.value).toBe("00:00:01:00");
     fireEvent.focus(input);
@@ -15,6 +15,8 @@ describe("TimecodeInput", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onSeek).toHaveBeenCalledOnce();
     expect(onSeek).toHaveBeenCalledWith(5_500_000);
+    // The real parent reflects a committed seek through TransientStore.
+    rerender(<TimecodeInput fps={30} timeUs={5_500_000} onSeek={onSeek} />);
     expect(input.value).toBe("00:00:05:15");
   });
 
