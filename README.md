@@ -57,3 +57,9 @@ The editor combines a conventional multi-track timeline with local AI-assisted e
 - `docs/superpowers/plans/2026-10-06-zeter-video-editor-implementation.md` — approved Superpowers MVP implementation plan; Tasks 1–19 are implemented and integrated into `main`
 
 The approved MVP implementation plan is complete and integrated into `main`. The project is now in post-MVP stabilization / release-readiness work; `PROJECT_STATUS.md` is the source of truth for the current checkpoint. New product or architectural scope requires a new Superpowers brainstorming/specification decision instead of silently extending the completed MVP plan.
+
+## Контакты для связи с разработчиком
+
+- [zeter11@gmail.com](mailto:zeter11@gmail.com)
+- [https://t.me/zeter1](https://t.me/zeter1)
+- [https://www.linkedin.com/in/zeter/](https://www.linkedin.com/in/zeter/)
