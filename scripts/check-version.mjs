@@ -42,6 +42,12 @@ const changelog = read("CHANGELOG.md");
 assert(!/^##\s+(?:\[)?Unreleased(?:\])?\s*$/im.test(changelog),
   "Unversioned changelog heading is forbidden");
 const sections = [...changelog.matchAll(/^## \[([^\]]+)\] — (\d{4}-\d\d-\d\d)\s*$/gm)];
+// Validate *every* level-two heading; otherwise a malformed version heading is
+// silently skipped by the valid-section matcher, hiding undocumented changes.
+const headings = [...changelog.matchAll(/^##[ \t]+.+$/gm)];
+assert(headings.length === sections.length &&
+  headings.every((heading, index) => heading.index === sections[index]?.index),
+  "Every level-two CHANGELOG heading must match ## [SemVer] — YYYY-MM-DD");
 assert(sections.length > 0, "CHANGELOG.md has no dated version sections");
 assert(sections[0]?.[1] === packageVersion,
   `Top changelog version must be ${packageVersion}`);
