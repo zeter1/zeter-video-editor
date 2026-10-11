@@ -1,4 +1,8 @@
-use std::{fs, io::{self, BufRead, Write}, path::PathBuf};
+use std::{
+    fs,
+    io::{self, BufRead, Write},
+    path::PathBuf,
+};
 
 use ai_engine::{
     AI_WORKER_PROTOCOL_VERSION, AnalysisParameters, AnalysisResult, AnalysisTask, HighlightParams,
@@ -107,15 +111,23 @@ fn run_whisper_fixture_cli(args: &[String]) -> bool {
     let model = argument_value(args, "-m").expect("fixture CLI requires -m");
     let audio = argument_value(args, "-f").expect("fixture CLI requires -f");
     let output_base = argument_value(args, "-of").expect("fixture CLI requires -of");
-    assert!(PathBuf::from(model).is_file(), "fixture model must be installed");
+    assert!(
+        PathBuf::from(model).is_file(),
+        "fixture model must be installed"
+    );
     let wav = fs::read(audio).expect("normalized WAV must exist");
     assert!(wav.len() >= 28, "normalized WAV header missing");
     assert_eq!(&wav[..4], b"RIFF", "normalized audio must be RIFF");
     assert_eq!(&wav[8..12], b"WAVE", "normalized audio must be WAV");
-    assert_eq!(u16::from_le_bytes([wav[22], wav[23]]), 1, "audio must be mono");
+    assert_eq!(
+        u16::from_le_bytes([wav[22], wav[23]]),
+        1,
+        "audio must be mono"
+    );
     assert_eq!(
         u32::from_le_bytes([wav[24], wav[25], wav[26], wav[27]]),
-        16_000, "audio must be 16 kHz"
+        16_000,
+        "audio must be 16 kHz"
     );
     fs::write(
         PathBuf::from(output_base).with_extension("json"),
@@ -125,7 +137,8 @@ fn run_whisper_fixture_cli(args: &[String]) -> bool {
             {"offsets": {"from": 250, "to": 900}, "text": " Production runtime subtitle "}
           ]
         }"#,
-    ).expect("fixture JSON write");
+    )
+    .expect("fixture JSON write");
     true
 }
 
