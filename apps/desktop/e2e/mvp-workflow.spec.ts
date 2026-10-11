@@ -498,6 +498,40 @@ test("explicit relink reopens missing media after verifying the replacement iden
   expect(reopened.project.media[0].absolute_path).toBe(replacementPath);
 });
 
+test("reviews and applies a real subtitle from AI workspace in Windows WebView2", async () => {
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  await expectRevision(page, 0);
+  const initial = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  const beforeCount = initial.project.sequences[0].subtitle_segments.length;
+
+  await page.getByRole("button", { name: "AI-инструменты" }).click();
+  await expect(page.getByRole("region", { name: "AI-инструменты" })).toBeVisible();
+  await expect(page.getByText(/Автоанализ пока не подключён/)).toBeVisible();
+  await page.getByRole("textbox", { name: "Текст субтитра" }).fill("Создан в редакторе");
+  await page.getByRole("spinbutton", { name: "Начало (с)" }).fill("5");
+  await page.getByRole("spinbutton", { name: "Конец (с)" }).fill("6");
+  await expect(page.getByText(/Предпросмотр: 5.00–6.00 с/)).toBeVisible();
+
+  // Review cannot mutate project. Only explicit confirmation may edit it.
+  const unchanged = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(unchanged.revision).toBe(0);
+  expect(unchanged.project.sequences[0].subtitle_segments).toHaveLength(beforeCount);
+
+  await page.getByRole("button", { name: "Добавить субтитр" }).click();
+  await expectRevision(page, 1);
+  const applied = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(applied.project.sequences[0].subtitle_segments).toHaveLength(beforeCount + 1);
+  expect(applied.project.sequences[0].subtitle_segments).toContainEqual({
+    start: 5_000_000, end: 6_000_000, text: "Создан в редакторе",
+  });
+
+  await page.getByRole("button", { name: "Отменить" }).click();
+  await expectRevision(page, 2);
+  const undone = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(undone.project.sequences[0].subtitle_segments).toHaveLength(beforeCount);
+});
+
 test("runs deterministic local AI fixture analysis and applies results as undoable project state", async () => {
   const { page, state } = await connectTauri();
   await openProject(page, state.workflowProjectPath);
