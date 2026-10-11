@@ -124,7 +124,7 @@ function renderTimeline(sequence: Sequence) {
     />,
   );
 
-  return { executeEditCommand };
+  return { executeEditCommand, transientStore };
 }
 
 describe("Timeline interaction edge cases", () => {
@@ -167,4 +167,31 @@ describe("Timeline interaction edge cases", () => {
       },
     });
   });
+  it("keeps the playhead and pointer time fixed in the viewport when timeline zoom changes", () => {
+    const { transientStore } = renderTimeline(fixture());
+    const scroll = document.querySelector(".timeline-scroll") as HTMLDivElement;
+    Object.defineProperty(scroll, "clientWidth", { configurable: true, value: 400 });
+    Object.defineProperty(scroll, "scrollWidth", { configurable: true, value: 4000 });
+    scroll.scrollLeft = 300;
+    transientStore.setPlayheadTime(5_000_000);
+
+    fireEvent.keyDown(window, { key: "+" });
+    expect(transientStore.getState().timelineZoom).toBe(1.25);
+    expect(scroll.scrollLeft).toBeCloseTo(425);
+
+    fireEvent.keyDown(window, { key: "-" });
+    expect(transientStore.getState().timelineZoom).toBe(1);
+    expect(scroll.scrollLeft).toBeCloseTo(300);
+
+    vi.spyOn(scroll, "getBoundingClientRect").mockReturnValue({ left: 20 } as DOMRect);
+    fireEvent.wheel(scroll, { ctrlKey: true, clientX: 120, deltaY: -1 });
+    expect(transientStore.getState().timelineZoom).toBe(1.25);
+    expect(scroll.scrollLeft).toBeCloseTo(367);
+
+    fireEvent.wheel(scroll, { ctrlKey: true, clientX: 120, deltaY: 0 });
+    expect(transientStore.getState().timelineZoom).toBe(1.25);
+    expect(scroll.scrollLeft).toBeCloseTo(367);
+  });
+
+
 });

@@ -1,6 +1,14 @@
 # Project Status
 
-Last updated: 2026-10-07
+Last updated: 2026-10-10
+
+## Active checkpoint — 2026-10-10: timeline zoom anchoring
+
+- Verified base main at branch creation: `90cb2490542f153a2f02a04b62121b283f4a94f6`; main CI run #131 SUCCESS (https://github.com/zeter1/zeter-video-editor/actions/runs/38061388864).
+- Fix branch: `fix/timeline-zoom-anchor-20261010`, targeting `main`; non-destructive frontend-only change to keep timeline cursor/playhead in the same viewport position on zoom, including Ctrl+wheel mouse anchoring, keyboard +/-/0 and the zoom slider.
+- Focused regression coverage in `timeScale.test.ts` and `Timeline.edge.test.tsx`. Local Windows desktop and Vitest execution are NOT VERIFIED (Desktop Commander monthly quota exhausted). Exact-head Windows Actions, WebView2 E2E and NSIS remain NOT VERIFIED until the new PR run completes. No TDD RED claim without observed execution.
+- Other open PRs #7–#11 and #14–#15 are separate; PR #11 exact head `8b505d3` has Windows CI #122 SUCCESS but `mergeable=false` against the advanced main at last inspection, so it must be reconciled before merge. Do NOT merge, release, sign, or publish without user authorization.
+- Next: check exact-head CI for this branch; inspect all failed steps and fix their root cause. After CI success, review viewport behavior in real Tauri/WebView2, and coordinate other PR conflicts before merges.
 
 ## Current phase
 
