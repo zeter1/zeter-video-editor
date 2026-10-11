@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDesktopVersion, compareDesktopVersions, isValidCalendarDate } from "./version-policy.mjs";
@@ -15,6 +16,17 @@ const date = dateIndex >= 0 ? args[dateIndex + 1] : new Date().toISOString().sli
 if (!parseDesktopVersion(target) || !note || note.length < 25 ||
     note.includes("\n") || !isValidCalendarDate(date)) {
   console.error('Usage: node scripts/set-version.mjs <semver> --note "Detailed change (25+ chars)" [--date YYYY-MM-DD]');
+  process.exit(1);
+}
+// Fail closed if any version source or changelog section was already inconsistent.
+// Without this preflight, a version bump could mask drift and only partly repair it.
+const preflight = spawnSync(process.execPath, [file("scripts/check-version.mjs")], {
+  cwd: root, encoding: "utf8",
+});
+if (preflight.status !== 0) {
+  console.error("Cannot bump an inconsistent desktop version; run node scripts/check-version.mjs first.");
+  if (preflight.stderr) process.stderr.write(preflight.stderr);
+  if (preflight.error) console.error(preflight.error.message);
   process.exit(1);
 }
 const current = JSON.parse(read("apps/desktop/package.json")).version;
