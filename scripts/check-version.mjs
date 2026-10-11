@@ -13,9 +13,10 @@ const assert = (ok, message) => { if (!ok) errors.push(message); };
 function cargoVersion(file, name) {
   const text = read(file);
   const block = file === "Cargo.lock"
-    ? text.split("[[package]]").find((part) => part.includes(`name = "${name}"\n`))
+    ? text.split("[[package]]").find((part) =>
+        part.split(/\r?\n/).some((line) => line.trim() === `name = "${name}"`))
     : text.split("[dependencies]")[0];
-  const found = block?.match(/^version = "([^"]+)"$/m);
+  const found = block?.match(/^version = "([^"]+)"\r?$/m);
   assert(Boolean(found), `Cannot read ${name} version from ${file}`);
   return found?.[1];
 }
