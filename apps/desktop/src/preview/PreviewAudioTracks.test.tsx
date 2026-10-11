@@ -34,6 +34,7 @@ describe("standalone audio preview tracks", () => {
     expect(audio.getAttribute("src")).toBe(`http://zeter-media.localhost/${mediaId}`);
     expect(audio.getAttribute("src")).not.toContain("Private");
     fireEvent.loadedMetadata(audio);
+    Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
     expect(audio.currentTime).toBe(2); // source-in 1s + 0.5s at 2x
     expect(audio.playbackRate).toBe(2);
     expect(audio.volume).toBeCloseTo(0.5);
