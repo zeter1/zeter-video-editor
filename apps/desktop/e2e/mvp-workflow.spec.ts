@@ -336,7 +336,18 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
     rulerBox.x + 132 + 200,
     rulerBox.y + rulerBox.height / 2,
   );
-  await expect(page.getByText("Курсор 2.00 с", { exact: true })).toBeVisible();
+  await expect(playhead).toHaveAttribute("aria-valuenow", "2000000");
+  const timecode = page.getByRole("textbox", { name: "Таймкод" });
+  await expect(timecode).toHaveValue("00:00:02:00");
+  // Exercise the new frame timecode seek in the real WebView2 workflow,
+  // then restore the 2-second split position used by the steps below.
+  await timecode.fill("00:00:03:00");
+  await timecode.press("Enter");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "3000000");
+  await timecode.fill("00:00:02:00");
+  await timecode.press("Enter");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "2000000");
+  await expect(timecode).toHaveValue("00:00:02:00");
 
   await clip.hover();
   await page.getByRole("button", { name: `Split ${VIDEO_CLIP}` }).click();
