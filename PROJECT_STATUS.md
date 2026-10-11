@@ -4,6 +4,16 @@ Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
 Desktop source version: `0.1.0-alpha.1` (not a signed release; verify GitHub Releases before claiming publication)
 
+## NEXT PRODUCT-CODE TASK — mandatory start for the next development dialog (2026-10-11)
+
+**DO NOT START ANOTHER DOCUMENTATION / VERSIONING-ONLY PASS.** The previous sessions already addressed SemVer, CHANGELOG and CI; those remain supporting controls. First inspect the exact GitHub product code and active draft/stacked PRs to avoid duplicating implemented work, then make a bounded, tested change that improves the usable video editor.
+
+**First candidate: make existing local AI tooling accessible from the real editor workspace.** The existing project status records that AI panels exist separately but are not mounted in `AppShell`, the "AI tools" button is not wired, and the production worker supports transcription while silence/highlight requests can still return `analysis_backend_not_ready`. Verify this against current source and draft PRs before coding. If still missing, connect the approved AI panel/actions to the workspace, expose honest capability/error states (never promise a production AI backend that is not implemented), ensure accepted edits go through authoritative revisioned Rust command/undo history, and add frontend + applicable real WebView2 E2E coverage. User-observable acceptance: AI tools can be opened from the visible editor; unavailable functionality is clearly described; existing working transcription/review path is reachable without breaking normal edit/save/export.
+
+**Second candidate if already implemented/blocked:** continue approved Stage C preview work toward one synchronized timeline-driven A/V clock across Direct/Proxy/Composite/Still/Gap, with representative clip-boundary and audio sync tests; assess the in-flight preview/timeline PRs before choosing a base.
+
+**Priority policy:** functional preview, timeline, AI, editing and export integration > cosmetic documentation/CI/semver changes. Read `AGENTS.md` mandatory product-first section. Document only what accompanied an actual product improvement, unless explicitly requested by the user or needed to clear a real release/data-integrity/CI blocker. Every future checkpoint must begin with next runnable product task, code location, acceptance and PR/CI state. Do not confuse draft PRs with `main`, do not merge/release/sign without existing verification/review controls.
+
 ## Latest versioning checkpoint (proposed on a separate branch)
 
 - Draft proposal to version the desktop app `0.1.0-alpha.1` (not a public release). App/Tauri/Cargo/lock/runtime manifest align and the UI will display the version; no code has been installed on Windows PCs.
