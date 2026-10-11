@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Clip, Sequence } from "../generated/ipc";
-import { advanceGapTimeUs, mediaClockMatchesTimeline, mediaTimeToTimelineUs, sequencePlayableEndUs } from "./previewTransport";
+import { advanceGapTimeUs, mediaClockMatchesTimeline, mediaTimeToTimelineUs, presentedFrameToTimelineUs, sequencePlayableEndUs } from "./previewTransport";
 
 const clip = {
   id: "clip-1",
@@ -55,6 +55,25 @@ describe("preview transport timeline mapping", () => {
     expect(mediaClockMatchesTimeline(clip, 2, 5_300_000)).toBe(false);
     expect(mediaClockMatchesTimeline(clip, Number.NaN, 5_000_000)).toBe(false);
     expect(mediaClockMatchesTimeline(clip, 2, Number.POSITIVE_INFINITY)).toBe(false);
+  });
+
+  it("accepts only valid compositor frames from a trimmed 2x source", () => {
+    expect(presentedFrameToTimelineUs(clip, 0, 2, 5_000_000)).toBeNull();
+    expect(presentedFrameToTimelineUs(clip, 1.9, 2, 5_000_000)).toBeNull();
+    expect(presentedFrameToTimelineUs(clip, 3, 2, 5_000_000)).toBeNull();
+    expect(presentedFrameToTimelineUs(clip, 2, 2, 5_000_000)).toBe(5_000_000);
+    expect(presentedFrameToTimelineUs(clip, 2.2, 2.2, 5_000_000)).toBe(5_100_000);
+    expect(presentedFrameToTimelineUs(clip, 2.2, 2.2, 5_300_000)).toBeNull();
+    expect(presentedFrameToTimelineUs(clip, NaN, 2, 5_000_000)).toBeNull();
+    expect(presentedFrameToTimelineUs(clip, 2, Infinity, 5_000_000)).toBeNull();
+  });
+
+  it("rejects a pre-seek frame after a backward scrub", () => {
+    const adjacent = { ...clip, speed: 1, source_in: 4_000_000,
+      timeline_start: 1_000_000, timeline_end: 2_000_000 };
+    expect(presentedFrameToTimelineUs(adjacent, 4.9, 4, 1_000_000)).toBeNull();
+    expect(presentedFrameToTimelineUs(adjacent, 3.9, 4, 1_000_000)).toBeNull();
+    expect(presentedFrameToTimelineUs(adjacent, 4.1, 4.1, 1_000_000)).toBe(1_100_000);
   });
 
   it("advances through stills and gaps but clamps at edit end and large callback delays", () => {
