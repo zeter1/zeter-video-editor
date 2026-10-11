@@ -1,3 +1,14 @@
+# NEXT PRODUCT-CODE TASK — 2026-10-11, после PR #43
+
+- **Следующая продуктовая работа:** Stage C — синхронизировать единый playhead/clock предпросмотра с реальным A/V (Direct/Proxy/Composite/Still/Gap), а не уходить в очередную документационную/версионную проходку. Изучить `apps/desktop/src/preview/PreviewPlayer.tsx`, `src/components/PreviewPanel.tsx`, `src/timeline/Timeline.tsx`, Rust `src-tauri/src/preview_stream.rs` и существующие stacked preview PR #19–#38. До изменений выбрать совместимую базу и не дублировать draft код.
+- **Приёмка следующей задачи:** seek/playhead передаёт одинаковое позиционирование видео и звука на clip boundaries, пустых интервалах и совмещённых дорожках; есть React/Rust тесты и real WebView2/FFmpeg regression; UI не зависает и не портит проект. Поддерживать source/preview/render parity; exact-head Windows CI обязателен.
+- **Текущий реальный product slice:** #43 https://github.com/zeter1/zeter-video-editor/pull/43 (DRAFT; stacked base #42, далее #41→#40→#39→main). Изменены `apps/desktop/src/timeline/Timeline.tsx`, новая `followPlayhead.ts`, `followPlayhead.test.ts`, `Timeline.test.tsx`: page-follow за playhead, сохранение ручного горизонтального scroll и drag suppression, End к фактическому последнему clip/marker вместо саморастущего +5 s конца. Поведение до/после и границы записаны в CHANGELOG.md этой ветки.
+- **Версия:** desktop `0.1.0-alpha.1` (development, **не** выпущена публично); `.vcut` schema не меняется. Изменения **не** в `main`; ни merge, ни тег, ни подписанный релиз, ни установка не выполнялись.
+- **Verification status:** unit/React tests добавлены, но успешность сборки/Windows WebView2/NSIS и exact-head CI должна быть проверена в GitHub Actions после финального documentation commit; ручной Windows GUI QA — NOT VERIFIED. Не переносить green с PR #42 на #43. Дополнительный обзор рисков — пересечение timeline с отдельными PR #17/#36/#38.
+- **Commit перед checkpoint:** 209c4b6e69bfa2ecc6e8a8ef1053dfebed2ca837. Финальный HEAD после этой записи проверить в GitHub; PR #43 является стабильным указателем на него.
+
+---
+
 # PRODUCT-CODE CHECKPOINT — 2026-10-11 — WHISPER SINGLE-FLIGHT (DRAFT PR #42)
 
 - Production: `apps/desktop/src/ai/TranscriptionRuntimePanel.tsx` предотвращает два одновременных запуска native Whisper при быстрых кликах до React render. `startingRef` блокирует обработчик синхронно, освобождается только своим generation; при переключении клипа старый request становится stale, новый запуск доступен.
