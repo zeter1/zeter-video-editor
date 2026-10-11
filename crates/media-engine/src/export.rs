@@ -536,9 +536,7 @@ fn compile_timeline_filtergraph(
         base_label = next;
     }
 
-    parts.push(format!(
-        "[{base_label}]fps={frame_rate},format=yuv420p[vout]"
-    ));
+    parts.push(format!("[{base_label}]fps={frame_rate},format=yuv420p[vout]"));
 
     let mut audio_labels = Vec::new();
     let mut audio_index = 0usize;
