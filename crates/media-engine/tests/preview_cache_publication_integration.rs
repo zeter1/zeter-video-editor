@@ -13,8 +13,8 @@ use tokio_util::sync::CancellationToken;
 
 #[test]
 fn managed_ffprobe_accepts_real_mp4_and_rejects_header_only_fake() {
-    let staged_bin = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../apps/desktop/src-tauri/binaries");
+    let staged_bin =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/desktop/src-tauri/binaries");
     let ffmpeg = staged_bin.join("ffmpeg-x86_64-pc-windows-msvc.exe");
     let ffprobe = staged_bin.join("ffprobe-x86_64-pc-windows-msvc.exe");
     if !ffmpeg.is_file() || !ffprobe.is_file() {
@@ -72,7 +72,10 @@ fn managed_ffprobe_accepts_real_mp4_and_rejects_header_only_fake() {
     )
     .unwrap();
     let published = cache.join(format!("{key}.mp4"));
-    assert_eq!(first, PreviewCachePublishOutcome::Published(published.clone()));
+    assert_eq!(
+        first,
+        PreviewCachePublishOutcome::Published(published.clone())
+    );
     assert_eq!(
         lookup_verified_preview_cache(&cache, &key, &digest, runtime).unwrap(),
         Some(published.clone())
