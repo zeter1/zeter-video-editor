@@ -379,6 +379,44 @@ button {
   width: 110px;
 }
 
+.timeline-timecode-entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.timeline-timecode-entry input {
+  width: 108px;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.timeline-timecode-entry input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.timeline-timecode-error {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  padding: 5px 7px;
+  border: 1px solid var(--danger);
+  border-radius: 4px;
+  background: var(--surface-raised);
+  color: var(--danger);
+  font-size: 11px;
+}
+
 .timeline-scroll {
   min-height: 0;
   overflow: auto;

@@ -21,6 +21,7 @@ import {
 } from "../state/transientStore";
 import { commitTimelineCommand } from "./interaction";
 import { MarkerLayer } from "./MarkerLayer";
+import { TimecodeInput } from "./TimecodeInput";
 import { contentPixelToTimeUs, scrollLeftForAnchoredZoom, timeUsToPixel } from "./timeScale";
 import { TrackView } from "./TrackView";
 
@@ -246,9 +247,11 @@ export function Timeline({
         <button type="button" onClick={addMarker}>
           + Маркер
         </button>
-        <span>
-          Курсор {(transient.playheadTimeUs / 1_000_000).toFixed(2)} с
-        </span>
+        <TimecodeInput
+          fps={sequence.fps}
+          timeUs={transient.playheadTimeUs}
+          onSeek={(timeUs) => transientStore.setPlayheadTime(timeUs)}
+        />
         <label>
           Масштаб
           <input
