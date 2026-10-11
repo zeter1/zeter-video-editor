@@ -42,7 +42,10 @@ pub fn source_set_sha256(sources: &[(String, PathBuf)]) -> Result<String, MediaE
 
     for (id, path) in sorted {
         if id.is_empty() || previous_id == Some(id.as_str()) {
-            return Err(cache_input_error(path, "source IDs must be nonempty and unique"));
+            return Err(cache_input_error(
+                path,
+                "source IDs must be nonempty and unique",
+            ));
         }
         previous_id = Some(id.as_str());
         let file = open_regular_file(path)?
@@ -115,10 +118,13 @@ pub fn lookup_verified_preview_cache(
         return Ok(None);
     }
 
-    let root_meta = fs::symlink_metadata(cache_root)
-        .map_err(|source| cache_io(cache_root, source))?;
+    let root_meta =
+        fs::symlink_metadata(cache_root).map_err(|source| cache_io(cache_root, source))?;
     if !root_meta.is_dir() || root_meta.file_type().is_symlink() {
-        return Err(cache_input_error(cache_root, "cache root must be a real directory"));
+        return Err(cache_input_error(
+            cache_root,
+            "cache root must be a real directory",
+        ));
     }
 
     let artifact_path = cache_root.join(format!("{key}.mp4"));
@@ -189,7 +195,9 @@ fn mp4_digest(mut file: File, path: &Path) -> Result<Option<(String, u64)>, Medi
     }
     file.seek(SeekFrom::Start(0))
         .map_err(|source| cache_io(path, source))?;
-    hash_reader(file).map(Some).map_err(|source| cache_io(path, source))
+    hash_reader(file)
+        .map(Some)
+        .map_err(|source| cache_io(path, source))
 }
 
 fn hash_reader(mut reader: impl Read) -> io::Result<(String, u64)> {
@@ -230,7 +238,10 @@ fn hex(bytes: impl IntoIterator<Item = u8>) -> String {
 }
 
 fn is_sha256(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|ch| ch.is_ascii_digit() || (b'a'..=b'f').contains(&ch))
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|ch| ch.is_ascii_digit() || (b'a'..=b'f').contains(&ch))
 }
 
 fn cache_io(path: &Path, source: io::Error) -> MediaError {
@@ -301,7 +312,12 @@ mod tests {
     #[test]
     fn invalid_key_cannot_escape_root_or_form_a_filename() {
         let dir = tempdir().unwrap();
-        for invalid in ["../outside".to_owned(), "A".repeat(64), "00".to_owned(), "f/".repeat(32)] {
+        for invalid in [
+            "../outside".to_owned(),
+            "A".repeat(64),
+            "00".to_owned(),
+            "f/".repeat(32),
+        ] {
             assert_eq!(
                 lookup_verified_preview_cache(dir.path(), &invalid, &source_digest(), "ffmpeg")
                     .unwrap(),
@@ -378,14 +394,10 @@ mod tests {
         assert_eq!(lookup(&cache_root), None);
 
         fs::remove_file(&manifest).unwrap();
-        let original_manifest = capture_preview_cache_manifest(
-            &mp4,
-            &key(),
-            &source_digest(),
-            "ffmpeg-build-A",
-        )
-        .unwrap()
-        .unwrap();
+        let original_manifest =
+            capture_preview_cache_manifest(&mp4, &key(), &source_digest(), "ffmpeg-build-A")
+                .unwrap()
+                .unwrap();
         fs::write(&manifest, serde_json::to_vec(&original_manifest).unwrap()).unwrap();
         fs::remove_file(&mp4).unwrap();
         symlink(&source, &mp4).unwrap();
@@ -393,19 +405,16 @@ mod tests {
 
         let linked_root = dir.path().join("linked-cache");
         symlink(&cache_root, &linked_root).unwrap();
-        assert!(lookup_verified_preview_cache(
-            &linked_root,
-            &key(),
-            &source_digest(),
-            "ffmpeg-build-A"
-        )
-        .is_err());
+        assert!(
+            lookup_verified_preview_cache(&linked_root, &key(), &source_digest(), "ffmpeg-build-A")
+                .is_err()
+        );
     }
 
     #[test]
     fn manifest_key_varies_across_sources_and_ffmpeg_builds() {
-        use editor_core::{ProjectRevision, SequenceId, TimeUs};
         use crate::cache_key::{PreviewQuality, PreviewRange, preview_cache_key};
+        use editor_core::{ProjectRevision, SequenceId, TimeUs};
 
         let base = preview_cache_key(
             SequenceId::new(),
