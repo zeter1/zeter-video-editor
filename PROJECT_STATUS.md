@@ -1,3 +1,9 @@
+# PRODUCT-CODE CHECKPOINT — 2026-10-11 — REAL WEBVIEW2 SAME-MEDIA WHISPER SWITCH TEST (DRAFT)
+
+- Добавлен новый интеграционный тест `apps/desktop/e2e/mvp-workflow.spec.ts`: Tauri/Rust `DuplicateClip` создаёт второй audio clip с тем же `media_id`, но другим `clip_id`; реальный offline Whisper fixture выполняется на первом, review/Apply отображаются без project mutation. Переключение на duplicate clip должно немедленно убрать review/Apply и сохранить manual draft, Rust snapshot должен остаться без изменения. Это проверяет реальную WebView2/Tauri проводку поверх уже изменённого production `AppShell/AiWorkspace/TranscriptionRuntimePanel` и не тестирует качество нейромодели. Никаких данных проекта и исходного media не изменяется после clone/edit revision=1.
+- DRAFT PR #42 https://github.com/zeter1/zeter-video-editor/pull/42 на parent #41. Точный новый SHA и Windows CI необходимо проверить ПОСЛЕ отправки этого коммита; не переносить SUCCESS с 49af1b4. Desktop `0.1.0-alpha.1` development only, .vcut schema без изменений, main отдельно. Не merge/release/tag/sign до независимого review/manual Windows acceptance.
+- **NEXT PRODUCT-CODE TASK:** сначала проверить final exact-head Windows CI с Rust/TS/Vitest/реальным WebView2/NSIS, исправить возможный e2e FAIL. Далее покрыть контролируемый сменой клипа Running job (без тайминговых гонок) и подключать одобренный local silence removal или Stage C unified A/V preview. Не уходить в docs-only проходку.
+
 # PRODUCT CODE CHECKPOINT — 2026-10-11 — CLIP-SCOPED WHISPER REVIEW (DRAFT PR #42)
 
 - **Реальная разработка:** `AppShell.tsx` → `AiWorkspace.tsx` теперь передают identity конкретного selected timeline clip в AI: Whisper review/job UI пересоздаётся при смене клипа, даже если два клипа используют один MediaId. Чужой завершённый/поздний транскрипт нельзя применить; ручной черновик сохраняется.

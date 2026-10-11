@@ -634,6 +634,63 @@ test("runs local Whisper through modern AI workspace, Undo and stale revision", 
   expect(await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot")).toEqual(beforeRejectedApply);
 });
 
+test("drops real Whisper review between duplicate timeline clips of the same source media", async () => {
+  test.setTimeout(120_000);
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  const initial = await invokeTauri<Snapshot & AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(initial.revision).toBe(0);
+
+  // Two different timeline ClipIds deliberately share one source MediaId.
+  const duplicateId = randomUUID();
+  await edit(page, 0, {
+    DuplicateClip: {
+      sequence_id: SEQUENCE, track_id: AUDIO_TRACK, clip_id: AUDIO_CLIP,
+      duplicate_id: duplicateId, timeline_start: 4_500_000,
+    },
+  });
+  await page.reload();
+  await expectRevision(page, 1);
+
+  await page.getByRole("button", { name: "AI-инструменты" }).click();
+  await page.getByTestId(`clip-${AUDIO_CLIP}`).click();
+  const transcription = page.getByRole("region", { name: "Automatic subtitles" });
+  await expect(transcription).toBeVisible();
+  const prompts = [state.modelPath, state.modelManifestPath];
+  const onDialog = async (dialog: import("@playwright/test").Dialog) => {
+    const value = prompts.shift();
+    if (value) await dialog.accept(value);
+    else await dialog.dismiss();
+  };
+  page.on("dialog", onDialog);
+  try {
+    await transcription.getByRole("button", { name: "Generate subtitles" }).click();
+    await expect(transcription.getByText("Production runtime subtitle", { exact: true }))
+      .toBeVisible({ timeout: 45_000 });
+    await expect(transcription.getByRole("button", { name: "Apply subtitles" })).toBeVisible();
+  } finally {
+    page.off("dialog", onDialog);
+  }
+  const reviewed = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(reviewed.revision).toBe(1);
+  expect(reviewed.project.sequences[0].subtitle_segments)
+    .toEqual(initial.project.sequences[0].subtitle_segments);
+
+  await page.getByRole("textbox", { name: "Текст субтитра" })
+    .fill("Keep this manual draft");
+  await page.getByTestId(`clip-${duplicateId}`).click();
+  await expect(transcription.getByRole("button", { name: "Apply subtitles" })).toHaveCount(0);
+  await expect(transcription.getByText("Production runtime subtitle", { exact: true }))
+    .toHaveCount(0);
+  await expect(transcription.getByRole("button", { name: "Generate subtitles" }))
+    .toBeEnabled();
+  await expect(page.getByRole("textbox", { name: "Текст субтитра" }))
+    .toHaveValue("Keep this manual draft");
+
+  const afterSwitch = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(afterSwitch).toEqual(reviewed);
+});
+
 test("runs deterministic local AI fixture analysis and applies results as undoable project state", async () => {
   const { page, state } = await connectTauri();
   await openProject(page, state.workflowProjectPath);
