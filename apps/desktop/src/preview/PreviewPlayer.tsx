@@ -7,6 +7,7 @@ import { PreviewAudioTracks, previewAudioVolume } from "./PreviewAudioTracks";
 import {
   advanceGapTimeUs,
   mediaTimeToTimelineUs,
+  mediaClockMatchesTimeline,
   sequencePlayableEndUs,
 } from "./previewTransport";
 
@@ -94,6 +95,16 @@ export function PreviewPlayer({
   const image = active?.kind === "Image";
   const videoSource = active?.kind === "Video" && src ? src : null;
   const audioTransportPlaying = playing && (!videoSource || syncedVideoKey === key);
+  // Guard audio release against a premature decoder event, especially during
+  // a cut to a different video's trimmed source in-point.
+  const videoClockReady = (): boolean => {
+    const current = video.current;
+    return Boolean(
+      playing && active && current && !current.paused && !current.seeking &&
+      current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+      mediaClockMatchesTimeline(active, current.currentTime, clockPositionRef.current),
+    );
+  };
 
   useEffect(() => {
     setMediaError(null);
@@ -163,7 +174,8 @@ export function PreviewPlayer({
         const current = video.current;
         // Hold the playhead when media is buffering or seeking; advancing a
         // wall-clock fallback here would desynchronize video and its audio.
-        if (!current || current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || current.seeking) {
+        if (!current || current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || current.seeking ||
+            !mediaClockMatchesTimeline(active, current.currentTime, clockPositionRef.current)) {
           frame = requestAnimationFrame(tick);
           return;
         }
@@ -207,19 +219,16 @@ export function PreviewPlayer({
                   video.current.currentTime = sourceTime(active, playheadTimeUs);
                 }
               }}
-              onPlaying={() => setSyncedVideoKey(key)}
+              onPlaying={() => {
+                if (videoClockReady()) setSyncedVideoKey(key);
+              }}
               onWaiting={() => setSyncedVideoKey(null)}
               onStalled={() => setSyncedVideoKey(null)}
               onSeeking={() => setSyncedVideoKey(null)}
               onSeeked={() => {
                 // Seek can complete without another "playing" event; resume
                 // the external audio only after a usable video frame is ready.
-                const current = video.current;
-                if (current && !current.paused &&
-                    !current.seeking &&
-                    current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-                  setSyncedVideoKey(key);
-                }
+                if (videoClockReady()) setSyncedVideoKey(key);
               }}
               onPause={() => setSyncedVideoKey(null)}
               onEnded={() => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Clip, Sequence } from "../generated/ipc";
-import { advanceGapTimeUs, mediaTimeToTimelineUs, sequencePlayableEndUs } from "./previewTransport";
+import { advanceGapTimeUs, mediaClockMatchesTimeline, mediaTimeToTimelineUs, sequencePlayableEndUs } from "./previewTransport";
 
 const clip = {
   id: "clip-1",
@@ -32,6 +32,15 @@ describe("preview transport timeline mapping", () => {
     expect(mediaTimeToTimelineUs(clip, 3)).toBe(5_500_000);
     expect(mediaTimeToTimelineUs(clip, 10)).toBe(7_000_000);
     expect(mediaTimeToTimelineUs(clip, NaN)).toBe(5_000_000);
+  });
+
+  it("holds an unseeked adjacent video source until source_in and respects playback speed", () => {
+    expect(mediaClockMatchesTimeline(clip, 0, 5_000_000)).toBe(false);
+    expect(mediaClockMatchesTimeline(clip, 2, 5_000_000)).toBe(true);
+    expect(mediaClockMatchesTimeline(clip, 2.2, 5_100_000)).toBe(true);
+    expect(mediaClockMatchesTimeline(clip, 2, 5_300_000)).toBe(false);
+    expect(mediaClockMatchesTimeline(clip, Number.NaN, 5_000_000)).toBe(false);
+    expect(mediaClockMatchesTimeline(clip, 2, Number.POSITIVE_INFINITY)).toBe(false);
   });
 
   it("advances through stills and gaps but clamps at edit end and large callback delays", () => {

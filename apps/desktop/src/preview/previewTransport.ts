@@ -30,3 +30,15 @@ export function mediaTimeToTimelineUs(clip: Clip, mediaSeconds: number): number 
     Math.max(0, mediaSeconds * 1_000_000 - clip.source_in) / speed;
   return Math.min(clip.timeline_end, Math.max(clip.timeline_start, timelineUs));
 }
+
+// Native "playing" may arrive before an adjacent video seeks to source_in.
+// Do not compare a clamped timeline time: media time zero would appear valid
+// for any trimmed clip at its timeline_start.
+export function mediaClockMatchesTimeline(
+  clip: Clip, mediaSeconds: number, timelineUs: number, toleranceUs = 120_000,
+): boolean {
+  if (!Number.isFinite(mediaSeconds) || !Number.isFinite(timelineUs)) return false;
+  const speed = clip.speed > 0 ? clip.speed : 1;
+  const expectedSourceUs = clip.source_in + Math.max(0, timelineUs - clip.timeline_start) * speed;
+  return Math.abs(mediaSeconds * 1_000_000 - expectedSourceUs) / speed <= toleranceUs;
+}

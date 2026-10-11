@@ -363,6 +363,67 @@ describe("PreviewPlayer continuous transport", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it("keeps audio paused until an adjacent trimmed video decoder reaches its source in-point", () => {
+    const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const nativePause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const firstId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const secondId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const first = {
+      id: "first", kind: "Video", media_id: firstId,
+      source_in: 0, source_out: 1_000_000, timeline_start: 0, timeline_end: 1_000_000,
+      speed: 1, audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+    } as Sequence["tracks"][number]["clips"][number];
+    const second = {
+      ...first, id: "second", media_id: secondId,
+      source_in: 4_000_000, source_out: 5_000_000,
+      timeline_start: 1_000_000, timeline_end: 2_000_000,
+    };
+    const audio = { ...first, id: "continuous-audio", kind: "Audio", timeline_end: 2_000_000, source_out: 2_000_000 };
+    const sequence = {
+      ...baseSequence,
+      tracks: [
+        { id: "v", kind: "Video", hidden: false, muted: false, clips: [first, second] },
+        { id: "a", kind: "Audio", hidden: false, muted: false, clips: [audio] },
+      ],
+    } as Sequence;
+    const props = {
+      sequence, media: [{ id: firstId }, { id: secondId }] as import("../generated/ipc").MediaRef[],
+      selectedClip: null, selectedTrackId: null, onSeek: vi.fn(), onCommit: vi.fn(),
+    };
+    const { rerender, container } = render(<PreviewPlayer {...props} playheadTimeUs={500_000} />);
+    const firstVideo = container.querySelector("video.preview-media") as HTMLVideoElement;
+    const audioNode = screen.getByTestId("preview-audio-continuous-audio") as HTMLAudioElement;
+    const plays = () => nativePlay.mock.instances.filter((node) => node === audioNode).length;
+    const pauses = () => nativePause.mock.instances.filter((node) => node === audioNode).length;
+    Object.defineProperty(firstVideo, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
+    Object.defineProperty(firstVideo, "paused", { configurable: true, value: false });
+    firstVideo.currentTime = 0.5;
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.playing(firstVideo);
+    expect(plays()).toBe(1);
+    const pausesBefore = pauses();
+    rerender(<PreviewPlayer {...props} playheadTimeUs={1_000_000} />);
+    const secondVideo = container.querySelector("video.preview-media") as HTMLVideoElement;
+    expect(secondVideo).not.toBe(firstVideo);
+    expect(pauses()).toBeGreaterThan(pausesBefore);
+    Object.defineProperty(secondVideo, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
+    Object.defineProperty(secondVideo, "paused", { configurable: true, value: false });
+    secondVideo.currentTime = 0;
+    fireEvent.playing(secondVideo); // may arrive before seek to source_in=4s
+    expect(plays()).toBe(1);
+    flushFrame(1_000);
+    flushFrame(1_050);
+    expect(props.onSeek).not.toHaveBeenCalled();
+    fireEvent.loadedMetadata(secondVideo);
+    expect(secondVideo.currentTime).toBe(4);
+    fireEvent.seeked(secondVideo);
+    expect(plays()).toBe(2);
+    secondVideo.currentTime = 4.1;
+    flushFrame(1_100);
+    expect(props.onSeek).toHaveBeenLastCalledWith(1_100_000);
+    expect(props.onCommit).not.toHaveBeenCalled();
+  });
+
   it("disables the transport when the edit contains no clips", () => {
     render(<PreviewPlayer
       sequence={baseSequence}

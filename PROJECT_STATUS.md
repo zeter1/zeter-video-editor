@@ -1,3 +1,12 @@
+# NEXT PRODUCT-CODE TASK — 2026-10-11 ~20:10 Минск — STAGE C ADJACENT VIDEO / AUDIO RECLOCK, DRAFT PR #44
+
+- Product change in `PreviewPlayer.tsx` and `previewTransport.ts`: native `playing`/`seeked` can release separate Audio only after video seeks to its expected source in-point; video-driven rAF also holds until aligned. Timeline-clock comparison respects clip.speed and does not mistake clamped clip start for the real source time.
+- Tests in `previewTransport.test.ts` and `PreviewTransportIntegration.test.tsx`: 2× speed, mismatched source/invalid clock, video A → video B (source_in=4s) with continuous standalone Audio, premature `playing`, `seeked` and reclocking, no Rust onCommit. Original source media, export and .vcut v2 unchanged; desktop still 0.1.0-alpha.1 (development).
+- GitHub: https://github.com/zeter1/zeter-video-editor/pull/44 draft branch `feat/preview-continuous-transport-20261011`; stacked #43→#42→#41→#40→#39→main. Previously verified Windows CI https://github.com/zeter1/zeter-video-editor/actions/runs/38156508438 was completed SUCCESS on OLD SHA ec46249c4601d26be18ce9ebb02d71b35025bd32; check NEW exact-head CI rather than reusing old success. Main not merged, no release/tag/sign/install. Manual Windows GUI/speaker QA NOT VERIFIED.
+- NEXT PRODUCT-CODE TASK: first check exact-head Windows CI for new PR #44 commit and fix any frontend/Vitest/WebView2 failures. Then add actual Windows WebView2 E2E video A→B with source_in 4 s and standalone WAV crossing cut, plus measurable A/V reclock; continue Direct/Proxy/Composite/RenderSnapshot preview parity. Independent review and manual Windows testing before merging; never a docs-only pass.
+
+---
+
 # NEXT PRODUCT-CODE TASK — 2026-10-11 — STAGE C FRAME-STEP / LIVE PLAYBACK, DRAFT PR #44
 
 - **Real production code:** `apps/desktop/src/preview/PreviewPlayer.tsx` now pauses playback before Previous/Next frame, clamps the seek to actual sequence content length and sets transient clock ref. Previously ongoing rAF/native decoder could overwrite manual steps; Next could overrun sequence.
