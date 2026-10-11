@@ -117,4 +117,51 @@ fn managed_ffprobe_accepts_real_mp4_and_rejects_header_only_fake() {
         .is_err()
     );
     assert_eq!(fs::read_dir(&invalid_cache).unwrap().count(), 0);
+
+    // An MP4 container with audio but no video is not a usable video preview.
+    // This regression must fail against B2a's old audio-or-video acceptance.
+    let audio_only = tmp.path().join("audio-only.mp4");
+    let audio_generated = Command::new(&ffmpeg)
+        .args([
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=48000",
+            "-t",
+            "0.25",
+            "-vn",
+            "-c:a",
+            "aac",
+            "-y",
+        ])
+        .arg(&audio_only)
+        .output()
+        .expect("managed ffmpeg generates audio-only fixture");
+    assert!(
+        audio_generated.status.success(),
+        "audio-only fixture generation failed: {}",
+        String::from_utf8_lossy(&audio_generated.stderr)
+    );
+
+    let audio_cache = tmp.path().join("audio-only-cache");
+    fs::create_dir(&audio_cache).unwrap();
+    assert!(
+        publish_preview_cache(
+            &audio_cache,
+            &audio_only,
+            &key,
+            &none,
+            &none_digest,
+            runtime,
+            &ffprobe,
+            &CancellationToken::new(),
+        )
+        .is_err(),
+        "audio-only MP4 must never become a verified video preview cache hit"
+    );
+    assert_eq!(fs::read_dir(&audio_cache).unwrap().count(), 0);
 }
