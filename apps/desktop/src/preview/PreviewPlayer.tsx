@@ -3,6 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Clip, MediaRef, Sequence, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
+import {
+  advanceGapTimeUs,
+  mediaTimeToTimelineUs,
+  sequencePlayableEndUs,
+} from "./previewTransport";
 
 type PreviewQuality = "Full" | "1/2" | "1/4";
 type PreviewScale = "Fit" | "100%";
@@ -56,6 +61,14 @@ export function PreviewPlayer({
   const [mediaError, setMediaError] = useState<string | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
+  const playableEndUs = useMemo(() => sequencePlayableEndUs(sequence), [sequence]);
+  const clockPositionRef = useRef(playheadTimeUs);
+  const onSeekRef = useRef(onSeek);
+
+  // Keep the transient clock aligned with seeks from the timeline, keyboard
+  // and frame-step controls; the Rust project model is never mutated here.
+  clockPositionRef.current = playheadTimeUs;
+  onSeekRef.current = onSeek;
 
   const active = useMemo(
     () => findVisibleClip(sequence, playheadTimeUs),
@@ -75,32 +88,74 @@ export function PreviewPlayer({
     if (!videoSource || !active || !video.current) return;
     const current = video.current;
     const requested = sourceTime(active, playheadTimeUs);
-    if (Number.isFinite(requested) && Math.abs(current.currentTime - requested) > 0.12) {
+    current.playbackRate = active.speed > 0 ? active.speed : 1;
+    // Paused one-frame steps must actually seek the native decoder. During
+    // playback allow small decoder jitter instead of seeking on every frame.
+    const tolerance = playing ? 0.12 : 0.001;
+    if (Number.isFinite(requested) && Math.abs(current.currentTime - requested) > tolerance) {
       current.currentTime = Math.max(0, requested);
     }
-  }, [active, playheadTimeUs, videoSource]);
+  }, [active, playheadTimeUs, videoSource, playing]);
 
   useEffect(() => {
-    if (!video.current) return;
     const current = video.current;
+    if (!current) return;
+    let cancelled = false;
     if (playing && videoSource) {
       void current.play().catch(() => {
+        // Changing clips can reject the old play() promise with AbortError.
+        // Do not stop the new clip's transport because the old node retired.
+        if (cancelled) return;
         setPlaying(false);
         setMediaError("Не удалось запустить видео. Проверьте кодек файла.");
       });
     } else {
       current.pause();
     }
+    return () => {
+      cancelled = true;
+      current.pause();
+    };
   }, [playing, key, videoSource]);
 
-  const onTimeUpdate = (): void => {
-    const current = video.current;
-    if (!current || !active || !playing) return;
-    const speed = active.speed > 0 ? active.speed : 1;
-    const mediaElapsed = Math.max(0, current.currentTime * 1_000_000 - active.source_in);
-    const nextTime = Math.min(active.timeline_end, active.timeline_start + mediaElapsed / speed);
-    if (Number.isFinite(nextTime)) onSeek(nextTime);
-  };
+  // One transient transport for direct video and for still/gap positions.
+  // Video time is authoritative while decoding; non-video positions advance
+  // from rAF elapsed time. Switching clips replaces the clock source without
+  // stopping playback at each clip boundary.
+  useEffect(() => {
+    if (!playing || playableEndUs <= 0) return;
+    let frame = 0;
+    let lastTimestamp: number | null = null;
+    const tick = (timestamp: number): void => {
+      const elapsedMs = lastTimestamp === null ? 0 : timestamp - lastTimestamp;
+      lastTimestamp = timestamp;
+      let nextUs: number;
+      if (active && videoSource) {
+        const current = video.current;
+        // Hold the playhead when media is buffering or seeking; advancing a
+        // wall-clock fallback here would desynchronize video and its audio.
+        if (!current || current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || current.seeking) {
+          frame = requestAnimationFrame(tick);
+          return;
+        }
+        nextUs = mediaTimeToTimelineUs(active, current.currentTime);
+      } else {
+        nextUs = advanceGapTimeUs(clockPositionRef.current, elapsedMs, playableEndUs);
+      }
+
+      if (nextUs > clockPositionRef.current + 500 || nextUs >= playableEndUs) {
+        clockPositionRef.current = nextUs;
+        onSeekRef.current(nextUs);
+      }
+      if (nextUs >= playableEndUs) {
+        setPlaying(false);
+      } else {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [playing, active?.id, videoSource, playableEndUs]);
 
   return (
     <>
@@ -118,12 +173,15 @@ export function PreviewPlayer({
               playsInline
               preload="auto"
               onLoadedMetadata={() => {
-                if (video.current) video.current.currentTime = sourceTime(active, playheadTimeUs);
+                if (video.current) {
+                  video.current.playbackRate = active.speed > 0 ? active.speed : 1;
+                  video.current.currentTime = sourceTime(active, playheadTimeUs);
+                }
               }}
-              onTimeUpdate={onTimeUpdate}
               onEnded={() => {
-                setPlaying(false);
+                // A trimmed clip ending does not end the entire sequence.
                 onSeek(active.timeline_end);
+                if (active.timeline_end >= playableEndUs) setPlaying(false);
               }}
               onError={() => {
                 setPlaying(false);
@@ -159,8 +217,14 @@ export function PreviewPlayer({
           className="play-button"
           aria-label={playing ? "Pause" : "Play"}
           title={playing ? "Пауза" : "Воспроизвести"}
-          disabled={!videoSource}
-          onClick={() => setPlaying((current) => !current)}
+          disabled={playableEndUs <= 0}
+          onClick={() => {
+            if (!playing && playheadTimeUs >= playableEndUs) {
+              clockPositionRef.current = 0;
+              onSeek(0);
+            }
+            setPlaying((current) => !current);
+          }}
         >{playing ? "Ⅱ" : "▶"}</button>
         <button
           type="button"
