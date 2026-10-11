@@ -535,12 +535,14 @@ test("reviews and applies a real subtitle from AI workspace in Windows WebView2"
 test("rejects incomplete Whisper model import without mutating the real project", async () => {
   const { page, state } = await connectTauri();
   await openProject(page, state.workflowProjectPath);
-  const before = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
-  const media = (before.project as { media: Array<{ id: string }> }).media[0];
+  const before = await invokeTauri<Snapshot & AiWorkflowSnapshot>(page, "project_snapshot");
+  const media = before.project.media[0];
   expect(media).toBeDefined();
 
   await page.getByRole("button", { name: "AI-инструменты" }).click();
   await expect(page.getByText(/Для автоматических субтитров выберите/)).toBeVisible();
+  await page.locator(".timeline-clip-video").first().click();
+  await expect(page.getByRole("button", { name: "Generate subtitles" })).toBeVisible();
   await expect(invokeTauri(page, "start_transcription", {
     mediaId: media.id,
     sequenceId: SEQUENCE,

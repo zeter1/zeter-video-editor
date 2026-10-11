@@ -32,7 +32,7 @@ describe("AppShell", () => {
     fireEvent.click(aiButton);
     expect(aiButton.getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("region", { name: "AI-инструменты" })).toBeTruthy();
-    expect(screen.getByText(/Автоанализ пока не подключён/)).toBeTruthy();
+    expect(screen.getByText(/Автосубтитры работают локально/)).toBeTruthy();
     fireEvent.click(aiButton);
     expect(screen.queryByRole("region", { name: "AI-инструменты" })).toBeNull();
   });
