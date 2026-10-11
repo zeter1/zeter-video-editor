@@ -28,7 +28,10 @@ export function mediaTimeToTimelineUs(clip: Clip, mediaSeconds: number): number 
   const speed = clip.speed > 0 ? clip.speed : 1;
   const timelineUs = clip.timeline_start +
     Math.max(0, mediaSeconds * 1_000_000 - clip.source_in) / speed;
-  return Math.min(clip.timeline_end, Math.max(clip.timeline_start, timelineUs));
+  // Timeline coordinates are integral microseconds in the project model.
+  // Binary fractions (e.g. 4.1s) otherwise produce 1_099_999.9999999995us
+  // and make frame/UI seeks non-deterministic across native decoders.
+  return Math.min(clip.timeline_end, Math.max(clip.timeline_start, Math.round(timelineUs)));
 }
 
 // Native "playing" may arrive before an adjacent video seeks to source_in.
