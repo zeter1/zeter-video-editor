@@ -177,6 +177,57 @@ describe("PreviewPlayer continuous transport", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it("Stop during playback rewinds the transient transport without committing an edit", () => {
+    const onSeek = vi.fn();
+    const onCommit = vi.fn();
+    render(<PreviewPlayer
+      sequence={withImageClip(0, 2_000_000)}
+      media={[]}
+      selectedClip={null}
+      selectedTrackId={null}
+      playheadTimeUs={500_000}
+      onSeek={onSeek}
+      onCommit={onCommit}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(onSeek).toHaveBeenLastCalledWith(0);
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(pending.size).toBe(0);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("Stop also rewinds a paused preview so the next Play begins at the start", () => {
+    const onSeek = vi.fn();
+    const { rerender } = render(<PreviewPlayer
+      sequence={withImageClip(0, 2_000_000)}
+      media={[]}
+      selectedClip={null}
+      selectedTrackId={null}
+      playheadTimeUs={1_500_000}
+      onSeek={onSeek}
+      onCommit={vi.fn()}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(onSeek).toHaveBeenLastCalledWith(0);
+    rerender(<PreviewPlayer
+      sequence={withImageClip(0, 2_000_000)}
+      media={[]}
+      selectedClip={null}
+      selectedTrackId={null}
+      playheadTimeUs={0}
+      onSeek={onSeek}
+      onCommit={vi.fn()}
+    />);
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    flushFrame(1_000);
+    flushFrame(1_050);
+    expect(onSeek).toHaveBeenLastCalledWith(50_000);
+  });
+
   it("disables the transport when the edit contains no clips", () => {
     render(<PreviewPlayer
       sequence={baseSequence}
