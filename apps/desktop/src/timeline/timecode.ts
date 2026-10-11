@@ -33,7 +33,7 @@ export function formatTimecode(timeUs: number, fps: number): string {
 /** Parse a non-drop-frame timecode into a frame-aligned position in microseconds. */
 export function parseTimecode(text: string, fps: number): number | null {
   const nominal = nominalFps(fps);
-  const match = /^(\\d{2,}):([0-5]\\d):([0-5]\\d):(\\d{2,3})$/.exec(text.trim());
+  const match = /^(\d{2,}):([0-5]\d):([0-5]\d):(\d{2,3})$/.exec(text.trim());
   if (!match) return null;
   const [, hh, mm, ss, ff] = match;
   const hours = Number(hh);
