@@ -72,6 +72,11 @@ export function PreviewPlayer({
   // Standalone audio must not run ahead while the active video decoder stalls.
   // A media key prevents a previous video from unblocking a newly selected clip.
   const [syncedVideoKey, setSyncedVideoKey] = useState<string | null>(null);
+  // A seek within the SAME clip keeps its media key. The decoder may report
+  // the new currentTime before WebView2 has submitted that frame to the screen.
+  const [presentedVideoFrame, setPresentedVideoFrame] = useState<{
+    key: string; timeUs: number;
+  } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
   const playableEndUs = useMemo(() => sequencePlayableEndUs(sequence), [sequence]);
@@ -117,7 +122,10 @@ export function PreviewPlayer({
   // Even if this clip was previously ready, its old frame must not keep
   // standalone audio running while the video moves to the new playhead.
   const audioTransportPlaying = playing &&
-    (!videoSource || (syncedVideoKey === key && videoClockReady()));
+    (!videoSource || (syncedVideoKey === key && videoClockReady() &&
+      (!supportsPresentedFrames(video.current) ||
+        (presentedVideoFrame?.key === key &&
+          Math.abs(presentedVideoFrame.timeUs - playheadTimeUs) <= 120_000))));
 
   useEffect(() => {
     setMediaError(null);
@@ -126,7 +134,10 @@ export function PreviewPlayer({
   // A paused transport cannot reuse readiness from an earlier play session:
   // wait for the native decoder's next playing/seeked signal on restart.
   useEffect(() => {
-    if (!playing) setSyncedVideoKey(null);
+    if (!playing) {
+      setSyncedVideoKey(null);
+      setPresentedVideoFrame(null);
+    }
   }, [playing]);
 
   // Embedded video audio uses the same gain/fade envelope as separate Audio
@@ -200,6 +211,9 @@ export function PreviewPlayer({
           );
           if (nextUs !== null) {
             // 'playing' and 'seeked' are not compositor-frame acknowledgements.
+            // Record the actual submitted frame, not just the clip key: after
+            // an in-clip scrub the old key must not release standalone audio.
+            setPresentedVideoFrame({ key, timeUs: nextUs });
             setSyncedVideoKey(key);
             if (publish(nextUs)) return;
           }
