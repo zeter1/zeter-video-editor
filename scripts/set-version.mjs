@@ -49,7 +49,7 @@ function replaceOnce(path, before, after) {
 replaceOnce("apps/desktop/src-tauri/Cargo.toml", `version = "${current}"`, `version = "${target}"`);
 replaceOnce("Cargo.lock", `name = "zeter-desktop-tauri"\nversion = "${current}"`, `name = "zeter-desktop-tauri"\nversion = "${target}"`);
 replaceOnce("README.md", `**${current}** — версия исходного кода`, `**${target}** — версия исходного кода`);
-replaceOnce("PROJECT_STATUS.md", `Desktop source version: \\`${current}\\``, `Desktop source version: \\`${target}\\``);
+replaceOnce("PROJECT_STATUS.md", "Desktop source version: `" + current + "`", "Desktop source version: `" + target + "`");
 
 const log = read("CHANGELOG.md");
 const first = log.search(/^## \[/m);
