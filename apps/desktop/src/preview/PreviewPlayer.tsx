@@ -240,6 +240,18 @@ export function PreviewPlayer({
         >{playing ? "Ⅱ" : "▶"}</button>
         <button
           type="button"
+          aria-label="Stop"
+          title="Остановить и вернуться к началу"
+          onClick={() => {
+            // Stop is a transient transport action, never an EditCommand.
+            // Pausing first also retires the active native video/audio clocks.
+            setPlaying(false);
+            clockPositionRef.current = 0;
+            onSeekRef.current(0);
+          }}
+        >■</button>
+        <button
+          type="button"
           aria-label="Next frame"
           title="Следующий кадр"
           onClick={() => onSeek(playheadTimeUs + frameUs)}
