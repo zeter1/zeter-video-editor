@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommandResultDto } from "../generated/ipc";
 import {
@@ -25,6 +25,75 @@ const transcript = {
 beforeEach(() => vi.resetAllMocks());
 
 describe("modern local transcription review-before-apply", () => {
+  it("starts only one native Whisper job for two clicks before React can rerender", async () => {
+    let resolveFirst!: (job: Awaited<ReturnType<typeof startTranscription>>) => void;
+    vi.mocked(startTranscription).mockImplementationOnce(
+      () => new Promise((resolve) => { resolveFirst = resolve; }),
+    );
+    vi.mocked(startTranscription).mockResolvedValue({
+      job_id: "job-next", state: "Completed",
+    } as Awaited<ReturnType<typeof startTranscription>>);
+    vi.mocked(getTranscriptionResult).mockResolvedValue(transcript);
+    const onError = vi.fn();
+    render(<TranscriptionRuntimePanel mediaId="media-1" sequenceId="sequence-1"
+      onApplied={vi.fn()} onError={onError} />);
+    const button = screen.getByRole("button", { name: "Generate subtitles" });
+
+    // Dispatch both events in one act batch: the disabled prop has not updated.
+    act(() => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(startTranscription).toHaveBeenCalledTimes(1);
+    expect(button.hasAttribute("disabled")).toBe(true);
+
+    await act(async () => {
+      resolveFirst({ job_id: "job-first", state: "Completed" }
+        as Awaited<ReturnType<typeof startTranscription>>);
+    });
+    await screen.findByText("Проверка");
+    expect(button.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(button);
+    await waitFor(() => expect(startTranscription).toHaveBeenCalledTimes(2));
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("lets a new clip start while ignoring the old still-running Whisper job", async () => {
+    const pending: Array<(job: Awaited<ReturnType<typeof startTranscription>>) => void> = [];
+    vi.mocked(startTranscription).mockImplementation(
+      () => new Promise((resolve) => { pending.push(resolve); }),
+    );
+    vi.mocked(getTranscriptionResult).mockResolvedValue(transcript);
+    const onError = vi.fn();
+    const { rerender } = render(
+      <TranscriptionRuntimePanel mediaId="media-1" sequenceId="sequence-1"
+        onApplied={vi.fn()} onError={onError} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate subtitles" }));
+    expect(startTranscription).toHaveBeenCalledTimes(1);
+
+    rerender(<TranscriptionRuntimePanel mediaId="media-2" sequenceId="sequence-1"
+      onApplied={vi.fn()} onError={onError} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Generate subtitles" })
+      .hasAttribute("disabled")).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Generate subtitles" }));
+    expect(startTranscription).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      pending[0]({ job_id: "old", state: "Completed" }
+        as Awaited<ReturnType<typeof startTranscription>>);
+    });
+    expect(getTranscriptionResult).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Generating…" }).hasAttribute("disabled")).toBe(true);
+
+    await act(async () => {
+      pending[1]({ job_id: "new", state: "Completed" }
+        as Awaited<ReturnType<typeof startTranscription>>);
+    });
+    await screen.findByText("Проверка");
+    expect(getTranscriptionResult).toHaveBeenCalledWith("new");
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it("does not mutate project during analysis or review, then reconciles exactly once on Apply", async () => {
     vi.mocked(startTranscription).mockResolvedValue({
       job_id: "job-1", state: "Completed",

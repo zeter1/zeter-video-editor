@@ -53,6 +53,8 @@ export function TranscriptionRuntimePanel({
   const [jobId, setJobId] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const applyingRef = useRef(false);
+  // React state is not an immediate lock across batched clicks.
+  const startingRef = useRef(false);
   const generationRef = useRef(0);
 
   // The job runs independently in Rust. Discard late UI responses after a
@@ -64,6 +66,8 @@ export function TranscriptionRuntimePanel({
     setRunning(false);
     return () => {
       generationRef.current += 1;
+      // The next selected clip can start without waiting for an old job.
+      startingRef.current = false;
     };
   }, [mediaId, sequenceId]);
 
@@ -106,7 +110,8 @@ export function TranscriptionRuntimePanel({
   }
 
   async function handleStart(): Promise<void> {
-    if (running || applyingRef.current) return;
+    if (running || startingRef.current || applyingRef.current) return;
+    startingRef.current = true;
     const generation = ++generationRef.current;
     setRunning(true);
     setResult(null);
@@ -142,7 +147,10 @@ export function TranscriptionRuntimePanel({
         onError(errorMessage(error, "Automatic subtitle generation failed."));
       }
     } finally {
-      if (generation === generationRef.current) setRunning(false);
+      if (generation === generationRef.current) {
+        startingRef.current = false;
+        setRunning(false);
+      }
     }
   }
 

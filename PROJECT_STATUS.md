@@ -1,3 +1,9 @@
+# PRODUCT-CODE CHECKPOINT — 2026-10-11 — WHISPER SINGLE-FLIGHT (DRAFT PR #42)
+
+- Production: `apps/desktop/src/ai/TranscriptionRuntimePanel.tsx` предотвращает два одновременных запуска native Whisper при быстрых кликах до React render. `startingRef` блокирует обработчик синхронно, освобождается только своим generation; при переключении клипа старый request становится stale, новый запуск доступен.
+- React/Vitest: добавлены регрессии batched click и running-job switch с контролируемыми deferred promises. Этот checkpoint НЕ подтверждает их фактический проход до terminal exact-head Windows CI.
+- Ветка: stacked draft PR #42, base PR #41; main не изменён, release/merge/signing не выполнялись. Версия `0.1.0-alpha.1` development, .vcut schema неизменна. NEXT: проверить exact-head Windows CI (Rust/TS/Vitest/WebView2/NSIS); затем добавить deterministic real WebView2 running-job switch либо интегрировать production local Silence из существующих draft веток. Whisper на настоящей speech-модели, platform face detector и production signed update остаются NOT VERIFIED.
+
 # PRODUCT-CODE CHECKPOINT — 2026-10-11 — REAL WEBVIEW2 SAME-MEDIA WHISPER SWITCH TEST (DRAFT)
 
 - Добавлен новый интеграционный тест `apps/desktop/e2e/mvp-workflow.spec.ts`: Tauri/Rust `DuplicateClip` создаёт второй audio clip с тем же `media_id`, но другим `clip_id`; реальный offline Whisper fixture выполняется на первом, review/Apply отображаются без project mutation. Переключение на duplicate clip должно немедленно убрать review/Apply и сохранить manual draft, Rust snapshot должен остаться без изменения. Это проверяет реальную WebView2/Tauri проводку поверх уже изменённого production `AppShell/AiWorkspace/TranscriptionRuntimePanel` и не тестирует качество нейромодели. Никаких данных проекта и исходного media не изменяется после clone/edit revision=1.
