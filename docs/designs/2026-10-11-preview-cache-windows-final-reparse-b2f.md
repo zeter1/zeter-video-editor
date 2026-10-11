@@ -9,7 +9,8 @@ Windows preview cache root is intended to be private/app-owned; full protection 
 ## Code
 - On Windows, open read-only using `OpenOptionsExt::custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)` (0x00200000). Microsoft documents this as opening the reparse point itself instead of following the final symbolic link.
 - Reject the opened handle when it is not regular or its `MetadataExt::file_attributes` has `FILE_ATTRIBUTE_REPARSE_POINT` (0x00000400); also retain pre-open `symlink_metadata` fast rejection.
-- The shared `open_regular_file` is used for sources, artifact verification and manifest lookup, and now by `manifest_matches` to avoid an unprotected `File::open` in the conflict path. On non-Windows platforms, the same fstat regular-file recheck is added, but no new atomic O_NOFOLLOW guarantee is claimed there.
+- The shared strict `open_regular_file` is used for artifact verification, manifest lookup and now `manifest_matches` to avoid an unprotected `File::open` in the conflict path. On non-Windows platforms, the same opened-file regular check is added, but no atomic O_NOFOLLOW guarantee is claimed there.
+- **Compatibility**: imported source media used by `source_set_sha256` retain the pre-existing normal file-open semantics (plus opened-handle regular-file check). Windows cloud-backed/OneDrive Files On-Demand placeholders may legitimately carry `FILE_ATTRIBUTE_REPARSE_POINT` and need normal hydration. This import path still has an lstat/open TOCTOU window until an immutable snapshot strategy is available. Do not silently reject legitimate cloud source media to fix cache-path races.
 - Existing SHA-256, bounded manifest read, no-overwrite cache publication and wire schemas are unchanged. No public API changes. An injected concurrent path replacement that creates an open error still fails closed (as CacheIo), but may not appear as an ordinary cache miss.
 
 ## Tests and verification
