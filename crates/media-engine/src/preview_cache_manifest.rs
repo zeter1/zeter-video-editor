@@ -64,7 +64,7 @@ pub fn source_set_sha256(sources: &[(String, PathBuf)]) -> Result<String, MediaE
             ));
         }
         previous_id = Some(id.as_str());
-        let file = open_regular_file(path)?
+        let file = open_imported_source_file(path)?
             .ok_or_else(|| cache_input_error(path, "missing or non-regular source"))?;
         let (content_sha256, size) = hash_reader(file).map_err(|source| cache_io(path, source))?;
         push_text(&mut hash, id);
@@ -189,6 +189,30 @@ pub fn lookup_verified_preview_cache(
     }
 
     Ok(Some(artifact_path))
+}
+
+/// Preserve imported-file semantics for Windows cloud-backed media. Some
+/// OneDrive Files On-Demand placeholders have REPARSE_POINT, but must be read
+/// through normal hydration. Direct symlinks remain rejected; the lstat/open
+/// window for arbitrary imported source paths needs a snapshot-based design.
+fn open_imported_source_file(path: &Path) -> Result<Option<File>, MediaError> {
+    let meta = match fs::symlink_metadata(path) {
+        Ok(meta) => meta,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(source) => return Err(cache_io(path, source)),
+    };
+    if !meta.is_file() || meta.file_type().is_symlink() {
+        return Ok(None);
+    }
+    let file = File::open(path).map_err(|source| cache_io(path, source))?;
+    if !file
+        .metadata()
+        .map_err(|source| cache_io(path, source))?
+        .is_file()
+    {
+        return Ok(None);
+    }
+    Ok(Some(file))
 }
 
 /// Reject direct links before opening, then inspect the opened file handle.
