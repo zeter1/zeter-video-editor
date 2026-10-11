@@ -1,10 +1,14 @@
 import { useState } from "react";
-import type { EditCommand, Sequence, SubtitleSegment } from "../generated/ipc";
+import type { CommandResultDto, EditCommand, MediaId, Sequence, SubtitleSegment } from "../generated/ipc";
+import { TranscriptionRuntimePanel } from "./TranscriptionRuntimePanel";
 
 interface AiWorkspaceProps {
   sequence: Sequence | null;
   playheadTimeUs: number;
   onCommit: (command: EditCommand) => Promise<boolean>;
+  mediaId?: MediaId | null;
+  onTranscriptionApplied?: (result: CommandResultDto) => Promise<void>;
+  onTranscriptionError?: (message: string) => void;
 }
 
 function parseTimeUs(seconds: string): number | null {
@@ -15,7 +19,7 @@ function parseTimeUs(seconds: string): number | null {
   return Number.isSafeInteger(result) ? result : null;
 }
 
-export function AiWorkspace({ sequence, playheadTimeUs, onCommit }: AiWorkspaceProps) {
+export function AiWorkspace({ sequence, playheadTimeUs, onCommit, mediaId, onTranscriptionApplied, onTranscriptionError }: AiWorkspaceProps) {
   const [text, setText] = useState("");
   const [start, setStart] = useState(() => (playheadTimeUs / 1_000_000).toFixed(2));
   const [end, setEnd] = useState(() => (playheadTimeUs / 1_000_000 + 2).toFixed(2));
@@ -59,12 +63,23 @@ export function AiWorkspace({ sequence, playheadTimeUs, onCommit }: AiWorkspaceP
   return (
     <section className="ai-workspace" aria-label="AI-инструменты">
       <h3>Локальные AI-функции</h3>
-      <p className="empty-copy">Автоанализ пока не подключён к этому рабочему окну. Никакая AI-операция не запускается скрытно.</p>
+      <p className="empty-copy">Автосубтитры работают локально через Whisper после выбора видео- или аудиоклипа и проверенной модели. Результат не изменяет проект до вашего подтверждения.</p>
       <ul className="ai-capability-list">
-        <li>Автосубтитры — требуется подключение Whisper и выбор локальной модели.</li>
+        <li>Автосубтитры — доступен локальный запуск и просмотр, модель проверяется перед запуском.</li>
         <li>Удаление тишины — production backend из draft PR ещё не интегрирован.</li>
         <li>Поиск хайлайтов — production backend из draft PR ещё не интегрирован.</li>
       </ul>
+      {sequence && mediaId && onTranscriptionApplied && onTranscriptionError ? (
+        <TranscriptionRuntimePanel
+          key={`${sequence.id}:${mediaId}`}
+          mediaId={mediaId}
+          sequenceId={sequence.id}
+          onApplied={onTranscriptionApplied}
+          onError={onTranscriptionError}
+        />
+      ) : (
+        <p className="empty-copy">Для автоматических субтитров выберите видео- или аудиоклип на таймлайне.</p>
+      )}
       <fieldset className="ai-manual-subtitles" disabled={!sequence || applying}>
         <legend>Добавить субтитр вручную</legend>
         <p className="empty-copy">Создайте редактируемый субтитр без AI. Проверьте текст и время перед применением.</p>

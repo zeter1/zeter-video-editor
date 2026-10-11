@@ -1,3 +1,9 @@
+# PRODUCT-CODE CHECKPOINT — 2026-10-11 — LOCAL WHISPER TRANSCRIPTION IN MODERN AI WORKSPACE (DRAFT)
+
+- Изменён production-код: восстановлены `app/transcription_service.rs`, `transcription_ipc.rs` и `src/ipc/transcription.ts` из подтверждённого draft PR #8; регистрацию команд добавили в современный Tauri `main.rs`, AI workspace показывает работающий `TranscriptionRuntimePanel` для выбранного видео/аудиоклипа. Не перезаписывались актуальные import / file drag-drop / keyboard shortcuts. Transcription → review → explicit Apply → revision-checked Rust/Undo; missing model/incomplete manifest fail closed. Входная модель проверяется существующим ModelManager; нет cloud и миграций `.vcut`. Подробности CHANGELOG.md.
+- Ветка: `feat/ai-transcription-modern-workspace-20261011` поверх PR #41 SHA 60d713deda8e830f42deec58af6bc78674d1421d, stacked draft; `main` не изменён, PR #7–#9/#39–#41 не объединены. Версия `0.1.0-alpha.1`, НЕ релиз. Проверки: React и Windows WebView2 E2E добавлены; exact-head CI и реальные Whisper-model тесты ещё НЕ заявлять пройденными до проверки конкретного SHA.
+- **NEXT PRODUCT-CODE TASK:** проверить terminal exact-head Windows CI нового PR и исправить реальные ошибки кода; затем сделать полноценный Windows WebView2 fixture happy-path от локальной верифицированной модели → FFmpeg → worker → review → Apply → Undo с проверкой stale revision (переносить E2E fixture из #8 избирательно, не перезаписывать современный setup). После успешного happy-path интегрировать production silence/highlights из #7/#9 в новый AiWorkspace, либо Stage C единый синхронный A/V clock, если backend заблокирован. Документация не может быть самостоятельной следующей задачей.
+
 # Project Status
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (AI workspace + manual subtitles, stacked draft)

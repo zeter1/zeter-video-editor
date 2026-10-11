@@ -1,5 +1,6 @@
 pub mod job_service;
 pub mod project_service;
+pub mod transcription_service;
 
 use std::sync::Mutex;
 

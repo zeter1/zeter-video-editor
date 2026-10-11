@@ -466,7 +466,13 @@ export function AppShell({
             <AiWorkspace key={activeSequence?.id ?? "no-project"}
               sequence={activeSequence}
               playheadTimeUs={transient.playheadTimeUs}
-              onCommit={handleEditCommand} />
+              onCommit={handleEditCommand}
+              mediaId={selectedClip?.kind === "Video" || selectedClip?.kind === "Audio"
+                ? selectedClip.media_id : null}
+              onTranscriptionApplied={async (result) => {
+                await client.reconcileCommandResult(projectStore, result);
+              }}
+              onTranscriptionError={(message) => projectStore.setError(message)} />
           }
         />
         <PreviewPanel

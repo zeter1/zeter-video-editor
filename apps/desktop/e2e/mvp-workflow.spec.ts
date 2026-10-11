@@ -507,7 +507,7 @@ test("reviews and applies a real subtitle from AI workspace in Windows WebView2"
 
   await page.getByRole("button", { name: "AI-инструменты" }).click();
   await expect(page.getByRole("region", { name: "AI-инструменты" })).toBeVisible();
-  await expect(page.getByText(/Автоанализ пока не подключён/)).toBeVisible();
+  await expect(page.getByText(/Автосубтитры работают локально/)).toBeVisible();
   await page.getByRole("textbox", { name: "Текст субтитра" }).fill("Создан в редакторе");
   await page.getByRole("spinbutton", { name: "Начало (с)" }).fill("5");
   await page.getByRole("spinbutton", { name: "Конец (с)" }).fill("6");
@@ -530,6 +530,26 @@ test("reviews and applies a real subtitle from AI workspace in Windows WebView2"
   await expectRevision(page, 2);
   const undone = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
   expect(undone.project.sequences[0].subtitle_segments).toHaveLength(beforeCount);
+});
+
+test("rejects incomplete Whisper model import without mutating the real project", async () => {
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  const before = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  const media = (before.project as { media: Array<{ id: string }> }).media[0];
+  expect(media).toBeDefined();
+
+  await page.getByRole("button", { name: "AI-инструменты" }).click();
+  await expect(page.getByText(/Для автоматических субтитров выберите/)).toBeVisible();
+  await expect(invokeTauri(page, "start_transcription", {
+    mediaId: media.id,
+    sequenceId: SEQUENCE,
+    language: "auto",
+    modelPath: "C:\\\\missing-model.bin",
+    manifestPath: null,
+  })).rejects.toThrow(/model_import_incomplete/);
+  const after = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  expect(after).toEqual(before);
 });
 
 test("runs deterministic local AI fixture analysis and applies results as undoable project state", async () => {
