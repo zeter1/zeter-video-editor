@@ -1034,3 +1034,42 @@ test("exports a sanitized support bundle through the real desktop command bounda
   expect(existsSync(outputPath)).toBe(true);
   expect(readFileSync(outputPath).byteLength).toBeGreaterThan(0);
 });
+
+
+test("plays a standalone audio track in real WebView2 without editing the project", async () => {
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  await expectRevision(page, 0);
+
+  const before = await invokeTauri<Snapshot>(page, "project_snapshot");
+  const audio = page.getByTestId(`preview-audio-${AUDIO_CLIP}`);
+  await expect(audio).toHaveCount(1);
+  await expect(audio).toHaveAttribute("src", /44444444-4444-4444-8444-444444444442/);
+  await expect.poll(
+    () => audio.evaluate((element) => (element as HTMLAudioElement).readyState),
+    { timeout: 15_000 },
+  ).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect.poll(
+    () => audio.evaluate((element) => (element as HTMLAudioElement).currentTime),
+    { timeout: 15_000 },
+  ).toBeGreaterThan(0.15);
+
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect.poll(
+    () => audio.evaluate((element) => (element as HTMLAudioElement).paused),
+  ).toBe(true);
+  expect(await invokeTauri<Snapshot>(page, "project_snapshot")).toEqual(before);
+
+  await edit(page, before.revision, {
+    SetTrackMute: { sequence_id: SEQUENCE, track_id: AUDIO_TRACK, muted: true },
+  });
+  await page.reload();
+  const muted = page.getByTestId(`preview-audio-${AUDIO_CLIP}`);
+  await expect(muted).toHaveCount(1);
+  await expect.poll(
+    () => muted.evaluate((element) => (element as HTMLAudioElement).muted),
+  ).toBe(true);
+});
