@@ -34,6 +34,20 @@ describe("preview transport timeline mapping", () => {
     expect(mediaTimeToTimelineUs(clip, NaN)).toBe(5_000_000);
   });
 
+  it("returns integer microseconds despite fractional HTMLMediaElement currentTime", () => {
+    // Native decoders expose floating-point seconds, but Rust/UI playheads use
+    // integral microseconds. A trimmed adjacent clip must not drift by a fraction.
+    const adjacent = {
+      ...clip, source_in: 4_000_000, source_out: 5_000_000,
+      timeline_start: 1_000_000, timeline_end: 2_000_000, speed: 1,
+    };
+    expect(mediaTimeToTimelineUs(adjacent, 4.1)).toBe(1_100_000);
+    expect(Number.isInteger(mediaTimeToTimelineUs(adjacent, 4.1))).toBe(true);
+    expect(mediaTimeToTimelineUs(clip, 2.2)).toBe(5_100_000);
+    expect(mediaTimeToTimelineUs(adjacent, 4)).toBe(1_000_000);
+    expect(mediaTimeToTimelineUs(adjacent, 5)).toBe(2_000_000);
+  });
+
   it("holds an unseeked adjacent video source until source_in and respects playback speed", () => {
     expect(mediaClockMatchesTimeline(clip, 0, 5_000_000)).toBe(false);
     expect(mediaClockMatchesTimeline(clip, 2, 5_000_000)).toBe(true);
