@@ -127,8 +127,8 @@ enum StageCopyOutcome {
 use crate::{
     MediaError,
     preview_cache_manifest::{
-        PreviewCacheManifest, capture_preview_cache_manifest, lookup_verified_preview_cache,
-        source_set_sha256,
+        PreviewCacheManifest, MAX_MANIFEST_BYTES, capture_preview_cache_manifest,
+        lookup_verified_preview_cache, read_bounded_manifest_bytes, source_set_sha256,
     },
 };
 
@@ -461,10 +461,24 @@ fn manifest_matches(
     expected_json: &[u8],
 ) -> Result<bool, MediaError> {
     let metadata = fs::symlink_metadata(path).map_err(|source| cache_io(path, source))?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > 16 * 1024 {
+    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > MAX_MANIFEST_BYTES {
         return Ok(false);
     }
-    let bytes = fs::read(path).map_err(|source| cache_io(path, source))?;
+    let file = File::open(path).map_err(|source| cache_io(path, source))?;
+    if !file
+        .metadata()
+        .map_err(|source| cache_io(path, source))?
+        .is_file()
+    {
+        return Ok(false);
+    }
+    // The path can grow or be replaced after lstat: cap reads on the
+    // opened handle as well. Full no-follow/reparse hardening is separate.
+    let Some(bytes) = read_bounded_manifest_bytes(file)
+        .map_err(|source| cache_io(path, source))?
+    else {
+        return Ok(false);
+    };
     // Equal structured data are insufficient if there were concurrent writes.
     Ok(bytes == expected_json
         && serde_json::from_slice::<PreviewCacheManifest>(&bytes)
