@@ -540,7 +540,7 @@ describe("PreviewPlayer continuous transport", () => {
     });
     try {
       const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
-      vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+      const nativePause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
       const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
       const clip = {
         id: "frame-clock", kind: "Video", media_id: mediaId,
