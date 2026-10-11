@@ -310,8 +310,8 @@ mod ai_analysis_error_tests {
 
     #[test]
     fn missing_local_analysis_has_safe_typed_error_contract() {
-        let dto = AppError::AiAnalysis("internal transcription cache problem".into())
-            .to_dto(None, None);
+        let dto =
+            AppError::AiAnalysis("internal transcription cache problem".into()).to_dto(None, None);
         assert_eq!(dto.category, ErrorCategory::Job);
         assert_eq!(dto.code, "ai_analysis_unavailable");
         assert_eq!(dto.component, "ai-engine");
