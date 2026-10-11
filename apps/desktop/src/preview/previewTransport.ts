@@ -51,3 +51,20 @@ export function mediaClockMatchesTimeline(
   const expectedSourceUs = clip.source_in + Math.max(0, timelineUs - clip.timeline_start) * speed;
   return Math.abs(mediaSeconds * 1_000_000 - expectedSourceUs) / speed <= toleranceUs;
 }
+
+// currentTime can lead the frame actually submitted to WebView2's compositor.
+// Reject presentation timestamps from old seeks/trimmed in-points before
+// advancing the edit or releasing standalone audio.
+export function presentedFrameToTimelineUs(
+  clip: Clip, frameMediaSeconds: number, decoderMediaSeconds: number, playheadUs: number,
+): number | null {
+  if (![frameMediaSeconds, decoderMediaSeconds, playheadUs].every(Number.isFinite)) return null;
+  const speed = clip.speed > 0 ? clip.speed : 1;
+  const toleranceSeconds = 0.12 * speed; // 120ms on the timeline, scaled to source clock.
+  const expectedSourceSeconds = (clip.source_in +
+    Math.max(0, playheadUs - clip.timeline_start) * speed) / 1_000_000;
+  if (frameMediaSeconds < clip.source_in / 1_000_000 - 0.001 ||
+      frameMediaSeconds < expectedSourceSeconds - toleranceSeconds ||
+      Math.abs(frameMediaSeconds - decoderMediaSeconds) > toleranceSeconds) return null;
+  return mediaTimeToTimelineUs(clip, frameMediaSeconds);
+}
