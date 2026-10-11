@@ -291,6 +291,8 @@ describe("PreviewPlayer continuous transport", () => {
     fireEvent.waiting(video);
     rerender(<PreviewPlayer {...props} playheadTimeUs={1_200_000} />);
     expect(container.querySelector("video.preview-media")).toBeNull();
+    expect(audioPlays()).toBe(4); // Gap still requires the audio's own new seek.
+    fireEvent.seeked(audio);
     expect(audioPlays()).toBe(5);
     expect(props.onCommit).not.toHaveBeenCalled();
   });
