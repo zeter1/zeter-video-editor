@@ -525,6 +525,85 @@ describe("PreviewPlayer continuous transport", () => {
     expect(props.onCommit).not.toHaveBeenCalled();
   });
 
+  it("holds standalone audio until a trimmed video frame reaches the compositor", () => {
+    const previousRequest = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "requestVideoFrameCallback");
+    const previousCancel = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "cancelVideoFrameCallback");
+    let id = 0;
+    const callbacks = new Map<number, VideoFrameRequestCallback>();
+    Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", {
+      configurable: true, value: (cb: VideoFrameRequestCallback) => {
+        callbacks.set(++id, cb); return id;
+      },
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, "cancelVideoFrameCallback", {
+      configurable: true, value: (cancelledId: number) => { callbacks.delete(cancelledId); },
+    });
+    try {
+      const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+      const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+      const clip = {
+        id: "frame-clock", kind: "Video", media_id: mediaId,
+        source_in: 4_000_000, source_out: 5_000_000,
+        timeline_start: 1_000_000, timeline_end: 2_000_000, speed: 1,
+        audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+      } as Sequence["tracks"][number]["clips"][number];
+      const sequence = { ...baseSequence, tracks: [
+        { id: "v", kind: "Video", hidden: false, muted: false, clips: [clip] },
+        { id: "a", kind: "Audio", hidden: false, muted: false,
+          clips: [{ ...clip, id: "audio-clock", kind: "Audio",
+            source_in: 0, source_out: 3_000_000, timeline_start: 0, timeline_end: 3_000_000 }] },
+      ] } as Sequence;
+      const onSeek = vi.fn(), onCommit = vi.fn();
+      const { container } = render(<PreviewPlayer
+        sequence={sequence} media={[{ id: mediaId }] as import("../generated/ipc").MediaRef[]}
+        selectedClip={null} selectedTrackId={null}
+        playheadTimeUs={1_000_000} onSeek={onSeek} onCommit={onCommit}
+      />);
+      const video = container.querySelector("video.preview-media") as HTMLVideoElement;
+      const audio = screen.getByTestId("preview-audio-audio-clock") as HTMLAudioElement;
+      Object.defineProperty(video, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
+      Object.defineProperty(video, "paused", { configurable: true, value: false });
+      Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+      fireEvent.loadedMetadata(audio);
+      fireEvent.seeked(audio);
+      video.currentTime = 4;
+      const audioPlays = () => nativePlay.mock.instances.filter((node) => node === audio).length;
+      const present = (mediaTime: number) => {
+        const currentCallbacks = [...callbacks.values()];
+        callbacks.clear();
+        act(() => {
+          for (const callback of currentCallbacks)
+            callback(1000, { mediaTime } as VideoFrameCallbackMetadata);
+        });
+      };
+      fireEvent.click(screen.getByRole("button", { name: "Play" }));
+      fireEvent.playing(video);
+      fireEvent.seeked(video);
+      expect(audioPlays()).toBe(0);
+      expect(callbacks.size).toBe(1);
+      expect(pending.size).toBe(0);
+      present(0); // Stale frame before native source_in=4s seek.
+      expect(onSeek).not.toHaveBeenCalled();
+      expect(audioPlays()).toBe(0);
+      present(4);
+      expect(audioPlays()).toBe(1);
+      video.currentTime = 4.1;
+      present(4.1);
+      expect(onSeek).toHaveBeenLastCalledWith(1_100_000);
+      expect(callbacks.size).toBe(1);
+      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      expect(onSeek).toHaveBeenLastCalledWith(0);
+      expect(callbacks.size).toBe(0);
+      expect(onCommit).not.toHaveBeenCalled();
+    } finally {
+      if (previousRequest) Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", previousRequest);
+      else delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).requestVideoFrameCallback;
+      if (previousCancel) Object.defineProperty(HTMLVideoElement.prototype, "cancelVideoFrameCallback", previousCancel);
+      else delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).cancelVideoFrameCallback;
+    }
+  });
+
   it("disables the transport when the edit contains no clips", () => {
     render(<PreviewPlayer
       sequence={baseSequence}
