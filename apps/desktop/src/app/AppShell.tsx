@@ -3,6 +3,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 
+import { AiWorkspace } from "../ai/AiWorkspace";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { ErrorDialog } from "../errors/ErrorDialog";
 import type { RecoveryAction } from "../errors/actions";
@@ -100,6 +101,7 @@ export function AppShell({
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null);
   const [openError, setOpenError] = useState<AppErrorDto | null>(null);
   const [busy, setBusy] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const project = projectState.snapshot?.project ?? null;
   const activeSequence = project?.sequences[0] ?? null;
@@ -458,6 +460,14 @@ export function AppShell({
           onImport={() => void handleImport()}
           onAddToTimeline={(id) => void addToTimeline(id)}
           busy={busy}
+          aiOpen={aiOpen}
+          onToggleAi={() => setAiOpen((open) => !open)}
+          aiContent={
+            <AiWorkspace key={activeSequence?.id ?? "no-project"}
+              sequence={activeSequence}
+              playheadTimeUs={transient.playheadTimeUs}
+              onCommit={handleEditCommand} />
+          }
         />
         <PreviewPanel
           sequence={activeSequence}

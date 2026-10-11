@@ -1,5 +1,12 @@
 # Project Status
 
+## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (AI workspace + manual subtitles, stacked draft)
+
+- Ветка `feat/ai-workspace-manual-subtitles-20261011` создаётся поверх draft #40, который зависит от versioning draft #39; **НЕ merged**. Рабочая кнопка «AI-инструменты» открывает/закрывает отдельный sidebar, показывает неподключённые AI capabilities честно, без ложного запуска worker. Внутри можно вручную создать полноценный субтитр с preview и явной фиксацией через `AddSubtitleSegments` и revisioned Rust edit command; отказ оставляет черновик. Без текущей Sequence создание блокируется. Тесты продукта: `apps/desktop/src/ai/AiWorkspace.test.tsx` и `src/app/AppShell.test.tsx`; CSS, LeftPanel и AppShell обновлены. Schema `.vcut`, номер desktop `0.1.0-alpha.1` и production AI backend не меняются.
+- **NEXT PRODUCT-CODE TASK:** перенести реальный AI transcription start/review/apply (Whisper model/runtime, Rust IPC и подтверждаемая revisioned undoable запись) из draft #7–#9 в СОВРЕМЕННЫЙ `apps/desktop/src/app/AppShell.tsx`, `src/ai/AiWorkspace.tsx`, `src/ipc/client.ts` и backend `src-tauri/src/app/*`, не ломая новые Windows open/import/drag/drop/горячие клавиши; проверить модель, stale revision и явное review через React/Rust и реальный WebView2 E2E. Если это заблокировано — Stage C single A/V timeline clock. НИКОГДА не заменять следующий проход только документацией.
+- Новый exact-head CI, SHA и URL PR посмотреть после push; пока НЕ считать новую ветку проверенной. Review, GUI Windows QA и отдельное решение нужны перед merge/tag/release/installer.
+
+
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
 Desktop source version: `0.1.0-alpha.1` (not a signed release; verify GitHub Releases before claiming publication)

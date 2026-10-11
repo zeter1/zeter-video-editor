@@ -28,6 +28,13 @@ describe("AppShell", () => {
     expect(screen.getByTestId("timeline-panel")).toBeTruthy();
     expect(screen.getByTestId("inspector-panel")).toBeTruthy();
     expect(screen.getByTestId("job-status")).toBeTruthy();
+    const aiButton = screen.getByRole("button", { name: "AI-инструменты" });
+    fireEvent.click(aiButton);
+    expect(aiButton.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("region", { name: "AI-инструменты" })).toBeTruthy();
+    expect(screen.getByText(/Автоанализ пока не подключён/)).toBeTruthy();
+    fireEvent.click(aiButton);
+    expect(screen.queryByRole("region", { name: "AI-инструменты" })).toBeNull();
   });
 
   it("exposes project lifecycle actions without putting project state in the toolbar", () => {

@@ -999,3 +999,22 @@ button {
   cursor: not-allowed;
   opacity: .35;
 }
+
+/* AI editing tools remain in the scrollable media sidebar, not over the timeline. */
+.left-panel { display: flex; flex-direction: column; }
+.left-panel .media-list { flex: 1; min-height: 0; overflow-y: auto; }
+.ai-workspace { padding: 8px 4px 24px; font-size: 12px; line-height: 1.5; }
+.ai-workspace h3 { margin: 4px 0 8px; color: #e9eef5; font-size: 13px; }
+.ai-capability-list { padding-left: 17px; margin: 10px 0 18px; color: #adbbce; }
+.ai-capability-list li { margin-bottom: 8px; }
+.ai-manual-subtitles { border: 1px solid var(--border); border-radius: 6px; padding: 10px; min-width: 0; }
+.ai-manual-subtitles legend { padding: 0 4px; font-weight: 600; color: #dce3ee; }
+.ai-manual-subtitles label { display: grid; gap: 4px; margin: 8px 0; }
+.ai-manual-subtitles textarea, .ai-manual-subtitles input {
+  width: 100%; min-width: 0; background: #121925; color: #ecf2ff;
+  border: 1px solid #35435a; border-radius: 4px; padding: 6px; font: inherit;
+}
+.ai-subtitle-times { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ai-manual-subtitles button { display: block; margin: 9px 0; width: 100%; }
+.ai-subtitle-review { word-break: break-word; color: #dce3ee; }
+.ai-workspace [role="status"] { color: #c3e0bb; }
