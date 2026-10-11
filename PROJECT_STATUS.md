@@ -1,3 +1,13 @@
+# NEXT PRODUCT-CODE TASK — 2026-10-11 — AUDIO NATIVE SEEK ACK + LIVE SCRUB (#44)
+
+- **PRODUCT CODE:** `apps/desktop/src/preview/PreviewAudioTracks.tsx`: pendingSeekRef blocks `play()` until native `seeked` acknowledges a programmatic currentTime jump; clock mismatch re-seeks and pauses. `apps/desktop/src/preview/PreviewPlayer.tsx`: standalone audio release additionally checks the live video decoder clock on React render, so scrubbing during Play pauses audio even before the asynchronous video `seeking` event. No Rust project mutations or user-media changes.
+- **ROOT CAUSE / PREVIOUS CI:** Windows Actions run https://github.com/zeter1/zeter-video-editor/actions/runs/38160202536 on dabca8dd90197b02418eac8029610c931e369134 completed FAILURE at Frontend tests (3 Vitest failures); Rust fmt/tests, frontend build and managed runtime steps passed, WebView2/NSIS were SKIPPED. Previously, a value returned immediately by HTMLAudioElement.currentTime was treated as confirmation of seek completion; two integration test assertions assumed immediate audio playback before seeked. Added a new live video scrub regression and adjusted prior expectations to the native decoder protocol. Do NOT claim fix verified until exact-new-SHA CI completes.
+- **GITHUB:** Product code + regression test commits are in DRAFT PR https://github.com/zeter1/zeter-video-editor/pull/44, branch feat/preview-continuous-transport-20261011, stacked base #43→#42→#41→#40→#39→main. MAIN NOT MERGED; no tag/release/sign/install. Version 0.1.0-alpha.1 development, .vcut v2 unchanged. Windows manual GUI/speaker acceptance NOT VERIFIED.
+- **NEXT REQUIRED PRODUCT-CODE TASK:** Check exact HEAD Windows CI including TS/Vitest, Rust, WebView2 E2E, NSIS; fix any specific failures before progress claims. Then Stage C requestVideoFrameCallback real presentation frame timing on WebView2, measured A/V drift on seek/scrub and Direct/Proxy/Composite/RenderSnapshot vs export. Do not start docs-only. Independent review + manual Windows acceptance are needed before main merge.
+- References: https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/seeked_event and https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/currentTime
+
+---
+
 # NEXT PRODUCT-CODE TASK — 2026-10-11 20:28+03:00 — NATIVE AUDIO SEEK GATING (#44)
 
 - PRODUCT: PreviewAudioTracks.tsx now waits for metadata + native seeked and a matching source-in/speed media clock before calling audio.play(). Premature audio at 0s and stale seeked after a trimmed audio cut are blocked; re-seek pauses audio. No Rust edits, source media changes, export changes, .vcut v2 or version bump.
