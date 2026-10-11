@@ -60,6 +60,9 @@ export function PreviewPlayer({
   const [scale, setScale] = useState<PreviewScale>("Fit");
   const [playing, setPlaying] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
+  // Standalone audio must not run ahead while the active video decoder stalls.
+  // A media key prevents a previous video from unblocking a newly selected clip.
+  const [syncedVideoKey, setSyncedVideoKey] = useState<string | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
   const playableEndUs = useMemo(() => sequencePlayableEndUs(sequence), [sequence]);
@@ -82,6 +85,7 @@ export function PreviewPlayer({
   const key = active && source ? `${active.id}:${source.id}` : "";
   const image = active?.kind === "Image";
   const videoSource = active?.kind === "Video" && src ? src : null;
+  const audioTransportPlaying = playing && (!videoSource || syncedVideoKey === key);
 
   useEffect(() => {
     setMediaError(null);
@@ -189,12 +193,28 @@ export function PreviewPlayer({
                   video.current.currentTime = sourceTime(active, playheadTimeUs);
                 }
               }}
+              onPlaying={() => setSyncedVideoKey(key)}
+              onWaiting={() => setSyncedVideoKey(null)}
+              onStalled={() => setSyncedVideoKey(null)}
+              onSeeking={() => setSyncedVideoKey(null)}
+              onSeeked={() => {
+                // Seek can complete without another "playing" event; resume
+                // the external audio only after a usable video frame is ready.
+                const current = video.current;
+                if (current && !current.paused &&
+                    !current.seeking &&
+                    current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                  setSyncedVideoKey(key);
+                }
+              }}
+              onPause={() => setSyncedVideoKey(null)}
               onEnded={() => {
                 // A trimmed clip ending does not end the entire sequence.
                 onSeek(active.timeline_end);
                 if (active.timeline_end >= playableEndUs) setPlaying(false);
               }}
               onError={() => {
+                setSyncedVideoKey(null);
                 setPlaying(false);
                 setMediaError("Формат или видеокодек не поддерживается WebView2. Требуется прокси-файл.");
               }}
@@ -216,7 +236,7 @@ export function PreviewPlayer({
           ) : null}
         </div>
       </div>
-      <PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={playheadTimeUs} playing={playing} />
+      <PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={playheadTimeUs} playing={audioTransportPlaying} />
       <div className="preview-controls" aria-label="Preview controls">
         <button
           type="button"
