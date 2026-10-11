@@ -260,6 +260,49 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    // Simulate a file whose initial size check looked safe but whose reader
+    // can now deliver substantially more than the manifest size ceiling.
+    // The reader must never be asked to deliver more than ceiling + sentinel.
+    #[test]
+    fn bounded_manifest_reader_stops_at_limit_plus_one_even_after_growth() {
+        use std::{cell::Cell, rc::Rc};
+
+        struct GrowingReader {
+            remaining: usize,
+            consumed: Rc<Cell<usize>>,
+        }
+
+        impl Read for GrowingReader {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                let size = self.remaining.min(buffer.len());
+                buffer[..size].fill(b' ');
+                self.remaining -= size;
+                self.consumed.set(self.consumed.get() + size);
+                Ok(size)
+            }
+        }
+
+        let consumed = Rc::new(Cell::new(0));
+        let reader = GrowingReader {
+            remaining: MAX_MANIFEST_BYTES as usize * 32,
+            consumed: Rc::clone(&consumed),
+        };
+        assert!(read_bounded_manifest_bytes(reader).unwrap().is_none());
+        assert_eq!(consumed.get(), MAX_MANIFEST_BYTES as usize + 1);
+
+        let at_limit = vec![b' '; MAX_MANIFEST_BYTES as usize];
+        assert_eq!(
+            read_bounded_manifest_bytes(&at_limit[..]).unwrap(),
+            Some(at_limit)
+        );
+        assert!(read_bounded_manifest_bytes(&b""[..]).unwrap().is_none());
+        assert!(
+            read_bounded_manifest_bytes(&vec![b' '; MAX_MANIFEST_BYTES as usize + 1][..])
+                .unwrap()
+                .is_none()
+        );
+    }
+
     fn key() -> String {
         "b".repeat(64)
     }
