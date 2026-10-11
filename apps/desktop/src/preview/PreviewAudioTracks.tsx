@@ -30,15 +30,21 @@ export function previewAudioVolume(clip: Clip, timeUs: number): number {
 
 // Start standalone audio only after a native seek has reached its clip source-in.
 // Assigning currentTime at loadedmetadata is not evidence that seeking completed.
-function synchronizeAudioClock(node: HTMLAudioElement, clip: Clip, timeUs: number, playing: boolean): boolean {
+function synchronizeAudioClock(
+  node: HTMLAudioElement, clip: Clip, timeUs: number, playing: boolean,
+  pendingSeek: { current: boolean },
+): boolean {
   if (node.readyState < HTMLMediaElement.HAVE_METADATA) return false;
   const target = sourceTimeSeconds(clip, timeUs);
   if (!Number.isFinite(node.currentTime) || Math.abs(node.currentTime - target) > (playing ? 0.12 : 0.001)) {
     node.pause();
+    // Setting currentTime changes the exposed value before the native decoder
+    // has completed the seek. Require a matching seeked event to release audio.
+    pendingSeek.current = true;
     node.currentTime = target;
     return false;
   }
-  return !node.seeking;
+  return !node.seeking && !pendingSeek.current;
 }
 
 function ActiveAudioClip({
@@ -59,6 +65,7 @@ function ActiveAudioClip({
   const [error, setError] = useState(false);
   const [sourceReady, setSourceReady] = useState(false);
   const readyRef = useRef(false);
+  const pendingSeekRef = useRef(false);
   const markReady = (ready: boolean): void => {
     readyRef.current = ready;
     setSourceReady(ready);
@@ -78,7 +85,7 @@ function ActiveAudioClip({
     // Synchronize each audio clip to the same timeline playhead as the video.
     // During normal playback tolerate decoder jitter, but scrubbing and paused
     // frame steps must resolve to the requested sample position.
-    markReady(synchronizeAudioClock(current, clip, timeUs, playing));
+    markReady(synchronizeAudioClock(current, clip, timeUs, playing, pendingSeekRef));
   }, [clip, muted, volume, timeUs, playing]);
 
   useEffect(() => {
@@ -112,15 +119,24 @@ function ActiveAudioClip({
         onLoadedMetadata={() => {
           if (node.current) {
             node.current.playbackRate = clip.speed > 0 ? clip.speed : 1;
-            markReady(synchronizeAudioClock(node.current, clip, timeRef.current, playing));
+            markReady(synchronizeAudioClock(node.current, clip, timeRef.current, playing, pendingSeekRef));
           }
         }}
         onSeeking={() => {
           node.current?.pause();
+          pendingSeekRef.current = true;
           markReady(false);
         }}
         onSeeked={() => {
-          if (node.current) markReady(synchronizeAudioClock(node.current, clip, timeRef.current, playing));
+          if (!node.current) return;
+          if (node.current.seeking) {
+            markReady(false);
+            return;
+          }
+          // A completed seek is the only acknowledgement for a previously
+          // requested source-clock jump. A mismatched event re-seeks below.
+          pendingSeekRef.current = false;
+          markReady(synchronizeAudioClock(node.current, clip, timeRef.current, playing, pendingSeekRef));
         }}
         onError={() => setError(true)}
       />
