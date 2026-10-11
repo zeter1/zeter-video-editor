@@ -610,6 +610,10 @@ fn managed_ffmpeg_preview_chunk_matches_layered_gap_and_audio_at_2997_fps() {
         "fractional NTSC base clock must be the exact 30000/1001 ratio: {graph}"
     );
     assert!(
+        graph.contains("]fps=30000/1001,format=yuv420p[vout]"),
+        "fractional NTSC output fps filter must keep the exact ratio: {graph}"
+    );
+    assert!(
         graph.contains("eof_action=repeat:enable='gte(t,0.600000)*lt(t,1.401400)'"),
         "last in-range V2 frame must survive source EOF, without leaking beyond end: {graph}"
     );
