@@ -94,7 +94,6 @@ export function PreviewPlayer({
   const key = active && source ? `${active.id}:${source.id}` : "";
   const image = active?.kind === "Image";
   const videoSource = active?.kind === "Video" && src ? src : null;
-  const audioTransportPlaying = playing && (!videoSource || syncedVideoKey === key);
   // Guard audio release against a premature decoder event, especially during
   // a cut to a different video's trimmed source in-point.
   const videoClockReady = (): boolean => {
@@ -105,6 +104,12 @@ export function PreviewPlayer({
       mediaClockMatchesTimeline(active, current.currentTime, clockPositionRef.current),
     );
   };
+
+  // Native seeking events can arrive asynchronously after a user scrubs.
+  // Even if this clip was previously ready, its old frame must not keep
+  // standalone audio running while the video moves to the new playhead.
+  const audioTransportPlaying = playing &&
+    (!videoSource || (syncedVideoKey === key && videoClockReady()));
 
   useEffect(() => {
     setMediaError(null);
