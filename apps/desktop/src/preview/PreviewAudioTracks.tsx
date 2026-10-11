@@ -37,7 +37,12 @@ function synchronizeAudioClock(
 ): boolean {
   if (node.readyState < HTMLMediaElement.HAVE_METADATA) return false;
   const target = sourceTimeSeconds(clip, timeUs);
-  if (!Number.isFinite(node.currentTime) || Math.abs(node.currentTime - target) > (playing ? 0.12 : 0.001)) {
+  // currentTime is measured in SOURCE seconds. The drift budget is measured
+  // in TIMELINE seconds, so multiply by speed (as for video preview clock).
+  // Otherwise 2x and faster clips can repeatedly pause/seek on minor jitter.
+  const speed = clip.speed > 0 ? clip.speed : 1;
+  const toleranceSeconds = (playing ? 0.12 : 0.001) * speed;
+  if (!Number.isFinite(node.currentTime) || Math.abs(node.currentTime - target) > toleranceSeconds) {
     node.pause();
     // Setting currentTime changes the exposed value before the native decoder
     // has completed the seek. Require a matching seeked event to release audio.

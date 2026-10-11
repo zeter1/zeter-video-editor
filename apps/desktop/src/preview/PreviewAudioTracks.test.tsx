@@ -112,6 +112,34 @@ describe("standalone audio preview tracks", () => {
     expect(previewAudioVolume({ ...clip, audio: { ...clip.audio, volume: -3 } }, 1_500_000)).toBe(0);
   });
 
+  it("scales the 120ms timeline clock budget for 2x native audio", () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const { rerender } = render(
+      <PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_000_000} playing />,
+    );
+    const audio = screen.getByTestId("preview-audio-audio-1") as HTMLAudioElement;
+    Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    fireEvent.loadedMetadata(audio);
+    fireEvent.seeked(audio);
+    expect(audio.currentTime).toBe(2);
+    expect(play.mock.instances.filter((node) => node === audio)).toHaveLength(1);
+    const pausesBefore = pause.mock.instances.filter((node) => node === audio).length;
+
+    // Source drift 150ms is only 75ms on the 2x timeline: no re-seek.
+    rerender(<PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_075_000} playing />);
+    expect(audio.currentTime).toBe(2);
+    expect(pause.mock.instances.filter((node) => node === audio)).toHaveLength(pausesBefore);
+
+    // Source drift 260ms = 130ms on timeline: pause and await native seeked.
+    rerender(<PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_130_000} playing />);
+    expect(audio.currentTime).toBeCloseTo(2.26);
+    expect(pause.mock.instances.filter((node) => node === audio).length).toBeGreaterThan(pausesBefore);
+    expect(play.mock.instances.filter((node) => node === audio)).toHaveLength(1);
+    fireEvent.seeked(audio);
+    expect(play.mock.instances.filter((node) => node === audio)).toHaveLength(2);
+  });
+
   it("does not play trimmed audio before metadata and a matching native seeked event", () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});

@@ -1,3 +1,13 @@
+# CURRENT CHECKPOINT — 2026-10-11 21:56+03 — Stage C audio drift at 2x (draft PR #44)
+
+- Product code: PreviewAudioTracks.tsx normalizes native audio clock tolerance by clip.speed, keeping a 120ms timeline drift budget while playing and 1ms timeline budget when paused. Previously a fixed 0.12s in source time caused repeated unnecessary pause/seek on 2x/4x clips. New PreviewAudioTracks.test.tsx regression proves 2x source clock drift 150ms (75ms timeline) stays playing, but 260ms (130ms timeline) seeks and waits for seeked. CHANGELOG.md updated.
+- BEFORE THIS COMMIT exact HEAD c5c5d3cd4d1287224f85bf1a34dde84df268b38d CI https://github.com/zeter1/zeter-video-editor/actions/runs/38165388181 had successful frontend build, Rust tests, Vitest, real WebView2 E2E; NSIS/debug bundle still in progress when checked. Never copy that partial result to the new SHA. Check NEW exact-head terminal Windows CI; fix any failure.
+- GitHub https://github.com/zeter1/zeter-video-editor/pull/44 OPEN DRAFT, stacked #43→#42→#41→#40→#39→main. Do NOT merge yet. No tag/release/sign/installer; desktop version 0.1.0-alpha.1 development, project .vcut v2, source media/Rust authoritative model/export unchanged. Manual Windows GUI/speaker QA and independent review not verified.
+- NEXT product-code task: terminal exact-head CI; real WebView2 presented-frame vs separate WAV drift under scrub/seek and media clock at different clip speeds; parity of Direct/Proxy/Composite/RenderSnapshot with export. No docs-only passes.
+- References: https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/currentTime ; https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/requestVideoFrameCallback
+
+---
+
 # NEXT PRODUCT-CODE TASK — 2026-10-11 — IN-CLIP SCRUB PRESENTED-FRAME AUDIO GATE (#44)
 
 - **PRODUCT CODE:** in `apps/desktop/src/preview/PreviewPlayer.tsx` the separate Audio transport is no longer authorized solely by the same video clip key + decoder.currentTime after a live scrub. It also requires the latest actual WebView2 presented `metadata.mediaTime` for that key to match the new playhead within 120ms. A stale 4.1s frame cannot release audio after a seek to source 4.4s, even if `currentTime` jumped synchronously and the old key remains valid. The frame acknowledgement is discarded on Pause/Stop. Older WebView2 without requestVideoFrameCallback retains the existing decoder/seeked fallback; still/gap unchanged. No Rust project writes, original-media edits, .vcut v2, export or version changes.
