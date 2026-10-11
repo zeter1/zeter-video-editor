@@ -127,7 +127,7 @@ enum StageCopyOutcome {
 use crate::{
     MediaError,
     preview_cache_manifest::{
-        PreviewCacheManifest, MAX_MANIFEST_BYTES, capture_preview_cache_manifest,
+        MAX_MANIFEST_BYTES, PreviewCacheManifest, capture_preview_cache_manifest,
         lookup_verified_preview_cache, read_bounded_manifest_bytes, source_set_sha256,
     },
 };
@@ -477,8 +477,7 @@ fn manifest_matches(
     }
     // The path can grow or be replaced after lstat: cap reads on the
     // opened handle as well. Full no-follow/reparse hardening is separate.
-    let Some(bytes) = read_bounded_manifest_bytes(file)
-        .map_err(|source| cache_io(path, source))?
+    let Some(bytes) = read_bounded_manifest_bytes(file).map_err(|source| cache_io(path, source))?
     else {
         return Ok(false);
     };
@@ -520,10 +519,9 @@ mod tests {
         let render = dir.path().join("source.mp4");
         fs::write(&render, fake_mp4(b"render")).unwrap();
         let digest = source_set_sha256(&[]).unwrap();
-        let manifest =
-            capture_preview_cache_manifest(&render, &key(), &digest, "ffmpeg-8.0.1")
-                .unwrap()
-                .unwrap();
+        let manifest = capture_preview_cache_manifest(&render, &key(), &digest, "ffmpeg-8.0.1")
+            .unwrap()
+            .unwrap();
         let json = serde_json::to_vec(&manifest).unwrap();
         let path = dir.path().join("existing.manifest.json");
 
