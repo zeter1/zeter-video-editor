@@ -292,6 +292,77 @@ describe("PreviewPlayer continuous transport", () => {
     expect(props.onCommit).not.toHaveBeenCalled();
   });
 
+  it("pauses the live preview clock for frame stepping and clamps to sequence boundaries", () => {
+    const onSeek = vi.fn();
+    const onCommit = vi.fn();
+    const sequence = withImageClip(0, 1_000_000);
+    const props = { sequence, media: [], selectedClip: null, selectedTrackId: null, onSeek, onCommit };
+    const { rerender } = render(<PreviewPlayer {...props} playheadTimeUs={500_000} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(pending.size).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(onSeek).toHaveBeenLastCalledWith(533_333);
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(pending.size).toBe(0);
+    flushFrame(1_000);
+    expect(onSeek).toHaveBeenCalledTimes(1);
+
+    rerender(<PreviewPlayer {...props} playheadTimeUs={990_000} />);
+    fireEvent.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(onSeek).toHaveBeenLastCalledWith(1_000_000);
+    rerender(<PreviewPlayer {...props} playheadTimeUs={10_000} />);
+    fireEvent.click(screen.getByRole("button", { name: "Previous frame" }));
+    expect(onSeek).toHaveBeenLastCalledWith(0);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("pauses native video and standalone audio decoders when stepping a frame", () => {
+    const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const nativePause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const videoClip = {
+      id: "video-step", kind: "Video", media_id: mediaId, source_in: 0,
+      source_out: 1_000_000, timeline_start: 0, timeline_end: 1_000_000, speed: 1,
+      audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+    } as Sequence["tracks"][number]["clips"][number];
+    const audioClip = { ...videoClip, id: "audio-step", kind: "Audio" };
+    const sequence = {
+      ...baseSequence,
+      tracks: [
+        { id: "video-track", kind: "Video", hidden: false, muted: false, clips: [videoClip] },
+        { id: "audio-track", kind: "Audio", hidden: false, muted: false, clips: [audioClip] },
+      ],
+    } as Sequence;
+    const onSeek = vi.fn();
+    const onCommit = vi.fn();
+    const { container } = render(<PreviewPlayer
+      sequence={sequence}
+      media={[{ id: mediaId }] as import("../generated/ipc").MediaRef[]}
+      selectedClip={null}
+      selectedTrackId={null}
+      playheadTimeUs={500_000}
+      onSeek={onSeek}
+      onCommit={onCommit}
+    />);
+    const video = container.querySelector("video.preview-media") as HTMLVideoElement;
+    const audio = screen.getByTestId("preview-audio-audio-step") as HTMLAudioElement;
+    Object.defineProperty(video, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
+    Object.defineProperty(video, "paused", { configurable: true, value: false });
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.playing(video);
+    expect(nativePlay.mock.instances).toContain(audio);
+    const pausedVideoBefore = nativePause.mock.instances.filter((node) => node === video).length;
+    const pausedAudioBefore = nativePause.mock.instances.filter((node) => node === audio).length;
+    fireEvent.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(nativePause.mock.instances.filter((node) => node === video).length).toBeGreaterThan(pausedVideoBefore);
+    expect(nativePause.mock.instances.filter((node) => node === audio).length).toBeGreaterThan(pausedAudioBefore);
+    expect(onSeek).toHaveBeenLastCalledWith(533_333);
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("disables the transport when the edit contains no clips", () => {
     render(<PreviewPlayer
       sequence={baseSequence}

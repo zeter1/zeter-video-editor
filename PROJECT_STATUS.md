@@ -1,3 +1,12 @@
+# NEXT PRODUCT-CODE TASK — 2026-10-11 — STAGE C FRAME-STEP / LIVE PLAYBACK, DRAFT PR #44
+
+- **Real production code:** `apps/desktop/src/preview/PreviewPlayer.tsx` now pauses playback before Previous/Next frame, clamps the seek to actual sequence content length and sets transient clock ref. Previously ongoing rAF/native decoder could overwrite manual steps; Next could overrun sequence.
+- **Real product regressions:** `PreviewTransportIntegration.test.tsx` adds two React/Vitest cases for canceling active rAF with 30 fps and boundary seeks and for pausing native video with standalone audio (no Rust onCommit). CHANGELOG.md updated in existing 0.1.0-alpha.1 section. No .vcut schema or release/version bump.
+- **PR:** https://github.com/zeter1/zeter-video-editor/pull/44 DRAFT branch `feat/preview-continuous-transport-20261011`, base #43→#42→#41→#40→#39→main. Prior baseline exact SHA `bbb1174ccae55540b02c33196dd39d92ca381264` Windows CI completed SUCCESS: https://github.com/zeter1/zeter-video-editor/actions/runs/38154831321; this predates the frame-step commit and MUST NOT be claimed as new code validation. No merge into main/tag/release/sign/install; manual Windows GUI/speaker QA NOT VERIFIED.
+- **NEXT PRODUCT-CODE TASK:** verify new exact-head Windows CI, investigate failing job logs and fix test or product code. Then continue adjacent video decoder switching and precise video/audio seek/reclock, plus Direct/Proxy/Composite/RenderSnapshot parity. Keep product-code development primary; no docs-only passes; review + actual Windows manual QA before merge.
+
+---
+
 # NEXT PRODUCT-CODE TASK — 2026-10-11 ~19:17 Минск — STAGE C BUFFERING/SEEK AUDIO SYNC, DRAFT PR #44
 
 - **Изменена реальная production-функция:** `apps/desktop/src/preview/PreviewPlayer.tsx` теперь ждёт нативного `playing` видео до запуска самостоятельных Audio-клипов, ставит их на паузу при `waiting`/`stalled`/`seeking` и возобновляет при следующем `playing` или завершённом `seeked` с пригодным кадром. Состояние decoder-ready привязано к конкретному video media key и сбрасывается при Pause; после перехода с видео на gap отдельный Audio работает независимо. До исправления WAV/MP3 продолжали звучать во время видеобуферизации/seek и уходили вперёд по времени.

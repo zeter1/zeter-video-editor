@@ -74,6 +74,14 @@ export function PreviewPlayer({
   clockPositionRef.current = playheadTimeUs;
   onSeekRef.current = onSeek;
 
+  const stepFrame = (direction: -1 | 1): void => {
+    // A frame step must stop live clocks before seeking, or playback can overwrite it.
+    setPlaying(false);
+    const targetUs = Math.min(playableEndUs, Math.max(0, playheadTimeUs + direction * frameUs));
+    clockPositionRef.current = targetUs;
+    onSeekRef.current(targetUs);
+  };
+
   const visible = useMemo(
     () => findVisibleClip(sequence, playheadTimeUs),
     [sequence, playheadTimeUs],
@@ -248,7 +256,7 @@ export function PreviewPlayer({
           type="button"
           aria-label="Previous frame"
           title="Предыдущий кадр"
-          onClick={() => onSeek(Math.max(0, playheadTimeUs - frameUs))}
+          onClick={() => stepFrame(-1)}
         >‹</button>
         <button
           type="button"
@@ -280,7 +288,7 @@ export function PreviewPlayer({
           type="button"
           aria-label="Next frame"
           title="Следующий кадр"
-          onClick={() => onSeek(playheadTimeUs + frameUs)}
+          onClick={() => stepFrame(1)}
         >›</button>
         <span className="timecode">{(playheadTimeUs / 1_000_000).toFixed(3)} с</span>
         {(["Full", "1/2", "1/4"] as const).map((value) => (
