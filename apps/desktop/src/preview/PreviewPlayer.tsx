@@ -9,6 +9,7 @@ import {
   isBenignMediaPlayRejection,
   mediaTimeToTimelineUs,
   mediaClockMatchesTimeline,
+  presentedFrameToTimelineUs,
   sequencePlayableEndUs,
 } from "./previewTransport";
 
@@ -47,6 +48,12 @@ function sourceTime(clip: Clip, timelineUs: number): number {
 // to the currently-open project can be read by the Rust stream handler.
 function mediaUrl(mediaId: string): string {
   return `http://zeter-media.localhost/${encodeURIComponent(mediaId)}`;
+}
+
+// Fall back to the legacy decoder/rAF clock on older WebView2 runtimes.
+function supportsPresentedFrames(node: HTMLVideoElement | null): node is HTMLVideoElement {
+  return Boolean(node && typeof node.requestVideoFrameCallback === "function" &&
+    typeof node.cancelVideoFrameCallback === "function");
 }
 
 export function PreviewPlayer({
@@ -164,12 +171,50 @@ export function PreviewPlayer({
     };
   }, [playing, key, videoSource]);
 
-  // One transient transport for direct video and for still/gap positions.
-  // Video time is authoritative while decoding; non-video positions advance
-  // from rAF elapsed time. Switching clips replaces the clock source without
-  // stopping playback at each clip boundary.
+  // When available, use frames submitted to the compositor rather than
+  // decoder currentTime, which can lead the picture during seeks/buffering.
   useEffect(() => {
     if (!playing || playableEndUs <= 0) return;
+    const publish = (nextUs: number): boolean => {
+      if (nextUs > clockPositionRef.current + 500 || nextUs >= playableEndUs) {
+        clockPositionRef.current = nextUs;
+        onSeekRef.current(nextUs);
+      }
+      if (nextUs >= playableEndUs) {
+        setPlaying(false);
+        return true;
+      }
+      return false;
+    };
+
+    const current = video.current;
+    if (active && videoSource && supportsPresentedFrames(current)) {
+      let cancelled = false;
+      let requestId: number | null = null;
+      const onPresentedFrame: VideoFrameRequestCallback = (_now, metadata) => {
+        if (cancelled) return;
+        if (video.current === current && !current.paused && !current.seeking &&
+            current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          const nextUs = presentedFrameToTimelineUs(
+            active, metadata.mediaTime, current.currentTime, clockPositionRef.current,
+          );
+          if (nextUs !== null) {
+            // 'playing' and 'seeked' are not compositor-frame acknowledgements.
+            setSyncedVideoKey(key);
+            if (publish(nextUs)) return;
+          }
+        }
+        requestId = current.requestVideoFrameCallback(onPresentedFrame);
+      };
+      requestId = current.requestVideoFrameCallback(onPresentedFrame);
+      return () => {
+        cancelled = true;
+        if (requestId !== null) current.cancelVideoFrameCallback(requestId);
+      };
+    }
+
+    // Legacy fallback for WebView2 without the frame-presentation API, and
+    // wall-clock advancement only in still/image/audio-only timeline regions.
     let frame = 0;
     let lastTimestamp: number | null = null;
     const tick = (timestamp: number): void => {
@@ -177,32 +222,22 @@ export function PreviewPlayer({
       lastTimestamp = timestamp;
       let nextUs: number;
       if (active && videoSource) {
-        const current = video.current;
-        // Hold the playhead when media is buffering or seeking; advancing a
-        // wall-clock fallback here would desynchronize video and its audio.
-        if (!current || current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || current.seeking ||
-            !mediaClockMatchesTimeline(active, current.currentTime, clockPositionRef.current)) {
+        const decoder = video.current;
+        if (!decoder || decoder.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+            decoder.seeking ||
+            !mediaClockMatchesTimeline(active, decoder.currentTime, clockPositionRef.current)) {
           frame = requestAnimationFrame(tick);
           return;
         }
-        nextUs = mediaTimeToTimelineUs(active, current.currentTime);
+        nextUs = mediaTimeToTimelineUs(active, decoder.currentTime);
       } else {
         nextUs = advanceGapTimeUs(clockPositionRef.current, elapsedMs, playableEndUs);
       }
-
-      if (nextUs > clockPositionRef.current + 500 || nextUs >= playableEndUs) {
-        clockPositionRef.current = nextUs;
-        onSeekRef.current(nextUs);
-      }
-      if (nextUs >= playableEndUs) {
-        setPlaying(false);
-      } else {
-        frame = requestAnimationFrame(tick);
-      }
+      if (!publish(nextUs)) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, active?.id, videoSource, playableEndUs]);
+  }, [playing, active?.id, key, videoSource, playableEndUs]);
 
   return (
     <>
@@ -226,7 +261,7 @@ export function PreviewPlayer({
                 }
               }}
               onPlaying={() => {
-                if (videoClockReady()) setSyncedVideoKey(key);
+                if (!supportsPresentedFrames(video.current) && videoClockReady()) setSyncedVideoKey(key);
               }}
               onWaiting={() => setSyncedVideoKey(null)}
               onStalled={() => setSyncedVideoKey(null)}
@@ -234,7 +269,7 @@ export function PreviewPlayer({
               onSeeked={() => {
                 // Seek can complete without another "playing" event; resume
                 // the external audio only after a usable video frame is ready.
-                if (videoClockReady()) setSyncedVideoKey(key);
+                if (!supportsPresentedFrames(video.current) && videoClockReady()) setSyncedVideoKey(key);
               }}
               onPause={() => setSyncedVideoKey(null)}
               onEnded={() => {
