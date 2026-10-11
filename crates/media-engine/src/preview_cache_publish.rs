@@ -231,13 +231,22 @@ fn verify_managed_mp4(
             stdout,
         } => stdout,
         ProbeExecution::Completed { success: false, .. } => {
-            return Err(cache_invalid(artifact, "managed ffprobe rejected rendered MP4"));
+            return Err(cache_invalid(
+                artifact,
+                "managed ffprobe rejected rendered MP4",
+            ));
         }
         ProbeExecution::TimedOut => {
-            return Err(cache_invalid(artifact, "managed ffprobe exceeded time limit"));
+            return Err(cache_invalid(
+                artifact,
+                "managed ffprobe exceeded time limit",
+            ));
         }
         ProbeExecution::OutputTooLarge => {
-            return Err(cache_invalid(artifact, "managed ffprobe JSON exceeds size limit"));
+            return Err(cache_invalid(
+                artifact,
+                "managed ffprobe JSON exceeds size limit",
+            ));
         }
         ProbeExecution::Cancelled => {
             return Err(cache_invalid(artifact, "managed ffprobe was cancelled"));
@@ -853,5 +862,4 @@ mod tests {
             _ => panic!("small bounded subprocess should finish successfully: {result:?}"),
         }
     }
-
 }
