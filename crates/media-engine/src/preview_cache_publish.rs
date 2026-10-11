@@ -7,7 +7,10 @@ use std::{
     fs::{self, File},
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
+    sync::mpsc::{self, TryRecvError},
+    thread,
+    time::{Duration, Instant},
 };
 
 use tempfile::NamedTempFile;
@@ -16,6 +19,103 @@ use tokio_util::sync::CancellationToken;
 // This is a preview *chunk* cache, not a full-resolution export destination.
 // Cap disk staging even when a render grows after its initial metadata check.
 const MAX_PREVIEW_CACHE_STAGING_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+
+// A media input must not make our synchronous cache publisher wait indefinitely
+// or accumulate unbounded ffprobe JSON in memory.
+const MAX_PROBE_STDOUT_BYTES: usize = 256 * 1024;
+const MANAGED_FFPROBE_TIMEOUT: Duration = Duration::from_secs(15);
+
+#[derive(Debug, PartialEq, Eq)]
+enum ProbeExecution {
+    Completed { success: bool, stdout: Vec<u8> },
+    TimedOut,
+    OutputTooLarge,
+    Cancelled,
+}
+
+/// Drain stdout concurrently with polling the child. Using Command::output()
+/// here would permit an unbounded allocation and an uninterruptible wait.
+/// stderr is discarded: the caller must not persist untrusted media paths.
+fn run_bounded_probe(
+    command: &mut Command,
+    cancellation: &CancellationToken,
+    timeout: Duration,
+    max_stdout: usize,
+) -> io::Result<ProbeExecution> {
+    if cancellation.is_cancelled() {
+        return Ok(ProbeExecution::Cancelled);
+    }
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| io::Error::other("ffprobe stdout pipe unavailable"))?;
+    let (sender, receiver) = mpsc::channel();
+    let reader = thread::spawn(move || {
+        let mut captured = Vec::new();
+        let read_result = stdout
+            .take(max_stdout as u64 + 1)
+            .read_to_end(&mut captured)
+            .map(|_| captured);
+        let _ = sender.send(read_result);
+    });
+
+    let started = Instant::now();
+    let mut captured: Option<Vec<u8>> = None;
+    let mut exit = None;
+    let decision: io::Result<ProbeExecution> = loop {
+        if cancellation.is_cancelled() {
+            break Ok(ProbeExecution::Cancelled);
+        }
+        if captured.is_none() {
+            match receiver.try_recv() {
+                Ok(Ok(bytes)) if bytes.len() > max_stdout => {
+                    break Ok(ProbeExecution::OutputTooLarge);
+                }
+                Ok(Ok(bytes)) => captured = Some(bytes),
+                Ok(Err(error)) => break Err(error),
+                Err(TryRecvError::Disconnected) => {
+                    break Err(io::Error::other("ffprobe stdout reader disconnected"));
+                }
+                Err(TryRecvError::Empty) => {}
+            }
+        }
+        if exit.is_none() {
+            match child.try_wait() {
+                Ok(status) => exit = status,
+                Err(error) => break Err(error),
+            }
+        }
+        if let Some(status) = exit {
+            if let Some(bytes) = captured.take() {
+                break Ok(ProbeExecution::Completed {
+                    success: status.success(),
+                    stdout: bytes,
+                });
+            }
+        }
+        if started.elapsed() >= timeout {
+            break Ok(ProbeExecution::TimedOut);
+        }
+        thread::sleep(Duration::from_millis(20));
+    };
+
+    // Child handles are not automatically reaped on Drop. Reap on every
+    // outcome, including cancellation, over-limit output and I/O errors.
+    if !matches!(decision, Ok(ProbeExecution::Completed { .. })) {
+        let _ = child.kill();
+    }
+    let wait_result = child.wait();
+    reader
+        .join()
+        .map_err(|_| io::Error::other("ffprobe stdout reader panicked"))?;
+    wait_result?;
+    decision
+}
 
 #[derive(Debug, PartialEq, Eq)]
 enum StageCopyOutcome {
@@ -64,7 +164,7 @@ pub fn publish_preview_cache(
         expected_source_digest,
         runtime_build_identity,
         cancellation,
-        |file| verify_managed_mp4(managed_ffprobe, file),
+        |file| verify_managed_mp4(managed_ffprobe, file, cancellation),
     )
 }
 
@@ -102,8 +202,13 @@ fn stage_render<R: Read, W: Write>(
 
 /// External ffprobe must be a trusted, checksum-pinned managed runtime.
 /// ffprobe's format and streams probe does not decode every frame.
-fn verify_managed_mp4(ffprobe: &Path, artifact: &Path) -> Result<(), MediaError> {
-    let output = Command::new(ffprobe)
+fn verify_managed_mp4(
+    ffprobe: &Path,
+    artifact: &Path,
+    cancellation: &CancellationToken,
+) -> Result<(), MediaError> {
+    let mut command = Command::new(ffprobe);
+    command
         .args([
             "-v",
             "error",
@@ -112,16 +217,33 @@ fn verify_managed_mp4(ffprobe: &Path, artifact: &Path) -> Result<(), MediaError>
             "-of",
             "json",
         ])
-        .arg(artifact)
-        .output()
-        .map_err(|source| cache_io(ffprobe, source))?;
-    if !output.status.success() {
-        return Err(cache_invalid(
-            artifact,
-            "managed ffprobe rejected rendered MP4",
-        ));
-    }
-    let response: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .arg(artifact);
+    let output = run_bounded_probe(
+        &mut command,
+        cancellation,
+        MANAGED_FFPROBE_TIMEOUT,
+        MAX_PROBE_STDOUT_BYTES,
+    )
+    .map_err(|source| cache_io(ffprobe, source))?;
+    let stdout = match output {
+        ProbeExecution::Completed {
+            success: true,
+            stdout,
+        } => stdout,
+        ProbeExecution::Completed { success: false, .. } => {
+            return Err(cache_invalid(artifact, "managed ffprobe rejected rendered MP4"));
+        }
+        ProbeExecution::TimedOut => {
+            return Err(cache_invalid(artifact, "managed ffprobe exceeded time limit"));
+        }
+        ProbeExecution::OutputTooLarge => {
+            return Err(cache_invalid(artifact, "managed ffprobe JSON exceeds size limit"));
+        }
+        ProbeExecution::Cancelled => {
+            return Err(cache_invalid(artifact, "managed ffprobe was cancelled"));
+        }
+    };
+    let response: serde_json::Value = serde_json::from_slice(&stdout)
         .map_err(|_| cache_invalid(artifact, "managed ffprobe returned malformed JSON"))?;
     let mp4 = response
         .get("format")
@@ -244,7 +366,11 @@ where
         runtime_build_identity,
     )?
     .ok_or_else(|| cache_invalid(staged_video.path(), "render lacks MP4 header"))?;
-    probe(staged_video.path())?;
+    let probe_result = probe(staged_video.path());
+    if cancellation.is_cancelled() {
+        return Ok(PreviewCachePublishOutcome::Cancelled);
+    }
+    probe_result?;
 
     // A render can finish successfully while an imported file changes.
     // If that happens, neither cache filename is published.
@@ -637,4 +763,95 @@ mod tests {
         assert_eq!(outcome, PreviewCachePublishOutcome::Conflict);
         assert_eq!(fs::read(&manifest_path).unwrap(), b"invalid");
     }
+
+    // Spawn this test binary as a deterministic fake probe. It exercises the
+    // real child-process lifecycle without relying on Python, shell, or FFmpeg.
+    #[test]
+    fn bounded_probe_subprocess_fixture() {
+        match std::env::var("ZETER_PROBE_SUBPROCESS_MODE").as_deref() {
+            Ok("oversize") => {
+                std::io::stdout().write_all(&vec![b'x'; 8192]).unwrap();
+                std::io::stdout().flush().unwrap();
+            }
+            Ok("hang") => thread::sleep(Duration::from_secs(10)),
+            Ok("small") => {
+                std::io::stdout().write_all(b"probe-ok").unwrap();
+                std::io::stdout().flush().unwrap();
+            }
+            _ => {}
+        }
+    }
+
+    fn fixture_command(mode: &str) -> Command {
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "preview_cache_publish::tests::bounded_probe_subprocess_fixture",
+                "--nocapture",
+            ])
+            .env("ZETER_PROBE_SUBPROCESS_MODE", mode);
+        command
+    }
+
+    #[test]
+    fn bounded_probe_rejects_excessive_stdout_and_reaps_child() {
+        let result = run_bounded_probe(
+            &mut fixture_command("oversize"),
+            &CancellationToken::new(),
+            Duration::from_secs(8),
+            512,
+        )
+        .unwrap();
+        assert_eq!(result, ProbeExecution::OutputTooLarge);
+    }
+
+    #[test]
+    fn bounded_probe_times_out_and_honors_cancellation() {
+        assert_eq!(
+            run_bounded_probe(
+                &mut fixture_command("hang"),
+                &CancellationToken::new(),
+                Duration::from_millis(300),
+                512,
+            )
+            .unwrap(),
+            ProbeExecution::TimedOut
+        );
+
+        let cancellation = CancellationToken::new();
+        let signal = cancellation.clone();
+        let trigger = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(200));
+            signal.cancel();
+        });
+        let cancelled = run_bounded_probe(
+            &mut fixture_command("hang"),
+            &cancellation,
+            Duration::from_secs(8),
+            512,
+        )
+        .unwrap();
+        trigger.join().unwrap();
+        assert_eq!(cancelled, ProbeExecution::Cancelled);
+    }
+
+    #[test]
+    fn bounded_probe_accepts_small_successful_child_output() {
+        let result = run_bounded_probe(
+            &mut fixture_command("small"),
+            &CancellationToken::new(),
+            Duration::from_secs(8),
+            512,
+        )
+        .unwrap();
+        match result {
+            ProbeExecution::Completed {
+                success: true,
+                stdout,
+            } => assert!(stdout.windows(b"probe-ok".len()).any(|b| b == b"probe-ok")),
+            _ => panic!("small bounded subprocess should finish successfully: {result:?}"),
+        }
+    }
+
 }
