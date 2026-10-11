@@ -259,6 +259,9 @@ describe("PreviewPlayer continuous transport", () => {
     const audioPauses = () => nativePause.mock.instances.filter((element) => element === audio).length;
     Object.defineProperty(video, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
     Object.defineProperty(video, "paused", { configurable: true, value: false });
+    Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    fireEvent.loadedMetadata(audio);
+    fireEvent.seeked(audio);
 
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     expect(audioPlays()).toBe(0); // An unbuffered video has not started its clock.
@@ -349,6 +352,9 @@ describe("PreviewPlayer continuous transport", () => {
     const audio = screen.getByTestId("preview-audio-audio-step") as HTMLAudioElement;
     Object.defineProperty(video, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
     Object.defineProperty(video, "paused", { configurable: true, value: false });
+    Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    fireEvent.loadedMetadata(audio);
+    fireEvent.seeked(audio);
 
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     fireEvent.playing(video);
@@ -397,6 +403,9 @@ describe("PreviewPlayer continuous transport", () => {
     const pauses = () => nativePause.mock.instances.filter((node) => node === audioNode).length;
     Object.defineProperty(firstVideo, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
     Object.defineProperty(firstVideo, "paused", { configurable: true, value: false });
+    Object.defineProperty(audioNode, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    fireEvent.loadedMetadata(audioNode);
+    fireEvent.seeked(audioNode);
     firstVideo.currentTime = 0.5;
     fireEvent.click(screen.getByRole("button", { name: "Play" }));
     fireEvent.playing(firstVideo);
@@ -417,6 +426,8 @@ describe("PreviewPlayer continuous transport", () => {
     fireEvent.loadedMetadata(secondVideo);
     expect(secondVideo.currentTime).toBe(4);
     fireEvent.seeked(secondVideo);
+    expect(plays()).toBe(1); // Audio must also complete its own boundary seek.
+    fireEvent.seeked(audioNode);
     expect(plays()).toBe(2);
     secondVideo.currentTime = 4.1;
     flushFrame(1_100);

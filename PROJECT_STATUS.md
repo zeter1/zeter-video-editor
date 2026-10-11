@@ -1,3 +1,12 @@
+# NEXT PRODUCT-CODE TASK — 2026-10-11 20:28+03:00 — NATIVE AUDIO SEEK GATING (#44)
+
+- PRODUCT: PreviewAudioTracks.tsx now waits for metadata + native seeked and a matching source-in/speed media clock before calling audio.play(). Premature audio at 0s and stale seeked after a trimmed audio cut are blocked; re-seek pauses audio. No Rust edits, source media changes, export changes, .vcut v2 or version bump.
+- TESTS: PreviewAudioTracks.test.tsx adds direct source-in/2x/native seeking regression; PreviewTransportIntegration.test.tsx waits for audio decoder readiness across play/pause/adjacent video cut.
+- PR https://github.com/zeter1/zeter-video-editor/pull/44 remains DRAFT, branch feat/preview-continuous-transport-20261011, base PR #43→#42→#41→#40→#39→main. LAST VERIFIED CI was previous SHA 59bbd4a0d122973494683d48596aca75aee04ef7, run 38159016710 COMPLETED SUCCESS. NEW exact-head Windows CI not yet confirmed; check Vitest/Rust/WebView2/NSIS and fix any real failure. Manual Windows GUI/speaker QA NOT VERIFIED; no merge/tag/release.
+- NEXT CODE TASK: Further native A/V preview accuracy: verify actual Windows audio metadata/seeked gating and drift for trimmed audio, then investigate requestVideoFrameCallback and Direct/Proxy/Composite/RenderSnapshot parity with export. Continue actual product code + tests, never docs-only. Do not merge until independent review + manual Windows QA.
+
+---
+
 # NEXT PRODUCT-CODE TASK — 2026-10-11 ~20:17 Минск — CI FIX + NATIVE WEBVIEW2 ADJACENT A/V CUT E2E, DRAFT PR #44
 
 - **Real code fix (NOT docs-only):** On exact source SHA `2602b966683a838f28752987c5c111c2b53742ee`, Windows run https://github.com/zeter1/zeter-video-editor/actions/runs/38158382965 FINISHED FAILURE at Vitest `PreviewTransportIntegration.test.tsx:423`: native video currentTime=4.1s gave `1099999.9999999995` instead of integral `1100000` us. Frontend build, Rust tests and format PASSED, WebView2 E2E and NSIS SKIPPED due to failed frontend. Commit `5f5562d768c974417a5935afbb7c78b311b5ae3a` rounds `mediaTimeToTimelineUs` after applying source_in/speed and clamps to clip, preserving integer Rust timeline contract.

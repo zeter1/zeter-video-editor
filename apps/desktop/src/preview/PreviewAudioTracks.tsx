@@ -28,6 +28,19 @@ export function previewAudioVolume(clip: Clip, timeUs: number): number {
   return Math.min(1, volume * Math.pow(10, gainDb / 20) * Math.min(inFade, outFade));
 }
 
+// Start standalone audio only after a native seek has reached its clip source-in.
+// Assigning currentTime at loadedmetadata is not evidence that seeking completed.
+function synchronizeAudioClock(node: HTMLAudioElement, clip: Clip, timeUs: number, playing: boolean): boolean {
+  if (node.readyState < HTMLMediaElement.HAVE_METADATA) return false;
+  const target = sourceTimeSeconds(clip, timeUs);
+  if (!Number.isFinite(node.currentTime) || Math.abs(node.currentTime - target) > (playing ? 0.12 : 0.001)) {
+    node.pause();
+    node.currentTime = target;
+    return false;
+  }
+  return !node.seeking;
+}
+
 function ActiveAudioClip({
   clip,
   track,
@@ -44,6 +57,12 @@ function ActiveAudioClip({
   const node = useRef<HTMLAudioElement>(null);
   const timeRef = useRef(timeUs);
   const [error, setError] = useState(false);
+  const [sourceReady, setSourceReady] = useState(false);
+  const readyRef = useRef(false);
+  const markReady = (ready: boolean): void => {
+    readyRef.current = ready;
+    setSourceReady(ready);
+  };
   timeRef.current = timeUs;
   const muted = track.muted || clip.audio.muted;
   const volume = previewAudioVolume(clip, timeUs);
@@ -59,19 +78,17 @@ function ActiveAudioClip({
     // Synchronize each audio clip to the same timeline playhead as the video.
     // During normal playback tolerate decoder jitter, but scrubbing and paused
     // frame steps must resolve to the requested sample position.
-    if (current.readyState >= HTMLMediaElement.HAVE_METADATA) {
-      const requested = sourceTimeSeconds(clip, timeUs);
-      if (Math.abs(current.currentTime - requested) > (playing ? 0.12 : 0.001)) {
-        current.currentTime = requested;
-      }
-    }
+    markReady(synchronizeAudioClock(current, clip, timeUs, playing));
   }, [clip, muted, volume, timeUs, playing]);
 
   useEffect(() => {
     const current = node.current;
     if (!current) return;
     let cancelled = false;
-    if (playing) {
+    // sourceReady is React state; readyRef closes the passive-effect gap
+    // when an incoming timeline seek invalidates readiness in this render.
+    if (playing && sourceReady && readyRef.current && !current.seeking &&
+        current.readyState >= HTMLMediaElement.HAVE_METADATA) {
       void current.play().catch(() => {
         if (!cancelled) setError(true);
       });
@@ -82,7 +99,7 @@ function ActiveAudioClip({
       cancelled = true;
       current.pause();
     };
-  }, [playing, src]);
+  }, [playing, src, sourceReady]);
 
   return (
     <>
@@ -94,9 +111,16 @@ function ActiveAudioClip({
         data-testid={`preview-audio-${clip.id}`}
         onLoadedMetadata={() => {
           if (node.current) {
-            node.current.currentTime = sourceTimeSeconds(clip, timeRef.current);
             node.current.playbackRate = clip.speed > 0 ? clip.speed : 1;
+            markReady(synchronizeAudioClock(node.current, clip, timeRef.current, playing));
           }
+        }}
+        onSeeking={() => {
+          node.current?.pause();
+          markReady(false);
+        }}
+        onSeeked={() => {
+          if (node.current) markReady(synchronizeAudioClock(node.current, clip, timeRef.current, playing));
         }}
         onError={() => setError(true)}
       />

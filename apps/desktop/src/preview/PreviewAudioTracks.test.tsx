@@ -33,14 +33,16 @@ describe("standalone audio preview tracks", () => {
     const audio = screen.getByTestId("preview-audio-audio-1") as HTMLAudioElement;
     expect(audio.getAttribute("src")).toBe(`http://zeter-media.localhost/${mediaId}`);
     expect(audio.getAttribute("src")).not.toContain("Private");
-    fireEvent.loadedMetadata(audio);
     Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    fireEvent.loadedMetadata(audio);
+    fireEvent.seeked(audio);
     expect(audio.currentTime).toBe(2); // source-in 1s + 0.5s at 2x
     expect(audio.playbackRate).toBe(2);
     expect(audio.volume).toBeCloseTo(0.5);
     rerender(<PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_500_000} playing />);
     expect(play).toHaveBeenCalled();
     expect(audio.currentTime).toBe(3);
+    fireEvent.seeked(audio);
     rerender(<PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_500_000} playing={false} />);
     expect(pause).toHaveBeenCalled();
   });
@@ -79,5 +81,36 @@ describe("standalone audio preview tracks", () => {
     expect(previewAudioVolume(clip, 2_250_000)).toBeCloseTo(0.25);
     expect(previewAudioVolume({ ...clip, audio: { ...clip.audio, gain_db: 20 } }, 1_500_000)).toBe(1);
     expect(previewAudioVolume({ ...clip, audio: { ...clip.audio, volume: -3 } }, 1_500_000)).toBe(0);
+  });
+
+  it("does not play trimmed audio before metadata and a matching native seeked event", () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const { rerender } = render(
+      <PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_000_000} playing />,
+    );
+    const audio = screen.getByTestId("preview-audio-audio-1") as HTMLAudioElement;
+    const audioPlays = () => play.mock.instances.filter((node) => node === audio).length;
+    expect(audioPlays()).toBe(0);
+    Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+    fireEvent.loadedMetadata(audio);
+    expect(audio.currentTime).toBe(2);
+    expect(audioPlays()).toBe(0); // Setting currentTime has not completed the seek.
+
+    audio.currentTime = 0;
+    fireEvent.seeked(audio); // Out-of-order event from the old source position.
+    expect(audio.currentTime).toBe(2);
+    expect(audioPlays()).toBe(0);
+    fireEvent.seeked(audio);
+    expect(audioPlays()).toBe(1);
+
+    rerender(<PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_500_000} playing />);
+    expect(audio.currentTime).toBe(3);
+    expect(audioPlays()).toBe(1);
+    expect(pause.mock.instances).toContain(audio);
+    fireEvent.seeked(audio);
+    expect(audioPlays()).toBe(2);
+    rerender(<PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_500_000} playing={false} />);
+    expect(pause.mock.instances).toContain(audio);
   });
 });
