@@ -21,6 +21,9 @@ timecode navigation PR #36 (head 23f69dcc040e5ac27bb39865970e0e94b117fedc), not 
 - New deterministic Vitest coverage for one/five-frame steps, edge clamps,
   pointer snap, unsafe inputs, and 10,000 forward + reverse steps at each of
   23.976, 29.97, and 59.94 frame rates.
+- - Real WebView2 MVP E2E extends the existing 2-second split workflow with
+  keyboard ArrowRight, Shift+ArrowLeft, Shift+ArrowRight, ArrowLeft and
+  checks exact playhead attributes before returning to the split position.
 - A standalone Node sanity run of the arithmetic passed before commit; this is
   **not** a replacement for project Vitest or real Windows WebView2 E2E.
 - Requires exact-head GitHub Actions terminal success plus independent review.
