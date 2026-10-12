@@ -630,3 +630,186 @@ fn real_export_blends_two_still_tracks_with_opacity_and_z_order() {
         "blue alone at 50% opacity must blend over black: {upper_only:?}"
     );
 }
+
+#[test]
+fn real_export_blends_moving_video_with_half_opacity_still_overlay() {
+    let Ok(dir) = env::var("ZETER_TEST_FFMPEG_DIR") else {
+        eprintln!("SKIP: set ZETER_TEST_FFMPEG_DIR for two-layer RGB oracle");
+        return;
+    };
+
+    let runtime = ManagedRuntime::from_dir(PathBuf::from(dir), "video-still-opacity-parity");
+    let capabilities = detect_capabilities(&runtime).expect("managed FFmpeg capabilities");
+    assert!(capabilities.software.h264, "pinned FFmpeg requires libx264");
+
+    let temp = tempfile::tempdir().unwrap();
+    let make_image = |color: &str| {
+        let image = temp.path().join(format!("{color}.png"));
+        run(&ProcessSpec::new(&runtime.ffmpeg_path)
+            .arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-f")
+            .arg("lavfi")
+            .arg("-i")
+            .arg(format!("color=c={color}:s=160x90:r=30"))
+            .arg("-frames:v")
+            .arg("1")
+            .arg("-update")
+            .arg("1")
+            .arg(image.as_os_str()))
+        .expect("create a one-frame color image");
+        image
+    };
+    let red = temp.path().join("red-video.mp4");
+    run(&ProcessSpec::new(&runtime.ffmpeg_path)
+        .arg("-y")
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-f")
+        .arg("lavfi")
+        .arg("-i")
+        .arg("color=c=red:s=160x90:r=30:d=2")
+        .arg("-c:v")
+        .arg("libx264")
+        .arg("-pix_fmt")
+        .arg("yuv420p")
+        .arg(red.as_os_str()))
+    .expect("create a genuine moving-video decoder input");
+    let blue = make_image("blue");
+    let red_id = MediaId::new();
+    let blue_id = MediaId::new();
+    let sequence_id = SequenceId::new();
+
+    let make_clip = |media_id, start, end| Clip {
+        id: ClipId::new(),
+        kind: ClipKind::Image,
+        media_id: Some(media_id),
+        source_in: time(0),
+        source_out: time(end - start),
+        timeline_start: time(start),
+        timeline_end: time(end),
+        transform: Transform::default(),
+        color: ColorAdjustments::default(),
+        audio: AudioState::default(),
+        speed: 1.0,
+        transition: None,
+        text: None,
+    };
+    let mut upper = make_clip(blue_id, 750_000, 2_000_000);
+    upper.transform.opacity = 0.5;
+    let make_media = |id, path: &std::path::Path| MediaRef {
+        id,
+        absolute_path: path.to_string_lossy().into_owned(),
+        project_relative_path: None,
+        file_size: std::fs::metadata(path).unwrap().len(),
+        duration: None,
+        width: Some(160),
+        height: Some(90),
+    };
+    let mut base = make_clip(red_id, 0, 1_500_000);
+    base.kind = ClipKind::Video;
+    let mut base_media = make_media(red_id, &red);
+    base_media.duration = Some(time(2_000_000));
+    let project = Project {
+        id: ProjectId::new(),
+        name: "Moving video with still-image opacity".into(),
+        settings: ProjectSettings::default(),
+        media: vec![base_media, make_media(blue_id, &blue)],
+        sequences: vec![Sequence {
+            id: sequence_id,
+            name: "Red moving video beneath blue image".into(),
+            width: 160,
+            height: 90,
+            fps: 30.0,
+            tracks: vec![
+                Track {
+                    id: TrackId::new(),
+                    name: "Base video track".into(),
+                    kind: TrackKind::Video,
+                    muted: false,
+                    locked: false,
+                    hidden: false,
+                    clips: vec![base],
+                },
+                Track {
+                    id: TrackId::new(),
+                    name: "Upper overlay track".into(),
+                    kind: TrackKind::Overlay,
+                    muted: false,
+                    locked: false,
+                    hidden: false,
+                    clips: vec![upper],
+                },
+            ],
+            subtitle_segments: Vec::new(),
+            subtitle_style: SubtitleStyle::default(),
+            markers: Vec::new(),
+        }],
+    };
+    let snapshot =
+        RenderSnapshot::from_sequence(&project, sequence_id, ProjectRevision::new(9)).unwrap();
+    let plan = RenderPlan::compile(
+        &snapshot,
+        ExportSettings {
+            container: ExportContainer::Mp4,
+            codec: VideoCodec::H264,
+            width: 160,
+            height: 90,
+            fps: 30.0,
+            quality: ExportQuality::High,
+            custom_bitrate: None,
+            prefer_hardware: false,
+        },
+    )
+    .unwrap();
+    let output = temp.path().join("video-still-alpha.mp4");
+    ExportJob::new(runtime.clone(), capabilities)
+        .run(plan, &output, CancellationToken::new())
+        .expect("export a video under a translucent still overlay");
+
+    // Independent RGB decode: the oracle is not derived from the render plan.
+    let center_pixel_at = |seconds: &str, filename: &str| {
+        let sample = temp.path().join(filename);
+        run(&ProcessSpec::new(&runtime.ffmpeg_path)
+            .arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-i")
+            .arg(output.as_os_str())
+            .arg("-ss")
+            .arg(seconds)
+            .arg("-frames:v")
+            .arg("1")
+            .arg("-vf")
+            .arg("crop=2:2:80:44,format=rgb24")
+            .arg("-f")
+            .arg("rawvideo")
+            .arg(sample.as_os_str()))
+        .expect("decode a timeline pixel into RGB");
+        let rgb = std::fs::read(sample).expect("read decoded RGB");
+        assert_eq!(rgb.len(), 12, "expected a 2x2 pixel sample at {seconds}");
+        [rgb[0], rgb[1], rgb[2]]
+    };
+    let lower_only = center_pixel_at("0.250", "lower.rgb");
+    let overlapping = center_pixel_at("1.000", "overlap.rgb");
+    let upper_only = center_pixel_at("1.750", "upper.rgb");
+
+    assert!(
+        lower_only[0] > 180 && lower_only[1] < 70 && lower_only[2] < 70,
+        "base moving video should be red before the overlay: {lower_only:?}"
+    );
+    assert!(
+        (85..=180).contains(&overlapping[0])
+            && overlapping[1] < 70
+            && (85..=180).contains(&overlapping[2]),
+        "moving red frame under 50%-opaque blue must blend to purple: {overlapping:?}"
+    );
+    assert!(
+        upper_only[0] < 55 && upper_only[1] < 55 && (85..=180).contains(&upper_only[2]),
+        "blue alone at 50% opacity must blend over black: {upper_only:?}"
+    );
+}
