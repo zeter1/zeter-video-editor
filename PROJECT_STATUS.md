@@ -1,3 +1,14 @@
+# ACTIVE PRODUCT WORK — 2026-10-12 — ZVE-003b SAFE TIMELINE MARKERS (DRAFT PR #65)
+
+- **PROBLEM / USER RESULT:** Clicking a marker used to delete it through Rust `RemoveMarker`. The draft implementation makes clicking its pin/label seek the transient playhead to the marker time without changing project revision, and exposes a separate accessible Russian «Удалить маркер …» button for the same undoable Rust command.
+- **SCOPE:** `MarkerLayer.tsx`, `Timeline.tsx`, `app.css`, focused `Timeline.test.tsx`, real Windows WebView2 `e2e/marker-shortcut.spec.ts`. No Rust Core, .vcut v2, source media, preview renderer or FFmpeg export changes; no product schema changes.
+- **DELIVERY:** Based on main `f1b310c8f842c13377c9d0cf794b9e2c17304825` (desktop source `0.1.0-alpha.5`), branch `feat/timeline-marker-safe-navigation-alpha6-20261012`, https://github.com/zeter1/zeter-video-editor/pull/65 (DRAFT, NOT MERGED).
+- **ACCEPTANCE:** Clicking marker navigates to exact stored microseconds without edit command or project revision; explicit Delete issues revisioned RemoveMarker and native Undo restores it; UI is keyboard-operable and Russian. Unit and real Tauri/WebView2 tests authored; NOT YET VERIFIED. GitHub PR CI for candidate head must finish and exact terminal result must be inspected.
+- **BLOCKER:** This chat has writable GitHub APIs but no networked checkout, local Rust/Windows toolchain or an executable repository working tree. Product-task SemVer bump must run via `node scripts/set-version.mjs 0.1.0-alpha.6 --note "Безопасный переход по маркеру и отдельное отменяемое удаление на таймлайне"` **inside checkout**, not manual manifest rewrites. Until then this is a draft; not ready for merge and NOT a new release. CHANGELOG/README/version manifests pending script execution.
+- **NEXT FIRST ACTION:** Run the exact `scripts/set-version.mjs` command on this PR branch in a real checkout, finish alpha.6 changelog, execute check-version/build/Vitest/Rust and Windows exact-HEAD E2E/NSIS CI, review and merge only with green gates. Do NOT start another product task before completing ZVE-003b.
+
+---
+
 # VERIFIED MAIN CHECKPOINT — 2026-10-12 — MARKER HOTKEY M / alpha.5 (PR #64 MERGED)
 
 - **ONE COMPLETED PRODUCT TASK (ZVE-003a):** Unmodified M or physical KeyM under Russian layout (ь) creates a timeline marker at the playhead without selecting a clip. Uses existing revisioned Rust AddMarker and Rust Undo/Redo; both toolbar and keyboard create «Маркер N».
