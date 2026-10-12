@@ -760,6 +760,26 @@ describe("PreviewPlayer continuous transport", () => {
       expect(onSeek).toHaveBeenCalledTimes(afterRecovery);
       expect(audioPlays()).toBe(audioPlaysBeforeShortScrub + 1);
 
+      // Buffering invalidates even a near-playhead compositor callback:
+      // it may have been queued before native playback actually resumed.
+      // Audio must wait for native 'playing' and two advancing frames.
+      const playsBeforeNearBuffer = audioPlays();
+      fireEvent.waiting(video);
+      video.currentTime = 4.37;
+      present(4.37, 112); // A matching-but-queued frame before native playing.
+      expect(audioPlays()).toBe(playsBeforeNearBuffer);
+      fireEvent.playing(video);
+      present(4.37, 113); // First frame after playing is only a candidate.
+      expect(audioPlays()).toBe(playsBeforeNearBuffer);
+      video.currentTime = 4.38;
+      present(4.38, 114); // Second advancing frame confirms recovery.
+      rerender(<PreviewPlayer
+        sequence={sequence} media={media}
+        selectedClip={null} selectedTrackId={null}
+        playheadTimeUs={1_380_000} onSeek={onSeek} onCommit={onCommit}
+      />);
+      expect(audioPlays()).toBe(playsBeforeNearBuffer + 1);
+
       // After a true buffer interruption WebView2 can resume >120 ms
       // ahead of the parked playhead. One old compositor callback must NOT
       // catch up; two strictly advancing frames after native 'playing' can.
