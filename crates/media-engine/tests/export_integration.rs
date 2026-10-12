@@ -672,12 +672,18 @@ fn real_export_blends_moving_video_with_half_opacity_still_overlay() {
         .arg("lavfi")
         .arg("-i")
         .arg("color=c=red:s=160x90:r=30:d=2")
+        .arg("-f")
+        .arg("lavfi")
+        .arg("-i")
+        .arg("sine=frequency=1000:sample_rate=48000:duration=2")
         .arg("-c:v")
         .arg("libx264")
         .arg("-pix_fmt")
         .arg("yuv420p")
+        .arg("-c:a")
+        .arg("aac")
         .arg(red.as_os_str()))
-    .expect("create a genuine moving-video decoder input");
+    .expect("create a video with a real audio stream for export mapping");
     let blue = make_image("blue");
     let red_id = MediaId::new();
     let blue_id = MediaId::new();
