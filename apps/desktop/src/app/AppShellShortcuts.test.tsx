@@ -235,7 +235,7 @@ describe("Editor keyboard shortcuts", () => {
     transientStore.endClipDrag();
     expect(client.executeEditCommand).not.toHaveBeenCalled();
 
-    fireEvent.keyDown(window, { key: "m" });
+    fireEvent.keyDown(window, { key: "ь", code: "KeyM" });
     fireEvent.keyDown(window, { key: "m" });
     expect(client.executeEditCommand).toHaveBeenCalledTimes(1);
   });
