@@ -39,6 +39,22 @@ function findVisibleClip(sequence: Sequence, timeUs: number): { clip: Clip; trac
   return null;
 }
 
+// Image-only composites can use native alpha blending without introducing
+// additional moving video decoders or changing the foreground A/V clock.
+function findVisibleStillLayers(sequence: Sequence, timeUs: number): Clip[] {
+  const layers: Clip[] = [];
+  for (const track of sequence.tracks) {
+    if (track.hidden || (track.kind !== "Video" && track.kind !== "Overlay")) continue;
+    for (const clip of track.clips) {
+      if (clip.timeline_start > timeUs || timeUs >= clip.timeline_end) continue;
+      // Leave mixed moving-video composites on the existing decoder path.
+      if (clip.kind === "Video") return [];
+      if (clip.kind === "Image") layers.push(clip);
+    }
+  }
+  return layers;
+}
+
 function sourceTime(clip: Clip, timelineUs: number): number {
   const rate = clip.speed > 0 ? clip.speed : 1;
   const offset = Math.max(0, timelineUs - clip.timeline_start);
@@ -126,6 +142,13 @@ export function PreviewPlayer({
   const visible = useMemo(
     () => findVisibleClip(sequence, playheadTimeUs),
     [sequence, playheadTimeUs],
+  );
+  const stillLayers = useMemo(
+    () => findVisibleStillLayers(sequence, playheadTimeUs).flatMap((clip) => {
+      const source = media.find((item) => item.id === clip.media_id);
+      return source ? [{ clip, src: mediaUrl(source.id) }] : [];
+    }),
+    [sequence, playheadTimeUs, media],
   );
   const active = visible?.clip ?? null;
   const activeTrack = visible?.track ?? null;
@@ -424,6 +447,18 @@ export function PreviewPlayer({
               }}
               aria-label="Предпросмотр видео"
             />
+          ) : image && src && stillLayers.length > 0 ? (
+            <div className="preview-still-layers">
+              {stillLayers.map(({ clip, src: layerSrc }) => (
+                <img
+                  key={clip.id}
+                  className="preview-media"
+                  src={layerSrc}
+                  alt="Кадр изображения"
+                  style={{ opacity: Math.max(0, Math.min(1, clip.transform?.opacity ?? 1)) }}
+                />
+              ))}
+            </div>
           ) : image && src ? (
             <img className="preview-media" src={src} alt="Кадр изображения" />
           ) : (

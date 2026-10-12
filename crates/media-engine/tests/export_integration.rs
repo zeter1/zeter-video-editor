@@ -466,3 +466,167 @@ fn real_export_holds_still_images_and_keeps_the_intervening_gap_black() {
         "blue still must remain visible throughout its clip: {in_blue:?}"
     );
 }
+
+#[test]
+fn real_export_blends_two_still_tracks_with_opacity_and_z_order() {
+    let Ok(dir) = env::var("ZETER_TEST_FFMPEG_DIR") else {
+        eprintln!("SKIP: set ZETER_TEST_FFMPEG_DIR for two-layer RGB oracle");
+        return;
+    };
+
+    let runtime = ManagedRuntime::from_dir(PathBuf::from(dir), "two-image-opacity-parity");
+    let capabilities = detect_capabilities(&runtime).expect("managed FFmpeg capabilities");
+    assert!(capabilities.software.h264, "pinned FFmpeg requires libx264");
+
+    let temp = tempfile::tempdir().unwrap();
+    let make_image = |color: &str| {
+        let image = temp.path().join(format!("{color}.png"));
+        run(&ProcessSpec::new(&runtime.ffmpeg_path)
+            .arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-f")
+            .arg("lavfi")
+            .arg("-i")
+            .arg(format!("color=c={color}:s=160x90:r=30"))
+            .arg("-frames:v")
+            .arg("1")
+            .arg("-update")
+            .arg("1")
+            .arg(image.as_os_str()))
+        .expect("create a one-frame color image");
+        image
+    };
+    let red = make_image("red");
+    let blue = make_image("blue");
+    let red_id = MediaId::new();
+    let blue_id = MediaId::new();
+    let sequence_id = SequenceId::new();
+
+    let make_clip = |media_id, start, end| Clip {
+        id: ClipId::new(),
+        kind: ClipKind::Image,
+        media_id: Some(media_id),
+        source_in: time(0),
+        source_out: time(end - start),
+        timeline_start: time(start),
+        timeline_end: time(end),
+        transform: Transform::default(),
+        color: ColorAdjustments::default(),
+        audio: AudioState::default(),
+        speed: 1.0,
+        transition: None,
+        text: None,
+    };
+    let mut upper = make_clip(blue_id, 750_000, 2_000_000);
+    upper.transform.opacity = 0.5;
+    let make_media = |id, path: &std::path::Path| MediaRef {
+        id,
+        absolute_path: path.to_string_lossy().into_owned(),
+        project_relative_path: None,
+        file_size: std::fs::metadata(path).unwrap().len(),
+        duration: None,
+        width: Some(160),
+        height: Some(90),
+    };
+    let project = Project {
+        id: ProjectId::new(),
+        name: "Two still-image layer alpha and order".into(),
+        settings: ProjectSettings::default(),
+        media: vec![make_media(red_id, &red), make_media(blue_id, &blue)],
+        sequences: vec![Sequence {
+            id: sequence_id,
+            name: "Red beneath semi-transparent blue".into(),
+            width: 160,
+            height: 90,
+            fps: 30.0,
+            tracks: vec![
+                Track {
+                    id: TrackId::new(),
+                    name: "Base video track".into(),
+                    kind: TrackKind::Video,
+                    muted: false,
+                    locked: false,
+                    hidden: false,
+                    clips: vec![make_clip(red_id, 0, 1_500_000)],
+                },
+                Track {
+                    id: TrackId::new(),
+                    name: "Upper overlay track".into(),
+                    kind: TrackKind::Overlay,
+                    muted: false,
+                    locked: false,
+                    hidden: false,
+                    clips: vec![upper],
+                },
+            ],
+            subtitle_segments: Vec::new(),
+            subtitle_style: SubtitleStyle::default(),
+            markers: Vec::new(),
+        }],
+    };
+    let snapshot =
+        RenderSnapshot::from_sequence(&project, sequence_id, ProjectRevision::new(9)).unwrap();
+    let plan = RenderPlan::compile(
+        &snapshot,
+        ExportSettings {
+            container: ExportContainer::Mp4,
+            codec: VideoCodec::H264,
+            width: 160,
+            height: 90,
+            fps: 30.0,
+            quality: ExportQuality::High,
+            custom_bitrate: None,
+            prefer_hardware: false,
+        },
+    )
+    .unwrap();
+    let output = temp.path().join("layer-alpha.mp4");
+    ExportJob::new(runtime.clone(), capabilities)
+        .run(plan, &output, CancellationToken::new())
+        .expect("export overlapping still-image tracks");
+
+    // Independent RGB decode: the oracle is not derived from the render plan.
+    let center_pixel_at = |seconds: &str, filename: &str| {
+        let sample = temp.path().join(filename);
+        run(&ProcessSpec::new(&runtime.ffmpeg_path)
+            .arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-i")
+            .arg(output.as_os_str())
+            .arg("-ss")
+            .arg(seconds)
+            .arg("-frames:v")
+            .arg("1")
+            .arg("-vf")
+            .arg("crop=2:2:80:44,format=rgb24")
+            .arg("-f")
+            .arg("rawvideo")
+            .arg(sample.as_os_str()))
+        .expect("decode a timeline pixel into RGB");
+        let rgb = std::fs::read(sample).expect("read decoded RGB");
+        assert_eq!(rgb.len(), 12, "expected a 2x2 pixel sample at {seconds}");
+        [rgb[0], rgb[1], rgb[2]]
+    };
+    let lower_only = center_pixel_at("0.250", "lower.rgb");
+    let overlapping = center_pixel_at("1.000", "overlap.rgb");
+    let upper_only = center_pixel_at("1.750", "upper.rgb");
+
+    assert!(
+        lower_only[0] > 180 && lower_only[1] < 70 && lower_only[2] < 70,
+        "base image should be red before the overlay: {lower_only:?}"
+    );
+    assert!(
+        (85..=180).contains(&overlapping[0])
+            && overlapping[1] < 70
+            && (85..=180).contains(&overlapping[2]),
+        "red under 50%-opaque blue must blend to purple: {overlapping:?}"
+    );
+    assert!(
+        upper_only[0] < 55 && upper_only[1] < 55 && (85..=180).contains(&upper_only[2]),
+        "blue alone at 50% opacity must blend over black: {upper_only:?}"
+    );
+}
