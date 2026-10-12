@@ -71,20 +71,20 @@ export function TextInspector({
 
   return (
     <fieldset className="inspector-section">
-      <legend>Text</legend>
+      <legend>Текст</legend>
       <label>
-        Font
+        Шрифт
         <input
-          aria-label="Font"
+          aria-label="Шрифт"
           value={draft.font_family}
           onChange={(event) => update({ font_family: event.target.value })}
           onBlur={() => void commit()}
         />
       </label>
       <label>
-        Size
+        Размер
         <input
-          aria-label="Text size"
+          aria-label="Размер текста"
           type="number"
           min="8"
           max="300"
@@ -94,9 +94,9 @@ export function TextInspector({
         />
       </label>
       <label>
-        Weight
+        Толщина шрифта
         <input
-          aria-label="Text weight"
+          aria-label="Толщина шрифта"
           type="number"
           min="100"
           max="900"
@@ -107,9 +107,9 @@ export function TextInspector({
         />
       </label>
       <label>
-        Alignment
+        Выравнивание
         <select
-          aria-label="Text alignment"
+          aria-label="Выравнивание текста"
           value={draft.alignment}
           onChange={(event) =>
             void commit(
@@ -117,15 +117,15 @@ export function TextInspector({
             )
           }
         >
-          <option value="Left">Left</option>
-          <option value="Center">Center</option>
-          <option value="Right">Right</option>
+          <option value="Left">Слева</option>
+          <option value="Center">По центру</option>
+          <option value="Right">Справа</option>
         </select>
       </label>
       <label>
-        Color
+        Цвет
         <input
-          aria-label="Text color"
+          aria-label="Цвет текста"
           type="color"
           value={draft.color}
           onChange={(event) => update({ color: event.target.value.toUpperCase() })}
@@ -133,9 +133,9 @@ export function TextInspector({
         />
       </label>
       <label>
-        Stroke color
+        Цвет обводки
         <input
-          aria-label="Stroke color"
+          aria-label="Цвет обводки"
           type="color"
           value={draft.stroke_color}
           onChange={(event) => update({ stroke_color: event.target.value.toUpperCase() })}
@@ -143,9 +143,9 @@ export function TextInspector({
         />
       </label>
       <label>
-        Stroke
+        Обводка
         <input
-          aria-label="Stroke width"
+          aria-label="Толщина обводки"
           type="number"
           min="0"
           max="20"
@@ -156,19 +156,19 @@ export function TextInspector({
         />
       </label>
       <label>
-        Shadow
+        Тень
         <input
-          aria-label="Text shadow"
+          aria-label="Тень текста"
           type="checkbox"
           checked={draft.shadow}
           onChange={(event) => void commit(update({ shadow: event.target.checked }))}
         />
       </label>
       <label>
-        Background
+        Фон
         <input
-          aria-label="Text background"
-          placeholder="None or #RRGGBBAA"
+          aria-label="Фон текста"
+          placeholder="Нет или #RRGGBBAA"
           value={draft.background ?? ""}
           onChange={(event) =>
             update({
@@ -182,9 +182,9 @@ export function TextInspector({
         />
       </label>
       <label>
-        Opacity
+        Непрозрачность
         <input
-          aria-label="Text opacity"
+          aria-label="Непрозрачность текста"
           type="range"
           min="0"
           max="1"

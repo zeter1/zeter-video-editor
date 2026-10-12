@@ -32,7 +32,7 @@ export function InspectorPanel({
     <aside
       className="inspector-panel panel"
       role="region"
-      aria-label="Inspector"
+      aria-label="Свойства"
       data-testid="inspector-panel"
     >
       <div className="panel-heading">Свойства</div>
@@ -40,7 +40,7 @@ export function InspectorPanel({
         {hasClipContext ? (
           <div className="inspector-fields">
             <div className="selection-summary">
-              <strong>{selectedClip.kind}</strong>
+              <strong>{({ Video: "Видео", Audio: "Аудио", Image: "Изображение", Text: "Текст", Subtitle: "Субтитры" } as Record<string, string>)[selectedClip.kind] ?? selectedClip.kind}</strong>
               <span>{selectedClip.id.slice(0, 8)}</span>
             </div>
             <TransformInspector

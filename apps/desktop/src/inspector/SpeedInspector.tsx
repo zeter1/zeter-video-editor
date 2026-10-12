@@ -48,11 +48,11 @@ export function SpeedInspector({
 
   return (
     <fieldset className="inspector-section">
-      <legend>Speed</legend>
+      <legend>Скорость</legend>
       <label>
-        Speed
+        Скорость
         <input
-          aria-label="Speed"
+          aria-label="Скорость"
           type="number"
           min="0.1"
           max="8"

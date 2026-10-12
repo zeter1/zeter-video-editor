@@ -25,13 +25,13 @@ const CONTROLS: Array<{
   max: number;
   step: number;
 }> = [
-  { key: "exposure", label: "Exposure", min: -2, max: 2, step: 0.01 },
-  { key: "contrast", label: "Contrast", min: -1, max: 1, step: 0.01 },
-  { key: "highlights", label: "Highlights", min: -1, max: 1, step: 0.01 },
-  { key: "shadows", label: "Shadows", min: -1, max: 1, step: 0.01 },
-  { key: "saturation", label: "Saturation", min: 0, max: 2, step: 0.01 },
-  { key: "temperature", label: "Temperature", min: -1, max: 1, step: 0.01 },
-  { key: "tint", label: "Tint", min: -1, max: 1, step: 0.01 },
+  { key: "exposure", label: "Экспозиция", min: -2, max: 2, step: 0.01 },
+  { key: "contrast", label: "Контраст", min: -1, max: 1, step: 0.01 },
+  { key: "highlights", label: "Светлые участки", min: -1, max: 1, step: 0.01 },
+  { key: "shadows", label: "Тени", min: -1, max: 1, step: 0.01 },
+  { key: "saturation", label: "Насыщенность", min: 0, max: 2, step: 0.01 },
+  { key: "temperature", label: "Температура", min: -1, max: 1, step: 0.01 },
+  { key: "tint", label: "Оттенок", min: -1, max: 1, step: 0.01 },
 ];
 
 export function ColorInspector({
@@ -73,7 +73,7 @@ export function ColorInspector({
 
   return (
     <fieldset className="inspector-section">
-      <legend>Color</legend>
+      <legend>Цветокоррекция</legend>
       {CONTROLS.map(({ key, label, min, max, step }) => (
         <label key={key}>
           {label}

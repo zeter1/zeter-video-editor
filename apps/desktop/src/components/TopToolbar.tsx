@@ -25,7 +25,7 @@ export function TopToolbar({
   const canMutate = hasProject || actionsEnabled;
 
   return (
-    <header className="top-toolbar" role="banner" aria-label="Editor toolbar">
+    <header className="top-toolbar" role="banner" aria-label="Панель редактора">
       <div className="brand-block">
         <span className="brand-mark" aria-hidden="true">Z</span>
         <div>
@@ -36,12 +36,12 @@ export function TopToolbar({
           </span>
         </div>
       </div>
-      <div className="toolbar-actions" role="toolbar" aria-label="Project toolbar">
+      <div className="toolbar-actions" role="toolbar" aria-label="Управление проектом">
         <button type="button" onClick={onNew}>Новый</button>
-        <button type="button" aria-label="Open project" onClick={onOpen}>Открыть</button>
+        <button type="button" aria-label="Открыть проект" onClick={onOpen}>Открыть</button>
         <button
           type="button"
-          aria-label="Save project"
+          aria-label="Сохранить проект"
           onClick={onSave}
           disabled={!canMutate}
         >
@@ -53,7 +53,7 @@ export function TopToolbar({
         <span className="toolbar-divider" aria-hidden="true" />
         <button
           type="button"
-          aria-label="Export support bundle"
+          aria-label="Экспорт диагностики"
           onClick={onExportSupportBundle}
         >
           Диагностика

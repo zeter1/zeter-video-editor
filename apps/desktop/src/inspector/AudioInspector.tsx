@@ -60,11 +60,11 @@ export function AudioInspector({
 
   return (
     <fieldset className="inspector-section">
-      <legend>Audio</legend>
+      <legend>Звук</legend>
       <label>
-        Volume
+        Громкость
         <input
-          aria-label="Volume"
+          aria-label="Громкость"
           type="range"
           min="0"
           max="2"
@@ -76,9 +76,9 @@ export function AudioInspector({
         />
       </label>
       <label>
-        Gain dB
+        Усиление (дБ)
         <input
-          aria-label="Gain dB"
+          aria-label="Усиление (дБ)"
           type="number"
           step="0.1"
           value={draft.gain_db}
@@ -87,18 +87,18 @@ export function AudioInspector({
         />
       </label>
       <label>
-        Mute clip
+        Без звука
         <input
-          aria-label="Mute clip"
+          aria-label="Без звука"
           type="checkbox"
           checked={draft.muted}
           onChange={(event) => void commit(update({ muted: event.target.checked }))}
         />
       </label>
       <label>
-        Fade in (s)
+        Плавное появление (с)
         <input
-          aria-label="Fade in"
+          aria-label="Плавное появление"
           type="number"
           min="0"
           step="0.05"
@@ -110,9 +110,9 @@ export function AudioInspector({
         />
       </label>
       <label>
-        Fade out (s)
+        Плавное затухание (с)
         <input
-          aria-label="Fade out"
+          aria-label="Плавное затухание"
           type="number"
           min="0"
           step="0.05"
@@ -128,8 +128,8 @@ export function AudioInspector({
         disabled={normalizeGainDb === null}
         title={
           normalizeGainDb === null
-            ? "Normalization becomes available after loudness analysis."
-            : "Apply analyzed normalization gain."
+            ? "Нормализация доступна после анализа громкости."
+            : "Применить рассчитанное усиление."
         }
         onClick={() => {
           if (normalizeGainDb === null) return;
@@ -143,7 +143,7 @@ export function AudioInspector({
           });
         }}
       >
-        Normalize
+        Нормализовать
       </button>
     </fieldset>
   );

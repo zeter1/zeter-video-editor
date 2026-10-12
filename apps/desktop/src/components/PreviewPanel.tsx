@@ -25,7 +25,7 @@ export function PreviewPanel({
     <section
       className="preview-panel panel"
       role="region"
-      aria-label="Preview"
+      aria-label="Предпросмотр"
       data-testid="preview-panel"
     >
       <div className="panel-heading">
@@ -56,7 +56,7 @@ export function PreviewPanel({
               </span>
             </div>
           </div>
-          <div className="preview-controls" aria-label="Preview controls">
+          <div className="preview-controls" aria-label="Управление предпросмотром">
             <span className="quality-pill">Полный</span>
           </div>
         </>
