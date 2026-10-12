@@ -717,6 +717,23 @@ describe("PreviewPlayer continuous transport", () => {
       present(4.35, 99);
       expect(onSeek).toHaveBeenLastCalledWith(1_350_000);
 
+      // A small user scrub (20ms) does NOT exceed the normal decoder jitter
+      // threshold and does not trigger native seeking. It still invalidates
+      // dropped-frame recovery, otherwise a late 4.8s callback jumps ahead.
+      const afterRecovery = onSeek.mock.calls.length;
+      rerender(<PreviewPlayer
+        sequence={sequence} media={media}
+        selectedClip={null} selectedTrackId={null}
+        playheadTimeUs={1_370_000} onSeek={onSeek} onCommit={onCommit}
+      />);
+      expect(video.currentTime).toBeCloseTo(4.35);
+      video.currentTime = 4.8;
+      present(4.8, 110);
+      expect(onSeek).toHaveBeenCalledTimes(afterRecovery);
+      video.currentTime = 4.37;
+      present(4.37, 111);
+      expect(onSeek).toHaveBeenCalledTimes(afterRecovery);
+
       fireEvent.click(screen.getByRole("button", { name: "Stop" }));
       expect(onSeek).toHaveBeenLastCalledWith(0);
       expect(callbacks.size).toBe(0);

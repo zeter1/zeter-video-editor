@@ -1,3 +1,11 @@
+# CURRENT CHECKPOINT — 2026-10-12 — protect short user scrub (DRAFT PR #44)
+
+- PRODUCT: manual playhead change that does not exceed native decoder's 120ms seek tolerance still revokes frameAnchorRef in PreviewPlayer render, preventing presentedFrames catch-up from taking a stale frame after a short scrub. Internal preview onSeek already updates clockPositionRef synchronously and does not count as external seek.
+- TEST: PreviewTransportIntegration.test.tsx adds 20ms user scrub with no native seeking event, then stale 4.8s presentedFrame. Asserts zero extra onSeek and no Rust onCommit. Tests NOT executed locally; exact-head Windows CI is mandatory for claims.
+- GIT: existing OPEN DRAFT #44 https://github.com/zeter1/zeter-video-editor/pull/44 stacked #43→#42→#41→#40→#39→main; no merge, tag, release, signing. Source assets, project .vcut v2, Rust model/export, app dev version 0.1.0-alpha.1 unchanged.
+- NEXT: verify exact-head CI; real Win WebView2 + independent WAV at 2x and GUI/speaker QA, then preview/export parity and independent review. No merge before that.
+
+---
 # CURRENT CHECKPOINT — 2026-10-12 — WebView2 dropped-frame catch-up (DRAFT #44)
 
 - PRODUCT CODE: in an already anchored requestVideoFrameCallback playback, missed metadata.presentedFrames now authorizes a forward compositor/decoder catch-up past 120ms without freezing the playhead; respects clip.source_out. UI/native seeks and Pause retire anchor to keep stale backward-scrub frames rejected.

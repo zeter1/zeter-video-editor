@@ -87,6 +87,11 @@ export function PreviewPlayer({
   const clockPositionRef = useRef(playheadTimeUs);
   const onSeekRef = useRef(onSeek);
 
+  // A short user scrub may be inside the live decoder's 120ms jitter budget
+  // and never emit native 'seeking'. An internally published onSeek updates
+  // clockPositionRef synchronously; a different prop position is a new user
+  // request and must revoke the previous compositor catch-up anchor.
+  if (clockPositionRef.current !== playheadTimeUs) frameAnchorRef.current = null;
   // Keep the transient clock aligned with seeks from the timeline, keyboard
   // and frame-step controls; the Rust project model is never mutated here.
   clockPositionRef.current = playheadTimeUs;
