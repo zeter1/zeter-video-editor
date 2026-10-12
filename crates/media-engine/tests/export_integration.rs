@@ -322,7 +322,10 @@ fn real_export_holds_still_images_and_keeps_the_intervening_gap_black() {
 
     let runtime = ManagedRuntime::from_dir(PathBuf::from(dir), "still-image-parity");
     let capabilities = detect_capabilities(&runtime).expect("managed FFmpeg capabilities");
-    assert!(capabilities.software.h264, "managed FFmpeg requires libx264");
+    assert!(
+        capabilities.software.h264,
+        "managed FFmpeg requires libx264"
+    );
 
     let temp = tempfile::tempdir().unwrap();
     let make_image = |color: &str| {
