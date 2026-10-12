@@ -1,3 +1,13 @@
+# CURRENT PRODUCT WORK — 2026-10-12 — KEY M ADD MARKER / alpha.5 (PR #64)
+
+- **ONE TASK (ZVE-003):** Add a timeline marker with unmodified M / physical KeyM even without a selected clip, using existing revisioned Rust AddMarker, native Undo/Redo and exact transient playhead microseconds. Shared Russian label «Маркер N» for timeline button and keyboard.
+- **GUARDS:** Do not intercept text inputs, modal dialogs, Ctrl/Meta/Alt/Shift, repeated keys or drags; wait for Rust reconciliation before accepting a second M. No .vcut schema, source-media, export or playback changes.
+- **FILES:** AppShell.tsx, AppShellShortcuts.test.tsx, Timeline.tsx, native Windows WebView2 e2e/marker-shortcut.spec.ts, SemVer manifests/lockfiles, README/CHANGELOG/status. Source version 0.1.0-alpha.5, not signed or publicly released.
+- **PR:** https://github.com/zeter1/zeter-video-editor/pull/64, branch feat/timeline-marker-shortcut-alpha5-20261012, based on main 03cd88497c11a2a3695828250682474e590a939b. Test-first HEAD 07ee2400b8a89f3db73c32d8a6fbb283d1cc07e8; check exact-head Windows CI and review before merge. Do not treat this pending work as shipping until merged.
+- **NEXT PRODUCT-CODE TASK (NEXT DIALOG ONLY):** Examine ZVE-002 multi-video Preview architecture (requires approval if new compositor architecture) or a separate ZVE-003 navigation/editing slice not already covered by open PR #17/#36/#38. Confirm main, exact CI, and existing PRs first.
+
+---
+
 # PRODUCT CHECKPOINT — 2026-10-12 — RUSSIAN PREVIEW CONTROLS / alpha.4 (PR #63)
 
 - **ONE TASK (ZVE-001):** Preview transport, quality and scale accessible names, titles/tooltips and visible quality/scale indicators are now Russian. Internal quality/scale identifiers stay Full/1/2/1/4/Fit/100%, no playback, Rust, FFmpeg, .vcut or source-media changes.
@@ -547,7 +557,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.4` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.5` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
