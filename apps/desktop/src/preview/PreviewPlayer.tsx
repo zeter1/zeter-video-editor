@@ -116,6 +116,9 @@ export function PreviewPlayer({
   const frameTimingKeyRef = useRef<string | null>(null);
   const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
   const playableEndUs = useMemo(() => sequencePlayableEndUs(sequence), [sequence]);
+  // A gap inside an authored timeline is a black export frame, not an onboarding hint.
+  const hasTimelineContent = sequence.subtitle_segments.length > 0 ||
+    sequence.tracks.some((track) => track.clips.length > 0);
   const clockPositionRef = useRef(playheadTimeUs);
   const onSeekRef = useRef(onSeek);
 
@@ -481,9 +484,9 @@ export function PreviewPlayer({
             </div>
           ) : image && src ? (
             <img className="preview-media" src={src} alt="Кадр изображения" />
-          ) : (
+          ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
-          )}
+          ) : null}
           {mediaError ? <span className="preview-media-error" role="alert">{mediaError}</span> : null}
           {selectedClip && selectedTrackId && selectedClip.id === visible?.clip.id ? (
             <OverlayHandles
