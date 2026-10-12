@@ -19,6 +19,7 @@ export interface E2EState {
   workflowProjectPath: string;
   recoveryProjectPath: string;
   mediaDir: string;
+  stallControlPath: string;
   modelPath: string;
   modelManifestPath: string;
 }
@@ -102,6 +103,7 @@ export async function restartTauri(
     env: {
       ...process.env,
       ZETER_MANAGED_RUNTIME_DIR: state.runtimeDir,
+      ZETER_E2E_MEDIA_STALL_CONTROL: state.stallControlPath,
     },
     stdio: "ignore",
     windowsHide: false,
