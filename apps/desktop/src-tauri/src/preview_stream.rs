@@ -84,32 +84,50 @@ fn parse_range_capped(value: &str, file_len: u64, max_chunk: u64) -> Option<(u64
 // strict media UUID and bounded millisecond delay prevent cross-media leaks,
 // and a per-range receipt proves the stream handler actually delayed data.
 #[cfg(debug_assertions)]
-fn debug_stall_delay(control: &str, media_id: &str, offset: u64) -> Option<u64> {
-    if offset == 0 || control.len() > 128 {
+fn parse_debug_stall_control(control: &str, media_id: &str) -> Option<(u64, u64, u64)> {
+    if control.len() > 128 {
         return None;
     }
     let mut parts = control.split_ascii_whitespace();
-    let (Some(id), Some(delay), None) = (parts.next(), parts.next(), parts.next()) else {
-        return None;
-    };
-    if id != media_id {
+    let id = parts.next()?;
+    let ms = parts.next()?.parse::<u64>().ok()?;
+    // Optional bounded byte window for genuine mid-play starvation. The
+    // original two-token fixture still delays every nonzero request.
+    let from = parts.next().map(str::parse::<u64>).transpose().ok()?.unwrap_or(1);
+    let until = parts
+        .next()
+        .map(str::parse::<u64>)
+        .transpose()
+        .ok()?
+        .unwrap_or(u64::MAX);
+    if parts.next().is_some()
+        || id != media_id
+        || !(250..=2_000).contains(&ms)
+        || from == 0
+        || from > 8 * 1024 * 1024
+        || until <= from
+        || (until != u64::MAX && until > 8 * 1024 * 1024)
+    {
         return None;
     }
-    let ms = delay.parse::<u64>().ok()?;
-    (250..=2_000).contains(&ms).then_some(ms)
+    Some((ms, from, until))
 }
 
 #[cfg(debug_assertions)]
-fn active_e2e_stall_config(media_id: &str) -> Option<(String, u64)> {
+fn debug_stall_delay(control: &str, media_id: &str, offset: u64) -> Option<u64> {
+    let (ms, from, until) = parse_debug_stall_control(control, media_id)?;
+    (offset >= from && offset < until).then_some(ms)
+}
+
+#[cfg(debug_assertions)]
+fn active_e2e_stall_config(media_id: &str) -> Option<(String, String)> {
     let path = std::env::var("ZETER_E2E_MEDIA_STALL_CONTROL").ok()?;
     if std::fs::metadata(&path).ok()?.len() > 128 {
         return None;
     }
     let config = std::fs::read_to_string(&path).ok()?;
-    // Use offset=1 here to parse a valid matching control record, regardless
-    // of the incoming byte offset (including initial requests at offset 0).
-    let delay = debug_stall_delay(&config, media_id, 1)?;
-    Some((path, delay))
+    parse_debug_stall_control(&config, media_id)?;
+    Some((path, config))
 }
 
 #[cfg(debug_assertions)]
@@ -117,7 +135,7 @@ fn maybe_delay_e2e_video_range(media_id: &str, start: u64) {
     use std::io::Write;
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-    let Some((path, ms)) = active_e2e_stall_config(media_id) else {
+    let Some((path, config)) = active_e2e_stall_config(media_id) else {
         return;
     };
     // Record all native GET ranges for diagnosing Chromium's prebuffering
@@ -129,9 +147,9 @@ fn maybe_delay_e2e_video_range(media_id: &str, start: u64) {
     {
         let _ = writeln!(ranges, "{start}");
     }
-    if start == 0 {
+    let Some(ms) = debug_stall_delay(&config, media_id, start) else {
         return;
-    }
+    };
 
     let started = Instant::now();
     std::thread::sleep(Duration::from_millis(ms));
@@ -307,6 +325,18 @@ mod tests {
         assert_eq!(debug_stall_delay(&format!("{id} 900 0"), id, 524_288), None);
         assert_eq!(
             debug_stall_delay(&format!("{id} 900 999999999"), id, 524_288),
+            None
+        );
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900 524288 4194304"), id, 4_194_303),
+            Some(900)
+        );
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900 524288 4194304"), id, 4_194_304),
+            None
+        );
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900 524288 524288"), id, 524_288),
             None
         );
         assert_eq!(debug_stall_delay("invalid", id, 1), None);
