@@ -72,7 +72,8 @@ function pictureStyle(clip: Clip) {
   const opacity = Math.max(0, Math.min(1, clip.transform?.opacity ?? 1));
   const x = (clip.transform?.position_x ?? 0) * 50;
   const y = (clip.transform?.position_y ?? 0) * 50;
-  return { opacity, transform: `translate(${x}%, ${y}%)` };
+  // Preserve the old compositor path for the common zero-offset case.
+  return x === 0 && y === 0 ? { opacity } : { opacity, transform: `translate(${x}%, ${y}%)` };
 }
 
 // The custom protocol never accepts filesystem paths; only UUIDs belonging
