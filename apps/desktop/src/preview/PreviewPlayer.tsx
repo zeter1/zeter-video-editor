@@ -39,20 +39,22 @@ function findVisibleClip(sequence: Sequence, timeUs: number): { clip: Clip; trac
   return null;
 }
 
-// Image-only composites can use native alpha blending without introducing
-// additional moving video decoders or changing the foreground A/V clock.
-function findVisibleStillLayers(sequence: Sequence, timeUs: number): Clip[] {
-  const layers: Clip[] = [];
+// Render overlapping stills and at most one moving video in the exact
+// timeline order used by export. Multiple videos still use the original
+// foreground decoder until the cached-composite preview path is available.
+function findVisiblePictureLayers(sequence: Sequence, timeUs: number): Array<{ clip: Clip; track: Track }> {
+  const layers: Array<{ clip: Clip; track: Track }> = [];
+  let movingVideos = 0;
   for (const track of sequence.tracks) {
     if (track.hidden || (track.kind !== "Video" && track.kind !== "Overlay")) continue;
     for (const clip of track.clips) {
       if (clip.timeline_start > timeUs || timeUs >= clip.timeline_end) continue;
-      // Leave mixed moving-video composites on the existing decoder path.
-      if (clip.kind === "Video") return [];
-      if (clip.kind === "Image") layers.push(clip);
+      if (clip.kind !== "Video" && clip.kind !== "Image") continue;
+      if (clip.kind === "Video") movingVideos += 1;
+      layers.push({ clip, track });
     }
   }
-  return layers;
+  return movingVideos > 1 ? [] : layers;
 }
 
 function sourceTime(clip: Clip, timelineUs: number): number {
@@ -143,15 +145,19 @@ export function PreviewPlayer({
     () => findVisibleClip(sequence, playheadTimeUs),
     [sequence, playheadTimeUs],
   );
-  const stillLayers = useMemo(
-    () => findVisibleStillLayers(sequence, playheadTimeUs).flatMap((clip) => {
+  const pictureLayers = useMemo(
+    () => findVisiblePictureLayers(sequence, playheadTimeUs).flatMap(({ clip, track }) => {
       const source = media.find((item) => item.id === clip.media_id);
-      return source ? [{ clip, src: mediaUrl(source.id) }] : [];
+      return source ? [{ clip, track, src: mediaUrl(source.id) }] : [];
     }),
     [sequence, playheadTimeUs, media],
   );
-  const active = visible?.clip ?? null;
-  const activeTrack = visible?.track ?? null;
+  // A still over a video must not replace the foreground transport decoder.
+  // Readiness, embedded sound and rVFC continue to follow that same video.
+  const movingLayer = pictureLayers.find(({ clip }) => clip.kind === "Video");
+  const active = movingLayer?.clip ?? visible?.clip ?? null;
+  const activeTrack = movingLayer?.track ?? visible?.track ?? null;
+  const stillLayers = pictureLayers.filter(({ clip }) => clip.kind === "Image");
   const source = media.find((item) => item.id === active?.media_id) ?? null;
   const src = source ? mediaUrl(source.id) : null;
   const key = active && source ? `${active.id}:${source.id}` : "";
@@ -376,11 +382,15 @@ export function PreviewPlayer({
           style={{ aspectRatio: `${sequence.width} / ${sequence.height}` }}
         >
           {videoSource && active ? (
+            <div className="preview-still-layers">
+              {(pictureLayers.length > 0 ? pictureLayers : [{ clip: active, src: videoSource }])
+                .map(({ clip, src: layerSrc }) => clip.kind === "Video" && clip.id === active.id ? (
             <video
               key={key}
               ref={video}
               className="preview-media"
               src={videoSource}
+              style={{ opacity: Math.max(0, Math.min(1, active.transform?.opacity ?? 1)) }}
               playsInline
               preload="auto"
               onLoadedMetadata={() => {
@@ -447,6 +457,16 @@ export function PreviewPlayer({
               }}
               aria-label="Предпросмотр видео"
             />
+                ) : clip.kind === "Image" ? (
+                  <img
+                    key={clip.id}
+                    className="preview-media"
+                    src={layerSrc}
+                    alt="Кадр изображения"
+                    style={{ opacity: Math.max(0, Math.min(1, clip.transform?.opacity ?? 1)) }}
+                  />
+                ) : null)}
+            </div>
           ) : image && src && stillLayers.length > 0 ? (
             <div className="preview-still-layers">
               {stillLayers.map(({ clip, src: layerSrc }) => (
@@ -465,7 +485,7 @@ export function PreviewPlayer({
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
           )}
           {mediaError ? <span className="preview-media-error" role="alert">{mediaError}</span> : null}
-          {selectedClip && selectedTrackId && selectedClip.id === active?.id ? (
+          {selectedClip && selectedTrackId && selectedClip.id === visible?.clip.id ? (
             <OverlayHandles
               sequenceId={sequence.id}
               trackId={selectedTrackId}
