@@ -86,12 +86,19 @@ test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap"
   };
   const originalVideo = track("Video").clips[0];
   const originalImage = track("Overlay").clips[0];
-  for (const [id, file, isVideo] of [
-    [originalVideo.media_id, red, true],
-    [originalImage.media_id, blue, false],
+  // The E2E fixture's UUIDs have already been streamed by previous WebView2
+  // tests. Reusing one with different bytes lets the browser reuse an old
+  // successful HTTP media response (testsrc2 yellow instead of the red oracle).
+  // New underlying media must have new identities as in a real import.
+  const redMediaId = randomUUID();
+  const blueMediaId = randomUUID();
+  for (const [previousId, nextId, file, isVideo] of [
+    [originalVideo.media_id, redMediaId, red, true],
+    [originalImage.media_id, blueMediaId, blue, false],
   ] as const) {
-    const media = project.project.media.find((entry) => entry.id === id);
-    if (!media) throw new Error("Missing fixture media: " + id);
+    const media = project.project.media.find((entry) => entry.id === previousId);
+    if (!media) throw new Error("Missing fixture media: " + previousId);
+    media.id = nextId;
     media.absolute_path = file;
     media.project_relative_path = path.basename(file);
     media.file_size = statSync(file).size;
@@ -102,13 +109,13 @@ test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap"
   project.revision = 0;
   project.project.name = "WebView2 composited pixel oracle";
   track("Video").clips = [
-    { ...originalVideo, id: randomUUID(), source_in: 0, source_out: 900_000,
+    { ...originalVideo, id: randomUUID(), media_id: redMediaId, source_in: 0, source_out: 900_000,
       timeline_start: 0, timeline_end: 900_000, speed: 1 },
-    { ...originalVideo, id: randomUUID(), source_in: 0, source_out: 500_000,
+    { ...originalVideo, id: randomUUID(), media_id: redMediaId, source_in: 0, source_out: 500_000,
       timeline_start: 2_000_000, timeline_end: 2_500_000, speed: 1 },
   ];
   track("Overlay").clips = [{
-    ...originalImage, id: randomUUID(), source_in: 0, source_out: 750_000,
+    ...originalImage, id: randomUUID(), media_id: blueMediaId, source_in: 0, source_out: 750_000,
     timeline_start: 750_000, timeline_end: 1_500_000, speed: 1,
     transform: { ...originalImage.transform, opacity: 0.5 },
   }];
@@ -162,6 +169,7 @@ test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap"
   const blueRgb = centerRgb(ffmpeg, blue);
   await scrub(0.45);
   await waitForVideo(0.45);
+  await expect(page.locator("video.preview-media")).toHaveAttribute("src", new RegExp(redMediaId));
   await capture("base moving red video", redRgb);
 
   await scrub(0.82);
