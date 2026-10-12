@@ -738,18 +738,26 @@ describe("PreviewPlayer continuous transport", () => {
       // threshold and does not trigger native seeking. It still invalidates
       // dropped-frame recovery, otherwise a late 4.8s callback jumps ahead.
       const afterRecovery = onSeek.mock.calls.length;
+      const audioPlaysBeforeShortScrub = audioPlays();
       rerender(<PreviewPlayer
         sequence={sequence} media={media}
         selectedClip={null} selectedTrackId={null}
         playheadTimeUs={1_370_000} onSeek={onSeek} onCommit={onCommit}
       />);
       expect(video.currentTime).toBeCloseTo(4.35);
+      // Even though the old 4.35s frame and decoder are within 120ms of
+      // the requested 4.37s, a fresh compositor acknowledgement is needed.
+      audio.currentTime = 1.37;
+      fireEvent.seeked(audio);
+      expect(audioPlays()).toBe(audioPlaysBeforeShortScrub);
       video.currentTime = 4.8;
       present(4.8, 110);
       expect(onSeek).toHaveBeenCalledTimes(afterRecovery);
+      expect(audioPlays()).toBe(audioPlaysBeforeShortScrub);
       video.currentTime = 4.37;
       present(4.37, 111);
       expect(onSeek).toHaveBeenCalledTimes(afterRecovery);
+      expect(audioPlays()).toBe(audioPlaysBeforeShortScrub + 1);
 
       fireEvent.click(screen.getByRole("button", { name: "Stop" }));
       expect(onSeek).toHaveBeenLastCalledWith(0);
