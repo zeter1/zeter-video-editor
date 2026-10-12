@@ -503,6 +503,9 @@ fn compile_timeline_filtergraph(
             "asetpts=PTS-STARTPTS".to_string(),
         ];
         filters.extend(atempo_filters(clip.speed));
+        // Source time becomes timeline time after atempo. Without this bound,
+        // a short audio clip can keep playing into later video-only gaps.
+        filters.push(format!("atrim=duration={timeline_duration:.6}"));
 
         let linear_gain = f64::from(audio.volume) * 10_f64.powf(f64::from(audio.gain_db) / 20.0);
         filters.push(format!("volume={linear_gain:.6}"));

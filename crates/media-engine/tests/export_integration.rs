@@ -150,3 +150,165 @@ fn real_managed_ffmpeg_exports_two_second_synthetic_fixture_when_configured() {
         "unexpected duration: {duration}"
     );
 }
+
+#[test]
+fn real_export_has_no_audio_after_a_short_audio_clip_ends() {
+    let Ok(dir) = env::var("ZETER_TEST_FFMPEG_DIR") else {
+        eprintln!("SKIP: set ZETER_TEST_FFMPEG_DIR for independent FFmpeg audio oracle");
+        return;
+    };
+
+    let runtime = ManagedRuntime::from_dir(PathBuf::from(dir), "audio-tail-parity");
+    let capabilities = detect_capabilities(&runtime).expect("managed FFmpeg capability detection");
+    assert!(
+        capabilities.software.h264,
+        "pinned FFmpeg must support libx264"
+    );
+
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("tone-and-video.mp4");
+    run(&ProcessSpec::new(&runtime.ffmpeg_path)
+        .arg("-y")
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-f")
+        .arg("lavfi")
+        .arg("-i")
+        .arg("color=c=red:s=160x90:r=30:d=2")
+        .arg("-f")
+        .arg("lavfi")
+        .arg("-i")
+        .arg("sine=frequency=1000:sample_rate=48000:duration=2")
+        .arg("-c:v")
+        .arg("libx264")
+        .arg("-pix_fmt")
+        .arg("yuv420p")
+        .arg("-c:a")
+        .arg("aac")
+        .arg(source.as_os_str()))
+    .expect("generate input containing two seconds of tone");
+
+    let media_id = MediaId::new();
+    let sequence_id = SequenceId::new();
+    let video = Clip {
+        id: ClipId::new(),
+        kind: ClipKind::Video,
+        media_id: Some(media_id),
+        source_in: time(0),
+        source_out: time(2_000_000),
+        timeline_start: time(0),
+        timeline_end: time(2_000_000),
+        transform: Transform::default(),
+        color: ColorAdjustments::default(),
+        audio: AudioState {
+            muted: true,
+            ..AudioState::default()
+        },
+        speed: 1.0,
+        transition: None,
+        text: None,
+    };
+    let audio = Clip {
+        id: ClipId::new(),
+        kind: ClipKind::Audio,
+        timeline_end: time(500_000),
+        audio: AudioState::default(),
+        ..video.clone()
+    };
+    let project = Project {
+        id: ProjectId::new(),
+        name: "Audio tail parity".into(),
+        settings: ProjectSettings::default(),
+        media: vec![MediaRef {
+            id: media_id,
+            absolute_path: source.to_string_lossy().into_owned(),
+            project_relative_path: None,
+            file_size: std::fs::metadata(&source).unwrap().len(),
+            duration: Some(time(2_000_000)),
+            width: Some(160),
+            height: Some(90),
+        }],
+        sequences: vec![Sequence {
+            id: sequence_id,
+            name: "Main".into(),
+            width: 160,
+            height: 90,
+            fps: 30.0,
+            tracks: vec![
+                Track {
+                    id: TrackId::new(),
+                    name: "Picture".into(),
+                    kind: TrackKind::Video,
+                    muted: false,
+                    locked: false,
+                    hidden: false,
+                    clips: vec![video],
+                },
+                Track {
+                    id: TrackId::new(),
+                    name: "Short tone".into(),
+                    kind: TrackKind::Audio,
+                    muted: false,
+                    locked: false,
+                    hidden: false,
+                    clips: vec![audio],
+                },
+            ],
+            subtitle_segments: Vec::new(),
+            subtitle_style: SubtitleStyle::default(),
+            markers: Vec::new(),
+        }],
+    };
+    let snapshot =
+        RenderSnapshot::from_sequence(&project, sequence_id, ProjectRevision::new(5)).unwrap();
+    let plan = RenderPlan::compile(
+        &snapshot,
+        ExportSettings {
+            container: ExportContainer::Mp4,
+            codec: VideoCodec::H264,
+            width: 160,
+            height: 90,
+            fps: 30.0,
+            quality: ExportQuality::Draft,
+            custom_bitrate: None,
+            prefer_hardware: false,
+        },
+    )
+    .unwrap();
+    let output = temp.path().join("short-tone.mp4");
+    ExportJob::new(runtime.clone(), capabilities)
+        .run(plan, &output, CancellationToken::new())
+        .expect("export with picture and short audio should succeed");
+
+    let decode_window = |start: &str, name: &str| {
+        let pcm = temp.path().join(name);
+        run(&ProcessSpec::new(&runtime.ffmpeg_path)
+            .arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-i")
+            .arg(output.as_os_str())
+            .arg("-map")
+            .arg("0:a:0")
+            .arg("-ss")
+            .arg(start)
+            .arg("-t")
+            .arg("0.200")
+            .arg("-f")
+            .arg("s16le")
+            .arg(pcm.as_os_str()))
+        .expect("decode independent PCM audio window");
+        std::fs::metadata(pcm).unwrap().len()
+    };
+    assert!(
+        decode_window("0.100", "early.pcm") > 1000,
+        "the intended short tone must be audible before its end"
+    );
+    assert_eq!(
+        decode_window("1.250", "tail.pcm"),
+        0,
+        "audio must not leak into the picture-only gap after the 0.5-second audio clip"
+    );
+}
