@@ -348,7 +348,9 @@ fn compile_timeline_filtergraph(
             // A still source may contain only one decoded frame. Explicitly
             // hold it until the clip ends instead of relying on overlay EOF
             // behavior, which differs across FFmpeg runtimes.
-            filters.push(format!("tpad=stop_mode=clone:stop_duration={timeline_duration:.6}"));
+            filters.push(format!(
+                "tpad=stop_mode=clone:stop_duration={timeline_duration:.6}"
+            ));
             filters.push(format!("trim=duration={timeline_duration:.6}"));
             filters.push("setpts=PTS-STARTPTS".to_string());
         } else {
