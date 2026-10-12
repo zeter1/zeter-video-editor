@@ -49,11 +49,11 @@ describe("PreviewPlayer", () => {
       sequence: timeline, selectedClip: null, selectedTrackId: null, onSeek, onCommit,
     };
     const { rerender } = render(<PreviewPlayer {...props} playheadTimeUs={1_000_000} />);
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
-    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
+    expect(screen.getByRole("button", { name: "Пауза" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "К следующей границе клипа" }));
     expect(onSeek).toHaveBeenLastCalledWith(2_000_000);
-    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Воспроизвести" })).toBeTruthy();
     rerender(<PreviewPlayer {...props} playheadTimeUs={2_000_000} />);
     fireEvent.click(screen.getByRole("button", { name: "К предыдущей границе клипа" }));
     expect(onSeek).toHaveBeenLastCalledWith(0);
@@ -116,8 +116,8 @@ describe("PreviewPlayer", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Preview quality 1/4" }));
-    fireEvent.click(screen.getByRole("button", { name: "Preview scale 100%" }));
+    fireEvent.click(screen.getByRole("button", { name: "Качество предпросмотра: 1/4" }));
+    fireEvent.click(screen.getByRole("button", { name: "Масштаб предпросмотра: 100%" }));
 
     expect(screen.getByTestId("preview-quality").textContent).toBe("1/4");
     expect(screen.getByTestId("preview-scale").textContent).toBe("100%");

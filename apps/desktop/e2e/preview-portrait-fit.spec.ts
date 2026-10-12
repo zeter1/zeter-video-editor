@@ -112,7 +112,7 @@ test("portrait Fit stays inside a shallow stage and 100% keeps transport clickab
   await expect(playhead).toHaveAttribute("aria-valuenow", "0");
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
 
-  await page.getByRole("button", { name: "Preview scale Fit" }).click({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Масштаб предпросмотра: Вписать" }).click({ timeout: 10_000 });
   console.log("[portrait E2E] Fit selected");
   const stage = page.locator(".preview-stage");
   const frame = page.locator(".preview-frame");
@@ -162,7 +162,7 @@ test("portrait Fit stays inside a shallow stage and 100% keeps transport clickab
   // A true 100% portrait frame can be taller than its shallow viewport.
   // Only the picture may be cropped: no overflowing picture may intercept
   // transport or scale buttons below the stage in native Windows WebView2.
-  await page.getByRole("button", { name: "Preview scale 100%" }).click({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Масштаб предпросмотра: 100%" }).click({ timeout: 10_000 });
   await expect(page.getByTestId("preview-scale")).toHaveText("100%");
   const zoomed = await page.evaluate(() => {
     const s = document.querySelector(".preview-stage")!.getBoundingClientRect();
@@ -186,9 +186,9 @@ test("portrait Fit stays inside a shallow stage and 100% keeps transport clickab
   for (const control of zoomed.controls) {
     expect(control.clickable, `portrait 100% must not cover ${control.name}`).toBe(true);
   }
-  await page.getByRole("button", { name: "Next frame" }).click({ timeout: 10_000 });
-  await page.getByRole("button", { name: "Preview scale Fit" }).click({ timeout: 10_000 });
-  await expect(page.getByTestId("preview-scale")).toHaveText("Fit");
+  await page.getByRole("button", { name: "Следующий кадр" }).click({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Масштаб предпросмотра: Вписать" }).click({ timeout: 10_000 });
+  await expect(page.getByTestId("preview-scale")).toHaveText("Вписать");
 
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
 });

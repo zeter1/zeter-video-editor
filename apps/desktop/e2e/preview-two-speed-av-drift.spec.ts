@@ -152,7 +152,7 @@ test("2x compositor frame stays aligned with independent WAV after forward/backw
   };
 
   const playRequestedAtMs = Date.now();
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
   await sampleDrift("initial", playRequestedAtMs);
   const forwardRequestedAtMs = Date.now();
   await scrub(1.35);
@@ -175,7 +175,7 @@ test("2x compositor frame stays aligned with independent WAV after forward/backw
     await sampleDrift("native decoders after synthetic " + signal, requestedAtMs);
   }
 
-  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await page.getByRole("button", { name: "Остановить и вернуться к началу", exact: true }).click();
   await expect(page.locator(".preview-controls .timecode")).toHaveText("0.000 с");
   await expect.poll(() => audio.evaluate((node) => (node as HTMLAudioElement).paused)).toBe(true);
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
