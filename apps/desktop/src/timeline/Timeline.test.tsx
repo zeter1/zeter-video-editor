@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { CommandResultDto, Sequence } from "../generated/ipc";
@@ -197,4 +197,55 @@ describe("Timeline", () => {
       expect(transientStore.getState().drag).toBeNull();
     });
   });
+  it("keeps the playhead visible on long seeks without overriding manual scrolling", () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const { container } = render(
+      <Timeline
+        sequence={sequence()}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={vi.fn()}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    const viewport = container.querySelector(".timeline-scroll") as HTMLDivElement;
+    Object.defineProperty(viewport, "clientWidth", { configurable: true, value: 600 });
+    Object.defineProperty(viewport, "scrollWidth", { configurable: true, value: 4000 });
+
+    act(() => transientStore.setPlayheadTime(8_000_000));
+    expect(viewport.scrollLeft).toBe(542);
+    expect(transientStore.getState().timelineScrollLeftPx).toBe(542);
+
+    // Manual scrolling is preserved until the playhead exits the viewport.
+    viewport.scrollLeft = 600;
+    act(() => transientStore.setTimelineScrollLeft(600));
+    act(() => transientStore.setPlayheadTime(8_100_000));
+    expect(viewport.scrollLeft).toBe(600);
+
+    act(() => transientStore.setPlayheadTime(0));
+    expect(viewport.scrollLeft).toBe(0);
+  });
+
+  it("End seeks to the final clip boundary, not to successive ruler padding", () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    render(
+      <Timeline
+        sequence={sequence()}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={vi.fn()}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    const playhead = screen.getByRole("slider", { name: "Timeline playhead" });
+    fireEvent.keyDown(playhead, { key: "End" });
+    expect(transientStore.getState().playheadTimeUs).toBe(2_000_000);
+    fireEvent.keyDown(playhead, { key: "End" });
+    expect(transientStore.getState().playheadTimeUs).toBe(2_000_000);
+    fireEvent.keyDown(playhead, { key: "Home" });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+  });
+
 });
