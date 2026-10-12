@@ -1,6 +1,42 @@
 # Project Status
 
-Last updated: 2026-10-07
+## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (AI workspace + manual subtitles, stacked draft)
+
+- Ветка `feat/ai-workspace-manual-subtitles-20261011` создаётся поверх draft #40, который зависит от versioning draft #39; **НЕ merged**. Рабочая кнопка «AI-инструменты» открывает/закрывает отдельный sidebar, показывает неподключённые AI capabilities честно, без ложного запуска worker. Внутри можно вручную создать полноценный субтитр с preview и явной фиксацией через `AddSubtitleSegments` и revisioned Rust edit command; отказ оставляет черновик. Без текущей Sequence создание блокируется. Тесты продукта: `apps/desktop/src/ai/AiWorkspace.test.tsx` и `src/app/AppShell.test.tsx`; CSS, LeftPanel и AppShell обновлены. Schema `.vcut`, номер desktop `0.1.0-alpha.1` и production AI backend не меняются.
+- **NEXT PRODUCT-CODE TASK:** перенести реальный AI transcription start/review/apply (Whisper model/runtime, Rust IPC и подтверждаемая revisioned undoable запись) из draft #7–#9 в СОВРЕМЕННЫЙ `apps/desktop/src/app/AppShell.tsx`, `src/ai/AiWorkspace.tsx`, `src/ipc/client.ts` и backend `src-tauri/src/app/*`, не ломая новые Windows open/import/drag/drop/горячие клавиши; проверить модель, stale revision и явное review через React/Rust и реальный WebView2 E2E. Если это заблокировано — Stage C single A/V timeline clock. НИКОГДА не заменять следующий проход только документацией.
+- Новый exact-head CI, SHA и URL PR посмотреть после push; пока НЕ считать новую ветку проверенной. Review, GUI Windows QA и отдельное решение нужны перед merge/tag/release/installer.
+
+
+Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
+
+Desktop source version: `0.1.0-alpha.1` (not a signed release; verify GitHub Releases before claiming publication)
+
+## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
+
+- **В этой ветке:** `apps/desktop/src/app/AppShell.tsx` — реальные горячие клавиши Ctrl+S/Ctrl+Z/Ctrl+Shift+Z/Ctrl+Y/Ctrl+K/Delete через Rust командную систему; защита при typing, locked track, drag, inactive project и границах split. `apps/desktop/src/app/AppShellShortcuts.test.tsx` — пользовательские React regression tests. Предыдущий вариант имел кнопки Split/Delete и toolbar Undo/Redo, но не связывал их с рабочими hotkeys.
+- **Ветка:** `feat/editor-keyboard-shortcuts-20261011` от `chore/versioned-changelog-20261011` (версионированный CHANGELOG из draft #39), proposal only; НЕ merged в `main`. Не повышать `0.1.0-alpha.1` без нового явного release decision.
+- **Verification:** exact HEAD CI и Windows WebView2 E2E после нового коммита требуют проверки; не считать тесты запущенными/прошедшими до результатов GitHub Actions. Keyboard edit требует ручного GUI acceptance перед merge.
+- **NEXT PRODUCT-CODE TASK:** интеграция AI tools из draft #7–#9 с текущим production `apps/desktop/src/app/AppShell.tsx` и `apps/desktop/src/components/LeftPanel.tsx` с реальными capabilities, review-before-apply, проверкой stale revision и минимум одним GUI/E2E сценарием. Эти ветки содержат legacy UI; интегрировать, а не перезаписывать новые Windows import/open/drag/drop. Далее Stage C A/V preview clock. Не начинать очередную docs-only проходку.
+
+## NEXT PRODUCT-CODE TASK — mandatory start for the next development dialog (2026-10-11)
+
+**DO NOT START ANOTHER DOCUMENTATION / VERSIONING-ONLY PASS.** The previous sessions already addressed SemVer, CHANGELOG and CI; those remain supporting controls. First inspect the exact GitHub product code and active draft/stacked PRs to avoid duplicating implemented work, then make a bounded, tested change that improves the usable video editor.
+
+**First candidate: make existing local AI tooling accessible from the real editor workspace.** The existing project status records that AI panels exist separately but are not mounted in `AppShell`, the "AI tools" button is not wired, and the production worker supports transcription while silence/highlight requests can still return `analysis_backend_not_ready`. Verify this against current source and draft PRs before coding. If still missing, connect the approved AI panel/actions to the workspace, expose honest capability/error states (never promise a production AI backend that is not implemented), ensure accepted edits go through authoritative revisioned Rust command/undo history, and add frontend + applicable real WebView2 E2E coverage. User-observable acceptance: AI tools can be opened from the visible editor; unavailable functionality is clearly described; existing working transcription/review path is reachable without breaking normal edit/save/export.
+
+**Second candidate if already implemented/blocked:** continue approved Stage C preview work toward one synchronized timeline-driven A/V clock across Direct/Proxy/Composite/Still/Gap, with representative clip-boundary and audio sync tests; assess the in-flight preview/timeline PRs before choosing a base.
+
+**Priority policy:** functional preview, timeline, AI, editing and export integration > cosmetic documentation/CI/semver changes. Read `AGENTS.md` mandatory product-first section. Document only what accompanied an actual product improvement, unless explicitly requested by the user or needed to clear a real release/data-integrity/CI blocker. Every future checkpoint must begin with next runnable product task, code location, acceptance and PR/CI state. Do not confuse draft PRs with `main`, do not merge/release/sign without existing verification/review controls.
+
+## Latest versioning checkpoint (proposed on a separate branch)
+
+- Draft proposal to version the desktop app `0.1.0-alpha.1` (not a public release). App/Tauri/Cargo/lock/runtime manifest align and the UI will display the version; no code has been installed on Windows PCs.
+- `CHANGELOG.md` is organized under dated SemVer sections, with an explicit legacy `0.0.1` baseline instead of an indefinite pending-change section. Historical MVP details retained.
+- `docs/CHANGELOG_GUIDE.md` defines mandatory per-PR detailed updates. CI checks version coherence; release notes come from the versioned changelog.
+- Version tooling hardening in this same draft branch: strict prerelease identifiers, SemVer downgrade prevention, real calendar dates, newest-first changelog validation, regression tests for full version bump including CRLF Cargo.lock, and release workflow prerelease classification. Exact-head Windows CI #205 on SHA `53233e4` completed SUCCESS (all steps including real WebView2 E2E, NSIS and artifact). Subsequent source hardening adds malformed-heading detection, fail-closed set-version preflight and single-prefix release tag resolution with additional regression tests. A NEW exact-head CI run is required for these subsequent changes; #205 does not cover them. No release or tag was created.
+- This checkpoint applies to the dedicated versioning proposal, not the currently running unmerged timeline or cache PRs; do not claim those changes landed in main.
+- Before merging: verify exact-head Windows CI (fmt, frontend build, Rust, Vitest, WebView2, NSIS), review, and any required GUI acceptance. Signing/public release remain prohibited until qualified.
+
 
 ## Current phase
 

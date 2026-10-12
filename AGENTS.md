@@ -26,6 +26,17 @@ If the final spec does not exist, continue the approved design workflow instead 
 
 The implementation plan is approved and complete. For stabilization inside the approved architecture, use TDD for behavior changes, systematic debugging for failures, and verification-before-completion before claims. Any new product capability or architectural direction that is not already in the approved specification requires Superpowers brainstorming and an explicit user decision before implementation.
 
+## Mandatory product-first continuation (new sessions)
+
+**Primary goal: develop a functioning Windows video editor, not a documentation/versioning project.** The user wants the strongest *approved* editing workflows inspired by Premiere Pro and CapCut. Do not reinterpret the last Google checkpoint's maintenance topic as a request to spend the next session on maintenance again. This product-first rule takes priority when choosing the NEXT development task; security, data integrity, failing CI and direct user requests are legitimate exceptions.
+
+1. **Orient quickly**: read this file, `PROJECT_STATUS.md` (especially "Next product-code task"), the recent Google continuity checkpoint and the relevant code. Verify real GitHub `main`, open/draft/stacked PRs, branch SHA and exact-head CI. Do not assume unmerged PR functionality is shipped. Reading version rules is required but is not the work deliverable.
+2. **Select an actual product task**: inspect current production source and in-flight PRs, then choose the highest-impact incomplete, approved video-editor workflow. Order by user value and dependencies: real accurate A/V preview (direct/proxy/composite/still/gap), usable multitrack timeline/editing, mounted/wired local AI UX, export correctness and responsiveness. Do not redo already-implemented features or expand scope without the required design approval.
+3. **Implement one bounded vertical slice** in `.tsx`, `.ts` or `.rs` product source, with relevant unit/integration/E2E tests. Specify user-observable before/after behavior and objective acceptance, ensure Rust authoritative mutations/history, media safety and performance boundaries. Prefer fixing a concrete gap over polishing internal helpers in isolation.
+4. **Documentation is supporting work only**: update `CHANGELOG.md`, tests, `PROJECT_STATUS.md` and the Google checkpoint **as part of the product slice**. Do not spend another entire session only on CHANGELOG, SemVer, CI cosmetics, README or handoff process merely because the previous checkpoint did. Exceptions: the user explicitly requests documentation, actual failing CI blocks product work, or a critical security/data-integrity/release safety issue needs resolution. Do not create meaningless code changes just to satisfy this rule.
+5. **Definition of done**: a linked code diff, tests and truthful exact-SHA verification; report untested Windows/manual features as NOT VERIFIED. PR != merged feature; CI artifact != signed release. Review/merge/signing rules still apply. If the chosen slice cannot be completed, record its actual blocker, tackle the next suitable code task where possible, and avoid claiming completion.
+6. **Handoff must be actionable**: write one **NEXT PRODUCT-CODE TASK** with concrete files, missing behavior, acceptance tests, branch/dependency and current blockers at the top of `PROJECT_STATUS.md` and Google document. The next assistant should continue that task, rather than converting the handoff itself into the next task. A healthy sequence is **product code -> tests -> brief docs/changelog -> checkpoint -> more product code**.
+
 ## Architectural invariants already approved
 
 - Windows only.
@@ -60,6 +71,16 @@ The implementation plan is approved and complete. For stabilization inside the a
 - Avoid unrelated refactors.
 - Add tests for domain/timeline behavior before or alongside implementation according to the active Superpowers TDD workflow.
 - Never claim a feature is complete without running relevant verification.
+
+## Mandatory versioning and change history
+
+- Read `docs/CHANGELOG_GUIDE.md` before changing versioned desktop behavior, API, security boundaries, build, UI, dependencies, or user documentation.
+- **At the start of every new development session** follow the complete, ordered section `Обязательная инструкция для следующего диалога` in `docs/CHANGELOG_GUIDE.md`. Verify current GitHub branch, exact SHA, app version, changelog and CI instead of trusting old conversation checkpoints. At the end, update `PROJECT_STATUS.md` and the Google continuity checkpoint with precise facts.
+- Every meaningful change submitted for integration MUST add a descriptive entry to the current version section of `CHANGELOG.md`; include what changed, why, user impact, migrations/compatibility, tests and caveats. No bare SHA-only or generic "fix bugs" entries.
+- `main` changelog describes changes present on `main` only. Draft PR behavior is described in the PR until integrated; do not present open PRs as shipping features.
+- No undated/unversioned `Unreleased` heading: changes are collected under the current explicit SemVer development version. Versions may be prereleases without implying a signed release.
+- Change desktop version only with `node scripts/set-version.mjs <semver> --note "detailed description"`; validate using `node scripts/check-version.mjs`. Version sources: desktop package.json/lock, Tauri config/Cargo, Cargo.lock, app runtime manifest and current changelog section. Do not bump unrelated internal crate versions or .vcut schema inadvertently.
+- Never publish a tag or installer without Windows CI, manual acceptance and separately verified release/signing prerequisites. Release notes must come from the version section of `CHANGELOG.md`.
 
 ## Continuity
 

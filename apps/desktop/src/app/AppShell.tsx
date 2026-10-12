@@ -3,6 +3,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 
+import { AiWorkspace } from "../ai/AiWorkspace";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { ErrorDialog } from "../errors/ErrorDialog";
 import type { RecoveryAction } from "../errors/actions";
@@ -100,6 +101,7 @@ export function AppShell({
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null);
   const [openError, setOpenError] = useState<AppErrorDto | null>(null);
   const [busy, setBusy] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const project = projectState.snapshot?.project ?? null;
   const activeSequence = project?.sequences[0] ?? null;
@@ -354,6 +356,86 @@ export function AppShell({
     void applyToolbarMutation(() => client.redo(requestId()));
   }
 
+  // Windows editor shortcuts use the same authoritative operations as toolbar
+  // buttons and clip actions. Never steal native editing keys from form fields.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey) return;
+
+      const target = event.target instanceof Element ? event.target : document.activeElement;
+      if (
+        target?.closest("input, textarea, select, [contenteditable], [role='textbox']") ||
+        (target instanceof HTMLElement && target.isContentEditable) ||
+        document.querySelector("[role='dialog'], [aria-modal='true']")
+      ) return;
+
+      const key = event.key.toLowerCase();
+      const control = event.ctrlKey && !event.metaKey;
+      const state = projectStore.getState();
+      const canMutate = state.revision !== null && state.syncStatus === "synced";
+
+      if (control && !event.shiftKey && key === "s") {
+        event.preventDefault(); // Never show the browser's Save Page dialog.
+        if (canMutate || actions) void handleSave();
+        return;
+      }
+
+      if (control && key === "z") {
+        if (!canMutate && !actions) return;
+        event.preventDefault();
+        if (event.shiftKey) handleRedo();
+        else handleUndo();
+        return;
+      }
+      if (control && !event.shiftKey && key === "y") {
+        if (!canMutate && !actions) return;
+        event.preventDefault();
+        handleRedo();
+        return;
+      }
+      if (!canMutate) return;
+
+      const transientState = transientStore.getState();
+      if (transientState.drag) return;
+      const sequence = state.snapshot?.project.sequences[0];
+      const track = sequence?.tracks.find(
+        (candidate) =>
+          !candidate.locked &&
+          candidate.clips.some((clip) => clip.id === transientState.selectedClipId),
+      );
+      const clip = track?.clips.find((candidate) => candidate.id === transientState.selectedClipId);
+      if (!sequence || !track || !clip) return;
+
+      if (control && !event.shiftKey && key === "k" &&
+          transientState.playheadTimeUs > clip.timeline_start &&
+          transientState.playheadTimeUs < clip.timeline_end) {
+        event.preventDefault();
+        void handleEditCommand({
+          SplitClip: {
+            sequence_id: sequence.id,
+            track_id: track.id,
+            clip_id: clip.id,
+            split_at: transientState.playheadTimeUs,
+            right_clip_id: crypto.randomUUID(),
+          },
+        });
+        return;
+      }
+
+      // Delete is intentionally timeline-scoped; toolbar/preview focus must
+      // never remove the selected clip unexpectedly.
+      if (!event.ctrlKey && !event.metaKey && !event.shiftKey && key === "delete" &&
+          target?.closest(".timeline-panel")) {
+        event.preventDefault();
+        void handleEditCommand({
+          DeleteClip: { sequence_id: sequence.id, track_id: track.id, clip_id: clip.id },
+        });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [actions, client, projectPath, projectStore, transientStore]);
+
   return (
     <main
       className="app-shell theme-dark"
@@ -378,6 +460,14 @@ export function AppShell({
           onImport={() => void handleImport()}
           onAddToTimeline={(id) => void addToTimeline(id)}
           busy={busy}
+          aiOpen={aiOpen}
+          onToggleAi={() => setAiOpen((open) => !open)}
+          aiContent={
+            <AiWorkspace key={activeSequence?.id ?? "no-project"}
+              sequence={activeSequence}
+              playheadTimeUs={transient.playheadTimeUs}
+              onCommit={handleEditCommand} />
+          }
         />
         <PreviewPanel
           sequence={activeSequence}

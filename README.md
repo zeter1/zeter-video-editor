@@ -48,6 +48,12 @@ The editor combines a conventional multi-track timeline with local AI-assisted e
 - vertical Short creation
 - export to MP4/H.264, with hardware acceleration when available
 
+## Текущая версия
+
+**0.1.0-alpha.1** — версия исходного кода. Её статус предварительный: публичного подписанного релиза пока нет. Номер приложения отображается в верхней панели. Источник факта публикации — GitHub Releases и проверенные подписи; DEBUG-установщики GitHub Actions предназначены только для ручных проверок.
+
+См. [историю изменений](CHANGELOG.md), [руководство по версиям и журналу изменений](docs/CHANGELOG_GUIDE.md) и [документацию выпуска](.github/workflows/release.yml). Значимые изменения в новых PR должны сопровождаться подробной записью в журнале.
+
 ## Project documents
 
 - `PROJECT_STATUS.md` — current state and next step

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { MediaRef } from "../generated/ipc";
 
 interface LeftPanelProps {
@@ -5,9 +6,14 @@ interface LeftPanelProps {
   onImport?: () => void;
   onAddToTimeline?: (mediaId: string) => void;
   busy?: boolean;
+  aiOpen?: boolean;
+  onToggleAi?: () => void;
+  aiContent?: ReactNode;
 }
 
-export function LeftPanel({ media, onImport, onAddToTimeline, busy = false }: LeftPanelProps) {
+export function LeftPanel({
+  media, onImport, onAddToTimeline, busy = false, aiOpen = false, onToggleAi, aiContent,
+}: LeftPanelProps) {
   return (
     <aside className="left-panel panel" role="region" aria-label="Media and tools" data-testid="left-panel">
       <div className="panel-heading">
@@ -18,10 +24,10 @@ export function LeftPanel({ media, onImport, onAddToTimeline, busy = false }: Le
         <button type="button" disabled={busy} onClick={onImport}>{busy ? "Импорт…" : "Импорт"}</button>
         <button type="button" disabled title="Текст через свойства">Текст</button>
         <button type="button" disabled title="Субтитры через свойства">Субтитры</button>
-        <button type="button" disabled title="AI-функции пока проверяются">AI-инструменты</button>
+        <button type="button" aria-pressed={aiOpen} onClick={onToggleAi}>AI-инструменты</button>
       </div>
       <div className="media-list">
-        {media.length === 0 ? (
+        {aiOpen ? aiContent : media.length === 0 ? (
           <p className="empty-copy">Перетащите файлы сюда или нажмите «Импорт».</p>
         ) : (
           media.map((item) => (

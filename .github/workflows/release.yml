@@ -66,7 +66,10 @@ jobs:
         env:
           DISPATCH_VERSION: ${{ inputs.version }}
         run: |
-          if ($env:GITHUB_REF_TYPE -eq "tag") { $version = $env:GITHUB_REF_NAME.TrimStart("v") } else { $version = $env:DISPATCH_VERSION }
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            if ($env:GITHUB_REF_NAME -notmatch "^v[0-9]") { throw "Release tag must start with exactly one v followed by a digit." }
+            $version = $env:GITHUB_REF_NAME.Substring(1)
+          } else { $version = $env:DISPATCH_VERSION }
           if ($version -notmatch "^\d+\.\d+\.\d+([+-][0-9A-Za-z.-]+)?$") { throw "Release version must be SemVer." }
 
           $package = Get-Content "apps/desktop/package.json" | ConvertFrom-Json
@@ -87,6 +90,9 @@ jobs:
           }
 
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          node scripts/check-version.mjs --tag "v$version"
+          node scripts/release-notes.mjs "$version" --output release-notes.md
+
           "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Download and verify pinned FFmpeg runtime
@@ -174,4 +180,10 @@ jobs:
           SIG_PATH: ${{ steps.artifacts.outputs.sig }}
         run: |
           if (gh release view $env:RELEASE_TAG 2>$null) { throw "Release $env:RELEASE_TAG already exists; production releases are immutable." }
-          gh release create $env:RELEASE_TAG $env:SETUP_PATH $env:SIG_PATH latest.json --target $env:GITHUB_SHA --title "Zeter Video Editor $env:RELEASE_TAG" --notes "Signed Windows release."
+          $releaseArgs = @("release", "create", $env:RELEASE_TAG, $env:SETUP_PATH, $env:SIG_PATH, "latest.json", "--target", $env:GITHUB_SHA, "--title", "Zeter Video Editor $env:RELEASE_TAG", "--notes-file", "release-notes.md")
+          if ($env:RELEASE_TAG -match "-") {
+            $releaseArgs += "--prerelease"
+            $releaseArgs += "--latest=false"
+          }
+          gh @releaseArgs
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
