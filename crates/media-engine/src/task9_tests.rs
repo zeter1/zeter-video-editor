@@ -365,3 +365,63 @@ fn export_compiler_emits_timeline_filtergraph_for_parity_critical_semantics() {
         "export must not bypass compiled timeline video semantics"
     );
 }
+
+#[test]
+fn export_trims_retimed_audio_at_the_timeline_clip_end_before_delay() {
+    let media_id = MediaId::new();
+    let clip_id = ClipId::new();
+    let mut source = snapshot(42);
+    source.media.push(MediaRef {
+        id: media_id,
+        absolute_path: r"D:\media\tone.wav".into(),
+        project_relative_path: None,
+        file_size: 48_000,
+        duration: Some(time(3_000_000)),
+        width: None,
+        height: None,
+    });
+    source.clips.push(RenderClip {
+        clip_id,
+        track_id: TrackId::new(),
+        track_index: 0,
+        clip_index: 0,
+        kind: ClipKind::Audio,
+        media_id: Some(media_id),
+        source_in: time(0),
+        source_out: time(3_000_000),
+        timeline_start: time(500_000),
+        timeline_end: time(1_500_000),
+        transform: Transform::default(),
+        color: ColorAdjustments::default(),
+        speed: 2.0,
+        track_hidden: false,
+    });
+    source.audio.push(RenderAudio {
+        clip_id,
+        volume: 1.0,
+        gain_db: 0.0,
+        muted: false,
+        fade_in: time(0),
+        fade_out: time(0),
+    });
+
+    let plan = RenderPlan::compile(&source, settings()).unwrap();
+    let spec = build_export_spec(
+        &runtime(),
+        &plan,
+        EncoderKind::Libx264,
+        std::path::Path::new(r"D:\exports\audio-tail.mp4"),
+    );
+    let graph = spec
+        .args
+        .windows(2)
+        .find(|pair| pair[0] == "-filter_complex")
+        .map(|pair| pair[1].to_string_lossy().into_owned())
+        .expect("FFmpeg filtergraph");
+
+    assert!(
+        graph.contains("atempo=2.000000,atrim=duration=1.000000"),
+        "audio must stop after one timeline second regardless of source duration and speed: {graph}"
+    );
+    assert!(graph.contains("adelay=500:all=1"));
+}
