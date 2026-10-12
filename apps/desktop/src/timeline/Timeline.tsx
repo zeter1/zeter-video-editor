@@ -285,6 +285,9 @@ export function Timeline({
             zoom={transient.timelineZoom}
             scrollLeftPx={0}
             originOffsetPx={TIMELINE_TRACK_HEADER_WIDTH_PX}
+            onSeekMarker={(timeUs) => {
+              if (!transientStore.getState().drag) transientStore.setPlayheadTime(timeUs);
+            }}
             onRemoveMarker={(markerId) =>
               void commitCommand({
                 RemoveMarker: {
