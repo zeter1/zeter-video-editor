@@ -63,8 +63,11 @@ export function presentedFrameToTimelineUs(
   const toleranceSeconds = 0.12 * speed; // 120ms on the timeline, scaled to source clock.
   const expectedSourceSeconds = (clip.source_in +
     Math.max(0, playheadUs - clip.timeline_start) * speed) / 1_000_000;
+  // A backward scrub can leave both currentTime and mediaTime at the old
+  // later position. Agreement between decoder and compositor alone is not
+  // proof that a frame belongs to the newly requested playhead.
   if (frameMediaSeconds < clip.source_in / 1_000_000 - 0.001 ||
-      frameMediaSeconds < expectedSourceSeconds - toleranceSeconds ||
+      Math.abs(frameMediaSeconds - expectedSourceSeconds) > toleranceSeconds ||
       Math.abs(frameMediaSeconds - decoderMediaSeconds) > toleranceSeconds) return null;
   return mediaTimeToTimelineUs(clip, frameMediaSeconds);
 }

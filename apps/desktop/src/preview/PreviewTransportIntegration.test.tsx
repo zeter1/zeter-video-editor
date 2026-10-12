@@ -659,6 +659,22 @@ describe("PreviewPlayer continuous transport", () => {
       present(4.4); // Real WebView2 compositor has submitted the new frame.
       expect(audioPlays()).toBe(2);
 
+      // Backward scrub: native decoder and a delayed compositor callback
+      // still agree on 4.9s, but the user requested timeline position 1.0s.
+      rerender(<PreviewPlayer
+        sequence={sequence} media={media}
+        selectedClip={null} selectedTrackId={null}
+        playheadTimeUs={1_000_000} onSeek={onSeek} onCommit={onCommit}
+      />);
+      video.currentTime = 4.9;
+      const seeksBeforeStale = onSeek.mock.calls.length;
+      present(4.9);
+      expect(onSeek).toHaveBeenCalledTimes(seeksBeforeStale);
+      expect(audioPlays()).toBe(2);
+      video.currentTime = 4;
+      present(4);
+      expect(onSeek).toHaveBeenCalledTimes(seeksBeforeStale);
+
       fireEvent.click(screen.getByRole("button", { name: "Stop" }));
       expect(onSeek).toHaveBeenLastCalledWith(0);
       expect(callbacks.size).toBe(0);

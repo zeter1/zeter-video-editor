@@ -63,6 +63,8 @@ describe("preview transport timeline mapping", () => {
     expect(presentedFrameToTimelineUs(clip, 3, 2, 5_000_000)).toBeNull();
     expect(presentedFrameToTimelineUs(clip, 2, 2, 5_000_000)).toBe(5_000_000);
     expect(presentedFrameToTimelineUs(clip, 2.2, 2.2, 5_000_000)).toBe(5_100_000);
+    // Both clocks agree, but the frame is 130ms ahead in timeline time at 2x.
+    expect(presentedFrameToTimelineUs(clip, 2.26, 2.26, 5_000_000)).toBeNull();
     expect(presentedFrameToTimelineUs(clip, 2.2, 2.2, 5_300_000)).toBeNull();
     expect(presentedFrameToTimelineUs(clip, NaN, 2, 5_000_000)).toBeNull();
     expect(presentedFrameToTimelineUs(clip, 2, Infinity, 5_000_000)).toBeNull();
@@ -72,6 +74,7 @@ describe("preview transport timeline mapping", () => {
     const adjacent = { ...clip, speed: 1, source_in: 4_000_000,
       timeline_start: 1_000_000, timeline_end: 2_000_000 };
     expect(presentedFrameToTimelineUs(adjacent, 4.9, 4, 1_000_000)).toBeNull();
+    expect(presentedFrameToTimelineUs(adjacent, 4.9, 4.9, 1_000_000)).toBeNull();
     expect(presentedFrameToTimelineUs(adjacent, 3.9, 4, 1_000_000)).toBeNull();
     expect(presentedFrameToTimelineUs(adjacent, 4.1, 4.1, 1_000_000)).toBe(1_100_000);
   });

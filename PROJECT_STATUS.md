@@ -1,3 +1,14 @@
+# CURRENT CHECKPOINT — 2026-10-12 — Stage C backward-scrub compositor guard (draft #44)
+
+- PRODUCT: presentedFrameToTimelineUs now bounds compositor mediaTime on BOTH sides of the requested playhead (±120ms timeline, source-scaled by clip.speed), in addition to requiring a matching decoder clock. This prevents a stale later frame after backward scrub from fast-forwarding the timeline when decoder currentTime and old compositor frame agree.
+- REGRESSIONS: previewTransport.test.ts covers 1x decoder-agreeing later timestamp and 2x +130ms timeline timestamp; PreviewTransportIntegration.test.tsx covers same-clip backward scrub and delayed compositor frame, no false onSeek, no extra audio play and no Rust onCommit. Tests authored; exact-head CI required for PASS claim.
+- BASELINE: preceding #44 HEAD d95e6d5f759c35d0a14322634fbf0aa711f61882 full Windows CI #272 https://github.com/zeter1/zeter-video-editor/actions/runs/38166760007 completed SUCCESS. This does not verify the new commit.
+- PR STACK: https://github.com/zeter1/zeter-video-editor/pull/44 OPEN DRAFT on #43→#42→#41→#40→#39→main; main e11cd4bb749ab0140a3c24acc43ba66b67434ef4 untouched. No merge/tag/sign/installer. Desktop 0.1.0-alpha.1 dev, .vcut v2, media/export unchanged.
+- NEXT PRODUCT-CODE TASK: real Windows WebView2 E2E of requestVideoFrameCallback mediaTime against independent WAV at 2x, forward/backward same-clip seek; measure drift and seek recovery, exercise fallback. Then Direct/Proxy/Composite/RenderSnapshot preview-export parity. Manual Windows GUI/speaker QA and sample-accurate A/V mix NOT VERIFIED.
+- References: https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/requestVideoFrameCallback
+
+---
+
 # CURRENT CHECKPOINT — 2026-10-11 — Stage C video seek jitter at speed 2x (draft #44)
 
 - PRODUCT: In `apps/desktop/src/preview/PreviewPlayer.tsx`, native decoder drift tolerance is now 120ms of TIMELINE time while playing and 1ms while paused, multiplied by positive clip.speed to compare against HTMLVideoElement.currentTime in SOURCE seconds. This fixes over-eager native seeks on 2x/4x clips and aligns video with previously fixed audio seek tolerance; trims/source_in, source media, Rust snapshot, .vcut v2, export and desktop version 0.1.0-alpha.1 unchanged.
