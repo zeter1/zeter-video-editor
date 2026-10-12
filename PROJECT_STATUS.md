@@ -1,3 +1,14 @@
+# CURRENT WORK — 2026-10-12 — BUFFERING COMPOSITOR GUARD + REAL 2× WAV DRIFT E2E
+
+- **BRANCH:** `fix/preview-buffering-av-drift-20261012` based on verified main `520eb649b0802ca84d6659ffd85fb0e32ef2b2aa`; PR and exact HEAD/Windows Actions status must be checked anew. This block reports branch work only, NOT a feature already in main.
+- **PRODUCT FIX:** in `apps/desktop/src/preview/PreviewPlayer.tsx` native `waiting` and `stalled` now invalidate trusted rVFC dropped-callback catch-up anchor, accepted-frame readiness and standalone WAV release; subsequent frames need to pass normal source/timeline matching. Prevents an old compositor frame from advancing playhead after buffering.
+- **TESTS ADDED:** `PreviewTransportIntegration.test.tsx` simulates late (>120ms) presentedFrames jumps after waiting and stalled and asserts no seek; `apps/desktop/e2e/preview-two-speed-av-drift.spec.ts` creates a temporary verified fixture, measures real WebView2 rVFC mediaTime (or decoder fallback if not supported) against independent WAV HTMLAudioElement at video 2×, checks initial/forward/backward scrub within a 300ms smoke threshold, Stop and unchanged Rust project snapshot. No existing E2E tests removed.
+- **LIFECYCLE:** desktop `0.1.0-alpha.1` (unreleased source), .vcut v2 unchanged; no signing/tag/release. Offline, no user-PC access and no user Windows QA precondition for a fully verified merge.
+- **VERIFICATION / MERGE GATE:** browser/Rust/Windows CI is NOT YET VERIFIED for this branch; do NOT merge on the strength of source review alone. After opening PR, inspect latest exact-head Windows Actions run and job logs, run version/build/Vitest/E2E/NSIS gate and review full diff; fix any failure before squash-merge under standing authorization. The prior main post-merge push run 38201279366 was still IN_PROGRESS at initial session check, not a pass.
+- **NEXT PRODUCT-CODE TASK:** once exact-head Windows CI permits integration, improve ongoing 2× compositor↔WAV alignment from smoke (<300ms observed sample) toward measured stable multi-sample drift under realistic stalls; verify old WebView2 rAF fallback and preview/export consistency for gaps/overlays without introducing a sample-accurate mixer prematurely. Entry points: `PreviewPlayer.tsx`, `PreviewAudioTracks.tsx`, `previewTransport.ts`, `preview-two-speed-av-drift.spec.ts`, `render_parity.rs`; record exact observations and Windows fixture limitations.
+
+---
+
 # CURRENT MAIN CHECKPOINT — 2026-10-12 — WHISPER NATIVE PICKER MERGED (#42)
 
 - **VERIFIED MAIN MERGE:** PR [#42](https://github.com/zeter1/zeter-video-editor/pull/42) transitioned from DRAFT to ready and successfully squash-merged, merge commit `078834d6bc85e063e0e4a8f72fab79901eec5bb7`. GitHub PR readback reports merged=true and main branch readback matched this exact SHA immediately after merge. All historical "draft/unmerged #42" notes below are superseded.
