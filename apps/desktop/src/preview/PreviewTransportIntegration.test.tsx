@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Sequence } from "../generated/ipc";
@@ -788,6 +789,7 @@ describe("PreviewPlayer continuous transport", () => {
   });
 
   it("relocks compositor and WAV after retiming a playing clip without changing its id", () => {
+    let stopPlayback: (() => void) | null = null;
     const previousRequest = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "requestVideoFrameCallback");
     const previousCancel = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "cancelVideoFrameCallback");
     let nextFrameId = 0;
@@ -820,10 +822,16 @@ describe("PreviewPlayer continuous transport", () => {
       const media = [{ id: mediaId }] as import("../generated/ipc").MediaRef[];
       const onSeek = vi.fn();
       const onCommit = vi.fn();
-      const props = { media, selectedClip: null, selectedTrackId: null, onSeek, onCommit };
-      const { container, rerender } = render(
-        <PreviewPlayer {...props} sequence={sequenceFor(clip)} playheadTimeUs={1_000_000} />,
-      );
+      const props = { media, selectedClip: null, selectedTrackId: null, onCommit };
+      // Mirror the real parent transport: onSeek is fed back as the playhead
+      // prop, never held at the previous time during compositor callbacks.
+      const ClockHarness = ({ videoClip }: { videoClip: typeof clip }) => {
+        const [timeUs, setTimeUs] = useState(1_000_000);
+        return <PreviewPlayer {...props} sequence={sequenceFor(videoClip)}
+          playheadTimeUs={timeUs} onSeek={(next) => { onSeek(next); setTimeUs(next); }} />;
+      };
+      const { container, rerender } = render(<ClockHarness videoClip={clip} />);
+      stopPlayback = () => fireEvent.click(screen.getByRole("button", { name: "Stop" }));
       const video = container.querySelector("video.preview-media") as HTMLVideoElement;
       const audio = screen.getByTestId("preview-audio-retime-wav") as HTMLAudioElement;
       Object.defineProperty(video, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
@@ -852,7 +860,7 @@ describe("PreviewPlayer continuous transport", () => {
       // no longer authorize audio before a fresh 2x compositor submission.
       const pausesBeforeRetime = audioPauses();
       const retimed = { ...clip, speed: 2, timeline_end: 2_000_000 };
-      rerender(<PreviewPlayer {...props} sequence={sequenceFor(retimed)} playheadTimeUs={1_000_000} />);
+      rerender(<ClockHarness videoClip={retimed} />);
       expect(container.querySelector("video.preview-media")).toBe(video);
       expect(video.currentTime).toBeCloseTo(2);
       expect(audioPauses()).toBeGreaterThan(pausesBeforeRetime);
@@ -865,10 +873,10 @@ describe("PreviewPlayer continuous transport", () => {
       expect(onSeek).toHaveBeenLastCalledWith(1_050_000);
       expect(audioPlays()).toBe(2);
       expect(onCommit).not.toHaveBeenCalled();
-      // Unsubscribe the native frame loop while the mocked API still exists.
-      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
-      expect(callbacks.size).toBe(0);
+      // Stop is also performed on assertion failure, before mock APIs are restored.
     } finally {
+      stopPlayback?.();
+      expect(callbacks.size).toBe(0);
       if (previousRequest) Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", previousRequest);
       else delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).requestVideoFrameCallback;
       if (previousCancel) Object.defineProperty(HTMLVideoElement.prototype, "cancelVideoFrameCallback", previousCancel);
