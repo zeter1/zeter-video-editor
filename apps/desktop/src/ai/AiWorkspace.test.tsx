@@ -11,7 +11,7 @@ describe("AI workspace and manual subtitles", () => {
   it("honestly exposes missing backends and prevents edits without a project", () => {
     const onCommit = vi.fn();
     render(<AiWorkspace sequence={null} playheadTimeUs={0} onCommit={onCommit} />);
-    expect(screen.getByText(/Автоанализ пока не подключён/)).toBeTruthy();
+    expect(screen.getByText(/Автосубтитры работают локально/)).toBeTruthy();
     expect(screen.getByText(/Поиск хайлайтов/)).toBeTruthy();
     expect((screen.getByRole("button", { name: "Добавить субтитр" }) as HTMLButtonElement).disabled).toBe(true);
     expect(onCommit).not.toHaveBeenCalled();

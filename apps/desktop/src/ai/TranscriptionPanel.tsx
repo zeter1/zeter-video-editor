@@ -19,6 +19,7 @@ export interface TranscriptResultView {
 interface TranscriptionPanelProps {
   result: TranscriptResultView | null;
   running: boolean;
+  applying?: boolean;
   onStart: () => void;
   onApply: (result: TranscriptResultView) => void;
 }
@@ -33,6 +34,7 @@ function languageLabel(language: string): string {
 export function TranscriptionPanel({
   result,
   running,
+  applying = false,
   onStart,
   onApply,
 }: TranscriptionPanelProps) {
@@ -44,7 +46,7 @@ export function TranscriptionPanel({
   return (
     <section className="transcription-panel" aria-label="Automatic subtitles">
       <div className="transcription-actions">
-        <button type="button" disabled={running} onClick={onStart}>
+        <button type="button" disabled={running || applying} onClick={onStart}>
           {running ? "Generating…" : "Generate subtitles"}
         </button>
       </div>
@@ -55,8 +57,8 @@ export function TranscriptionPanel({
             {languageLabel(result.language)} · {result.segments.length} segments
           </div>
           <p className="transcription-preview">{preview}</p>
-          <button type="button" onClick={() => onApply(result)}>
-            Apply subtitles
+          <button type="button" disabled={running || applying} onClick={() => onApply(result)}>
+            {applying ? "Applying…" : "Apply subtitles"}
           </button>
         </div>
       ) : (

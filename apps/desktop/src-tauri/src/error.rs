@@ -57,6 +57,9 @@ pub enum AppError {
     #[error("job error: {0}")]
     Job(#[from] JobError),
 
+    #[error("local AI analysis unavailable: {0}")]
+    AiAnalysis(String),
+
     #[error("diagnostics error: {0}")]
     Diagnostics(#[from] DiagnosticsError),
 }
@@ -238,6 +241,15 @@ impl AppError {
                     "job-system",
                     "job_lifecycle",
                 ),
+                Self::AiAnalysis(detail) => (
+                    ErrorCategory::Job,
+                    "ai_analysis_unavailable",
+                    "The local transcription result is unavailable. Please try again.",
+                    true,
+                    detail.clone(),
+                    "ai-engine",
+                    "transcription_result",
+                ),
                 Self::Diagnostics(error) => (
                     ErrorCategory::Filesystem,
                     "diagnostics_export",
@@ -289,5 +301,21 @@ fn project_io_detail(error: &project_io::ProjectIoError) -> String {
 impl From<AppError> for AppErrorDto {
     fn from(error: AppError) -> Self {
         error.to_dto(None, None)
+    }
+}
+
+#[cfg(test)]
+mod ai_analysis_error_tests {
+    use super::{AppError, ErrorCategory};
+
+    #[test]
+    fn missing_local_analysis_has_safe_typed_error_contract() {
+        let dto =
+            AppError::AiAnalysis("internal transcription cache problem".into()).to_dto(None, None);
+        assert_eq!(dto.category, ErrorCategory::Job);
+        assert_eq!(dto.code, "ai_analysis_unavailable");
+        assert_eq!(dto.component, "ai-engine");
+        assert!(dto.retryable);
+        assert!(!dto.message.contains("internal transcription cache problem"));
     }
 }

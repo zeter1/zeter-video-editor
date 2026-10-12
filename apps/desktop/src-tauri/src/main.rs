@@ -7,6 +7,7 @@ mod error;
 mod ipc;
 mod preview_stream;
 mod runtime_manifest;
+mod transcription_ipc;
 mod update;
 
 use tauri::Manager;
@@ -73,6 +74,9 @@ fn main() {
             ipc::project_open_recovery,
             ipc::project_save,
             ipc::project_snapshot,
+            transcription_ipc::start_transcription,
+            transcription_ipc::get_transcription_result,
+            transcription_ipc::apply_transcription,
             ipc::execute_edit_command,
             ipc::undo,
             ipc::redo,

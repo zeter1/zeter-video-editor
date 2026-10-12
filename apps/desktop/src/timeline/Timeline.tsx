@@ -18,6 +18,7 @@ import {
   type TransientStore,
   useTransientStore,
 } from "../state/transientStore";
+import { followPlayheadScrollLeft } from "./followPlayhead";
 import { commitTimelineCommand } from "./interaction";
 import { MarkerLayer } from "./MarkerLayer";
 import { contentPixelToTimeUs, timeUsToPixel } from "./timeScale";
@@ -40,8 +41,8 @@ interface TimelineProps {
   requestIdFactory?: () => RequestId;
 }
 
-function timelineEndUs(sequence: Sequence, playheadTimeUs: number): number {
-  let end = Math.max(MIN_TIMELINE_DURATION_US, playheadTimeUs);
+function sequenceContentEndUs(sequence: Sequence): number {
+  let end = 0;
   for (const marker of sequence.markers) {
     end = Math.max(end, marker.time);
   }
@@ -50,7 +51,11 @@ function timelineEndUs(sequence: Sequence, playheadTimeUs: number): number {
       end = Math.max(end, clip.timeline_end);
     }
   }
-  return end + RULER_STEP_US;
+  return end;
+}
+
+function timelineEndUs(sequence: Sequence, playheadTimeUs: number): number {
+  return Math.max(MIN_TIMELINE_DURATION_US, sequenceContentEndUs(sequence), playheadTimeUs) + RULER_STEP_US;
 }
 
 function formatRulerTime(timeUs: number): string {
@@ -126,6 +131,26 @@ export function Timeline({
       960,
       timeUsToPixel(endUs, TIMELINE_PIXELS_PER_SECOND, transient.timelineZoom, 0),
     );
+  // Move only when the playhead leaves the visible timeline. Never change
+  // authoritative project state or fight a user dragging clips.
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element || transient.drag) return;
+    const next = followPlayheadScrollLeft({
+      playheadPx: TIMELINE_TRACK_HEADER_WIDTH_PX + timeUsToPixel(
+        transient.playheadTimeUs, TIMELINE_PIXELS_PER_SECOND, transient.timelineZoom, 0,
+      ),
+      scrollLeft: element.scrollLeft,
+      viewportWidth: element.clientWidth,
+      scrollWidth: Math.max(element.scrollWidth, contentWidth),
+      headerWidth: TIMELINE_TRACK_HEADER_WIDTH_PX,
+    });
+    if (next !== element.scrollLeft) {
+      element.scrollLeft = next;
+      transientStore.setTimelineScrollLeft(element.scrollLeft);
+    }
+  }, [contentWidth, transient.playheadTimeUs, transient.timelineZoom, transient.drag, transientStore]);
+
   const rulerTicks: number[] = [];
   for (let tick = 0; tick <= endUs; tick += RULER_STEP_US) {
     rulerTicks.push(tick);
@@ -166,7 +191,8 @@ export function Timeline({
     } else if (event.key === "Home") {
       nextTime = 0;
     } else if (event.key === "End") {
-      nextTime = endUs;
+      // The extra padded ruler space must never become an artificial edit end.
+      nextTime = sequenceContentEndUs(sequence);
     }
 
     if (nextTime !== null) {
