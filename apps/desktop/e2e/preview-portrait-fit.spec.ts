@@ -43,7 +43,7 @@ function ffmpegRgb(ffmpeg: string, image: string | Buffer): [number, number, num
 
 // Genuine native Windows WebView2 layout, not jsdom. The 180px stage emulates
 // a shallow editor pane while retaining the actual 9:16 sequence and source.
-test("Fit keeps the entire portrait sequence inside a shallow preview stage", async () => {
+test("portrait Fit stays inside a shallow stage and 100% keeps transport clickable", async () => {
   const { page, state } = await connectTauri();
   const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
   const portrait = path.join(state.mediaDir, "preview-portrait-fit-red.png");
