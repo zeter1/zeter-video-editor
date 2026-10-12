@@ -31,6 +31,48 @@ const sequence: Sequence = {
 };
 
 describe("PreviewPlayer", () => {
+  it("navigates clip boundaries without editing and pauses playback", () => {
+    const timeline: Sequence = {
+      ...sequence,
+      tracks: [{
+        id: "title-track", name: "Титры", kind: "Text", muted: false,
+        locked: false, hidden: false,
+        clips: [
+          { id: "first", kind: "Text", timeline_start: 0, timeline_end: 2_000_000 },
+          { id: "second", kind: "Text", timeline_start: 2_000_000, timeline_end: 3_000_000 },
+        ] as Sequence["tracks"][number]["clips"],
+      }],
+    };
+    const onSeek = vi.fn();
+    const onCommit = vi.fn();
+    const props = {
+      sequence: timeline, selectedClip: null, selectedTrackId: null, onSeek, onCommit,
+    };
+    const { rerender } = render(<PreviewPlayer {...props} playheadTimeUs={1_000_000} />);
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "К следующей границе клипа" }));
+    expect(onSeek).toHaveBeenLastCalledWith(2_000_000);
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    rerender(<PreviewPlayer {...props} playheadTimeUs={2_000_000} />);
+    fireEvent.click(screen.getByRole("button", { name: "К предыдущей границе клипа" }));
+    expect(onSeek).toHaveBeenLastCalledWith(0);
+    rerender(<PreviewPlayer {...props} playheadTimeUs={3_000_000} />);
+    expect((screen.getByRole("button", { name: "К следующей границе клипа" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("disables cut navigation in an empty sequence", () => {
+    const onSeek = vi.fn();
+    render(<PreviewPlayer sequence={sequence} selectedClip={null} selectedTrackId={null}
+      playheadTimeUs={0} onSeek={onSeek} onCommit={vi.fn()} />);
+    expect((screen.getByRole("button", { name: "К предыдущей границе клипа" }) as HTMLButtonElement).disabled).toBe(true);
+    const next = screen.getByRole("button", { name: "К следующей границе клипа" }) as HTMLButtonElement;
+    expect(next.disabled).toBe(true);
+    fireEvent.click(next);
+    expect(onSeek).not.toHaveBeenCalled();
+  });
+
   it("keeps quality and Fit/100% controls transient and never emits an edit command", () => {
     const onCommit = vi.fn();
     render(

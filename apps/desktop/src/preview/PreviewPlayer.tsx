@@ -4,6 +4,7 @@ import type { Clip, MediaRef, Sequence, Track, TrackId } from "../generated/ipc"
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
 import { PreviewAudioTracks, previewAudioVolume } from "./PreviewAudioTracks";
+import { adjacentEditBoundaryUs, collectEditBoundariesUs } from "./editNavigation";
 import {
   advanceGapTimeUs,
   isBenignMediaPlayRejection,
@@ -129,6 +130,9 @@ export function PreviewPlayer({
   const frameTimingKeyRef = useRef<string | null>(null);
   const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
   const playableEndUs = useMemo(() => sequencePlayableEndUs(sequence), [sequence]);
+  const editBoundariesUs = useMemo(() => collectEditBoundariesUs(sequence), [sequence.tracks]);
+  const previousEditUs = adjacentEditBoundaryUs(editBoundariesUs, playheadTimeUs, -1);
+  const nextEditUs = adjacentEditBoundaryUs(editBoundariesUs, playheadTimeUs, 1);
   // A gap inside an authored timeline is a black export frame, not an onboarding hint.
   const hasTimelineContent = sequence.subtitle_segments.length > 0 ||
     sequence.tracks.some((track) => track.clips.length > 0);
@@ -153,6 +157,14 @@ export function PreviewPlayer({
     // A frame step must stop live clocks before seeking, or playback can overwrite it.
     setPlaying(false);
     const targetUs = Math.min(playableEndUs, Math.max(0, playheadTimeUs + direction * frameUs));
+    clockPositionRef.current = targetUs;
+    onSeekRef.current(targetUs);
+  };
+
+  const seekEditBoundary = (targetUs: number | null): void => {
+    if (targetUs === null) return;
+    // Transport-only: retire live video and audio clocks before seeking.
+    setPlaying(false);
     clockPositionRef.current = targetUs;
     onSeekRef.current(targetUs);
   };
@@ -518,6 +530,13 @@ export function PreviewPlayer({
       <div className="preview-controls" aria-label="Preview controls">
         <button
           type="button"
+          aria-label="К предыдущей границе клипа"
+          title="Перейти к предыдущей границе клипа"
+          disabled={previousEditUs === null}
+          onClick={() => seekEditBoundary(previousEditUs)}
+        >|‹</button>
+        <button
+          type="button"
           aria-label="Previous frame"
           title="Предыдущий кадр"
           onClick={() => stepFrame(-1)}
@@ -554,6 +573,13 @@ export function PreviewPlayer({
           title="Следующий кадр"
           onClick={() => stepFrame(1)}
         >›</button>
+        <button
+          type="button"
+          aria-label="К следующей границе клипа"
+          title="Перейти к следующей границе клипа"
+          disabled={nextEditUs === null}
+          onClick={() => seekEditBoundary(nextEditUs)}
+        >›|</button>
         <span className="timecode">{(playheadTimeUs / 1_000_000).toFixed(3)} с</span>
         {(["Full", "1/2", "1/4"] as const).map((value) => (
           <button
