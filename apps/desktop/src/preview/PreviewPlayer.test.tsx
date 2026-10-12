@@ -170,7 +170,7 @@ describe("PreviewPlayer", () => {
     };
     const media = [videoId, imageId].map((id) => ({
       id, absolute_path: "D:\\private\\source.mp4", project_relative_path: null,
-      file_size: 100, duration: null, width: 160, height: 90,
+      file_size: 100, duration: null, width: 160, height: id === imageId ? 120 : 90,
     }));
     const onCommit = vi.fn();
     const props = { media, selectedClip: null, selectedTrackId: null,
@@ -192,6 +192,20 @@ describe("PreviewPlayer", () => {
     expect((layers[1] as HTMLImageElement).src).toBe(`http://zeter-media.localhost/${imageId}`);
     expect((layers[1] as HTMLImageElement).style.opacity).toBe("0.5");
     expect(container.querySelectorAll("video")).toHaveLength(1);
+
+    // A 4:3 still (160x120) in a 16:9 frame must follow the same
+    // frame-relative offset as FFmpeg overlay=x=(W-w)/2+position_x*W/2.
+    // This is NOT a % of the narrower letterboxed image's own width.
+    const positionedOverlay = {
+      ...overlayClip,
+      transform: { ...overlayClip.transform, position_x: 0.5, position_y: -0.25 },
+    };
+    rerender(<PreviewPlayer {...props}
+      sequence={{ ...sequence, tracks: [lowerTrack, { ...upperTrack, clips: [positionedOverlay] }] }}
+      playheadTimeUs={1_000_000} />);
+    expect((layers[1] as HTMLImageElement).style.transform).toBe("translate(25%, -12.5%)");
+    expect((layers[0] as HTMLVideoElement).style.transform).toBe("");
+    expect(screen.getByLabelText("Предпросмотр видео")).toBe(video);
 
     rerender(<PreviewPlayer {...props}
       sequence={{ ...sequence, tracks: [lowerTrack, { ...upperTrack, hidden: true }] }}

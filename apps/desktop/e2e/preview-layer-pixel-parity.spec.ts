@@ -53,13 +53,33 @@ function centerRgb(ffmpeg: string, fileOrPng: string | Buffer, atSeconds?: numbe
   return [data[0], data[1], data[2]];
 }
 
+
+// Compose the spatial reference with FFmpeg, not by inspecting CSS geometry.
+// A 4:3 still has width 120 in a 160x90 sequence; +0.5 moves it 40 pixels
+// right, so the expected black/blue boundary is at x=(160-120)/2+40=60.
+function ffmpegOffsetStillReference(ffmpeg: string, still: string): Buffer {
+  const frame = runFfmpeg(ffmpeg, [
+    "-f", "lavfi", "-i", "color=c=black:s=160x90:r=30:d=1",
+    "-i", still,
+    "-filter_complex", "[1:v]scale=w=160:h=90:force_original_aspect_ratio=decrease,format=rgba,colorchannelmixer=aa=0.5[still];[0:v][still]overlay=x='(W-w)/2+0.5*W/2':y='(H-h)/2':shortest=1,format=rgb24[out]",
+    "-map", "[out]", "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
+  ]);
+  expect(frame.length).toBe(160 * 90 * 3);
+  return frame;
+}
+
+function pixelFromFrame(frame: Buffer, x: number, y: number): Rgb {
+  const index = (y * 160 + x) * 3;
+  return [frame[index], frame[index + 1], frame[index + 2]];
+}
+
 function blend(over: Rgb, under: Rgb, alpha: number): Rgb {
   return under.map((channel, index) =>
     Math.round(channel * (1 - alpha) + over[index] * alpha)) as Rgb;
 }
 
 // Real WebView2/Chromium CDP screenshot pixels, not mocked video or canvas.
-// Green requires red, purple, half-blue-on-black and a true black timeline gap.
+// Green requires red, purple, offset 4:3 blue, and a true black gap.
 test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap", async () => {
   const { page, state } = await connectTauri();
   const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
@@ -71,7 +91,7 @@ test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap"
     "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", red,
   ]);
   runFfmpeg(ffmpeg, [
-    "-y", "-f", "lavfi", "-i", "color=c=blue:s=160x90:r=30",
+    "-y", "-f", "lavfi", "-i", "color=c=blue:s=160x120:r=30",
     "-frames:v", "1", "-c:v", "png", "-threads", "1", blue,
   ]);
 
@@ -104,7 +124,7 @@ test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap"
     media.file_size = statSync(file).size;
     media.duration = isVideo ? 2_000_000 : null;
     media.width = 160;
-    media.height = 90;
+    media.height = isVideo ? 90 : 120;
   }
   project.revision = 0;
   project.project.name = "WebView2 composited pixel oracle";
@@ -117,7 +137,7 @@ test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap"
   track("Overlay").clips = [{
     ...originalImage, id: randomUUID(), media_id: blueMediaId, source_in: 0, source_out: 750_000,
     timeline_start: 750_000, timeline_end: 1_500_000, speed: 1,
-    transform: { ...originalImage.transform, opacity: 0.5 },
+    transform: { ...originalImage.transform, opacity: 0.5, position_x: 0.5 },
   }];
   track("Audio").clips = [];
   track("Text").clips = [];
@@ -185,6 +205,27 @@ test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap"
   await expect(page.locator("video.preview-media")).toHaveCount(0);
   await expect(page.locator("img.preview-media")).toHaveCount(1);
   await capture("half-blue still over black", blend(blueRgb, [0, 0, 0], 0.5));
+
+  // 4:3 offset still over black: compare actual WebView2 screenshot spatial
+  // samples with separately rendered FFmpeg sequence coordinates (not DOM).
+  const screenshot = await page.locator(".preview-frame").screenshot({
+    animations: "disabled", scale: "css",
+  });
+  const rendered = runFfmpeg(ffmpeg, [
+    "-i", "pipe:0", "-vf", "scale=160:90,format=rgb24",
+    "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
+  ], screenshot);
+  expect(rendered.length).toBe(160 * 90 * 3);
+  const reference = ffmpegOffsetStillReference(ffmpeg, blue);
+  for (const x of [40, 120]) {
+    const actual = pixelFromFrame(rendered, x, 45);
+    const expected = pixelFromFrame(reference, x, 45);
+    console.log("[WebView2 letterbox] x=" + x + " actual=" + actual + " FFmpeg=" + expected);
+    for (let c = 0; c < 3; c++) {
+      expect(Math.abs(actual[c] - expected[c]),
+        "4:3 still offset pixel x=" + x + " RGB channel=" + c).toBeLessThanOrEqual(35);
+    }
+  }
 
   await scrub(1.75);
   await expect(page.locator("video.preview-media, img.preview-media")).toHaveCount(0);

@@ -63,6 +63,19 @@ function sourceTime(clip: Clip, timelineUs: number): number {
   return (clip.source_in + offset * rate) / 1_000_000;
 }
 
+// FFmpeg overlays a scaled picture at (W-w)/2 + position_x*W/2
+// (and similarly for Y). A full-frame object-fit:contain element already
+// centers its intrinsic picture; moving that FRAME-sized box by half-frame
+// percentages preserves FFmpeg offsets even for 4:3 sources in a 16:9 sequence.
+// Keep the native video element mounted: this is presentation only.
+function pictureStyle(clip: Clip) {
+  const opacity = Math.max(0, Math.min(1, clip.transform?.opacity ?? 1));
+  const x = (clip.transform?.position_x ?? 0) * 50;
+  const y = (clip.transform?.position_y ?? 0) * 50;
+  // Preserve the old compositor path for the common zero-offset case.
+  return x === 0 && y === 0 ? { opacity } : { opacity, transform: `translate(${x}%, ${y}%)` };
+}
+
 // The custom protocol never accepts filesystem paths; only UUIDs belonging
 // to the currently-open project can be read by the Rust stream handler.
 function mediaUrl(mediaId: string): string {
@@ -393,7 +406,7 @@ export function PreviewPlayer({
               ref={video}
               className="preview-media"
               src={videoSource}
-              style={{ opacity: Math.max(0, Math.min(1, active.transform?.opacity ?? 1)) }}
+              style={pictureStyle(active)}
               playsInline
               preload="auto"
               onLoadedMetadata={() => {
@@ -466,7 +479,7 @@ export function PreviewPlayer({
                     className="preview-media"
                     src={layerSrc}
                     alt="Кадр изображения"
-                    style={{ opacity: Math.max(0, Math.min(1, clip.transform?.opacity ?? 1)) }}
+                    style={pictureStyle(clip)}
                   />
                 ) : null)}
             </div>
@@ -478,12 +491,12 @@ export function PreviewPlayer({
                   className="preview-media"
                   src={layerSrc}
                   alt="Кадр изображения"
-                  style={{ opacity: Math.max(0, Math.min(1, clip.transform?.opacity ?? 1)) }}
+                  style={pictureStyle(clip)}
                 />
               ))}
             </div>
           ) : image && src ? (
-            <img className="preview-media" src={src} alt="Кадр изображения" />
+            <img className="preview-media" src={src} alt="Кадр изображения" style={active ? pictureStyle(active) : undefined} />
           ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
           ) : null}
