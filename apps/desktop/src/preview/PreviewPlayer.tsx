@@ -302,8 +302,18 @@ export function PreviewPlayer({
               onPlaying={() => {
                 if (!supportsPresentedFrames(video.current) && videoClockReady()) setSyncedVideoKey(key);
               }}
-              onWaiting={() => setSyncedVideoKey(null)}
-              onStalled={() => setSyncedVideoKey(null)}
+              onWaiting={() => {
+                // Buffering breaks the uninterrupted compositor-frame chain:
+                // missed frames after it must pass normal playhead validation.
+                frameAnchorRef.current = null;
+                setPresentedVideoFrame(null);
+                setSyncedVideoKey(null);
+              }}
+              onStalled={() => {
+                frameAnchorRef.current = null;
+                setPresentedVideoFrame(null);
+                setSyncedVideoKey(null);
+              }}
               onSeeking={() => {
                 frameAnchorRef.current = null;
                 setSyncedVideoKey(null);
