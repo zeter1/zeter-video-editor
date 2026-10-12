@@ -981,8 +981,8 @@ button {
   height: 100%;
   object-fit: contain;
 }
-/* An image-only composite shares FFmpeg's black canvas and layer ordering.
-   Positioned children paint in DOM order; each clip owns its alpha. */
+/* Stills and at most one native decoded video share FFmpeg's black canvas.
+   Positioned children paint in track order with per-clip alpha. */
 .preview-still-layers {
   position: relative;
   isolation: isolate;
