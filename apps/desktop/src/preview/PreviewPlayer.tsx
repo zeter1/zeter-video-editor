@@ -383,11 +383,15 @@ export function PreviewPlayer({
               }}
               onStalled={() => {
                 frameAnchorRef.current = null;
-                // Fetch starvation does not necessarily stop decoding already
-                // buffered video (unlike 'waiting'). Two advancing compositor
-                // frames can prove continuity without another 'playing' event.
+                // A stalled fetch may leave buffered playback advancing, so
+                // new 'playing' is not guaranteed. But if 'waiting' already
+                // stopped playback, a subsequent stalled event MUST NOT bypass
+                // its requirement for native 'playing' before recovery.
+                const stillWaiting = bufferedRecoveryRef.current?.key === key &&
+                  !bufferedRecoveryRef.current.resumed;
                 bufferedRecoveryRef.current = {
-                  key, playheadUs: clockPositionRef.current, resumed: true, candidate: null,
+                  key, playheadUs: clockPositionRef.current,
+                  resumed: !stillWaiting, candidate: null,
                 };
                 setPresentedVideoFrame(null);
                 setSyncedVideoKey(null);

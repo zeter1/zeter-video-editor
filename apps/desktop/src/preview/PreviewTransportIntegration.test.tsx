@@ -764,6 +764,9 @@ describe("PreviewPlayer continuous transport", () => {
       // Audio must wait for native 'playing' and two advancing frames.
       const playsBeforeNearBuffer = audioPlays();
       fireEvent.waiting(video);
+      // A second stalled event must not convert native waiting into resumed
+      // playback, even if old frame callbacks continue to be delivered.
+      fireEvent.stalled(video);
       video.currentTime = 4.37;
       present(4.37, 112); // A matching-but-queued frame before native playing.
       expect(audioPlays()).toBe(playsBeforeNearBuffer);
