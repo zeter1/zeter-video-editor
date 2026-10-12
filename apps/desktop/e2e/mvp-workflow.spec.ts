@@ -1040,3 +1040,192 @@ test("exports a sanitized support bundle through the real desktop command bounda
   expect(existsSync(outputPath)).toBe(true);
   expect(readFileSync(outputPath).byteLength).toBeGreaterThan(0);
 });
+
+test("applies native video audio volume and track mute in real WebView2", async () => {
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  await expectRevision(page, 0);
+
+  const video = page.locator("video.preview-media");
+  await expect(video).toHaveCount(1);
+  await expect.poll(
+    () => video.evaluate((element) => (element as HTMLVideoElement).readyState),
+    { timeout: 15_000 },
+  ).toBeGreaterThan(0);
+  expect(await video.evaluate((element) => (element as HTMLVideoElement).muted)).toBe(false);
+
+  await edit(page, 0, {
+    SetVolume: { sequence_id: SEQUENCE, track_id: VIDEO_TRACK, clip_id: VIDEO_CLIP, volume: 0.35 },
+  });
+  await page.reload();
+  await expect.poll(
+    () => page.locator("video.preview-media").evaluate((element) => (element as HTMLVideoElement).volume),
+  ).toBeCloseTo(0.35, 2);
+
+  await edit(page, 1, {
+    SetTrackMute: { sequence_id: SEQUENCE, track_id: VIDEO_TRACK, muted: true },
+  });
+  await page.reload();
+  await expect(page.locator("video.preview-media")).toHaveCount(1);
+  await expect.poll(
+    () => page.locator("video.preview-media").evaluate((element) => (element as HTMLVideoElement).muted),
+  ).toBe(true);
+
+  const beforeTransport = await invokeTauri<Snapshot>(page, "project_snapshot");
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  expect(await invokeTauri<Snapshot>(page, "project_snapshot")).toEqual(beforeTransport);
+});
+
+test("plays a standalone audio track in real WebView2 without editing the project", async () => {
+  const { page, state } = await connectTauri();
+  await openProject(page, state.workflowProjectPath);
+  await expectRevision(page, 0);
+
+  const before = await invokeTauri<Snapshot>(page, "project_snapshot");
+  const audio = page.getByTestId(`preview-audio-${AUDIO_CLIP}`);
+  await expect(audio).toHaveCount(1);
+  await expect(audio).toHaveAttribute("src", /44444444-4444-4444-8444-444444444442/);
+  await expect.poll(
+    () => audio.evaluate((element) => (element as HTMLAudioElement).readyState),
+    { timeout: 15_000 },
+  ).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect.poll(
+    () => audio.evaluate((element) => (element as HTMLAudioElement).currentTime),
+    { timeout: 15_000 },
+  ).toBeGreaterThan(0.15);
+
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect.poll(
+    () => audio.evaluate((element) => (element as HTMLAudioElement).paused),
+  ).toBe(true);
+  expect(await invokeTauri<Snapshot>(page, "project_snapshot")).toEqual(before);
+
+  await edit(page, before.revision, {
+    SetTrackMute: { sequence_id: SEQUENCE, track_id: AUDIO_TRACK, muted: true },
+  });
+  await page.reload();
+  const muted = page.getByTestId(`preview-audio-${AUDIO_CLIP}`);
+  await expect(muted).toHaveCount(1);
+  await expect.poll(
+    () => muted.evaluate((element) => (element as HTMLAudioElement).muted),
+  ).toBe(true);
+});
+
+
+test("plays real video through an audio-backed gap and still into the next video, then Stop/restart", async () => {
+  const { page, state } = await connectTauri();
+
+  // Use a disposable copy of the verified Rust/WebView2 fixture, not a
+  // synthetic DOM mock or a modification of the canonical test project.
+  const project = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as {
+    revision: number;
+    project: {
+      name: string;
+      sequences: Array<{
+        tracks: Array<{
+          name: string;
+          clips: Array<{
+            id: string;
+            kind: string;
+            source_in: number;
+            source_out: number;
+            timeline_start: number;
+            timeline_end: number;
+            speed: number;
+          }>;
+        }>;
+      }>;
+    };
+  };
+  const tracks = project.project.sequences[0].tracks;
+  const getTrack = (name: string) => {
+    const track = tracks.find((item) => item.name === name);
+    if (!track) throw new Error(`Missing E2E track: ${name}`);
+    return track;
+  };
+  const videoTrack = getTrack("Video");
+  const overlayTrack = getTrack("Overlay");
+  const audioTrack = getTrack("Audio");
+  const originalVideo = videoTrack.clips[0];
+  const originalStill = overlayTrack.clips[0];
+  const originalAudio = audioTrack.clips[0];
+  project.project.name = "Stage C preview transport";
+  project.revision = 0;
+  videoTrack.clips = [
+    // Timeline 0..1.5s comes from media 1..4s at 2x rate.
+    { ...originalVideo, source_in: 1_000_000, source_out: 4_000_000,
+      timeline_start: 0, timeline_end: 1_500_000, speed: 2 },
+    // Timeline 4..5s comes from a different in-point of the same file.
+    { ...originalVideo, id: randomUUID(), source_in: 4_000_000, source_out: 5_000_000,
+      timeline_start: 4_000_000, timeline_end: 5_000_000, speed: 1 },
+  ];
+  overlayTrack.clips = [
+    { ...originalStill, source_out: 1_500_000,
+      timeline_start: 2_500_000, timeline_end: 4_000_000 },
+  ];
+  // A separate audio track carries sound through the video->gap boundary,
+  // then finishes before the last video. Its decoder must unmount on time.
+  audioTrack.clips = [
+    { ...originalAudio, source_out: 3_000_000, timeline_end: 3_000_000 },
+  ];
+  const projectPath = path.join(
+    path.dirname(state.workflowProjectPath),
+    "stage-c-preview-transport.vcut",
+  );
+  writeFileSync(projectPath, JSON.stringify(project, null, 2));
+  await openProject(page, projectPath);
+  await expectRevision(page, 0);
+
+  const before = await invokeTauri<Snapshot>(page, "project_snapshot");
+  const firstVideo = page.locator("video.preview-media");
+  await expect(firstVideo).toHaveCount(1);
+  await expect.poll(() => firstVideo.evaluate(
+    (element) => (element as HTMLVideoElement).readyState,
+  ), { timeout: 15_000 }).toBeGreaterThan(0);
+  await expect.poll(() => firstVideo.evaluate(
+    (element) => (element as HTMLVideoElement).currentTime,
+  )).toBeGreaterThan(0.9);
+  expect(await firstVideo.evaluate(
+    (element) => (element as HTMLVideoElement).playbackRate,
+  )).toBe(2);
+
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+
+  // Real native media ends at 1.5s of timeline, not 4s of source media.
+  // Preview continues over 1s of empty picture while standalone WAV plays.
+  await expect(page.getByText("На позиции курсора нет видеоклипа.", { exact: true }))
+    .toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId(`preview-audio-${AUDIO_CLIP}`)).toHaveCount(1);
+  await expect(page.locator("img.preview-media")).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.locator("video.preview-media")).toHaveCount(1, { timeout: 15_000 });
+
+  const secondVideo = page.locator("video.preview-media");
+  await expect.poll(() => secondVideo.evaluate(
+    (element) => (element as HTMLVideoElement).currentTime,
+  ), { timeout: 15_000 }).toBeGreaterThan(3.9);
+  expect(await secondVideo.evaluate(
+    (element) => (element as HTMLVideoElement).playbackRate,
+  )).toBe(1);
+  await expect(page.getByTestId(`preview-audio-${AUDIO_CLIP}`)).toHaveCount(0);
+
+  // Stop must reset both media clocks and the UI playhead, but never mutate
+  // the Rust project/revision. Replay starts at the first source in-point.
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await expect(page.locator(".preview-controls .timecode")).toHaveText("0.000 с");
+  await expect(page.locator("video.preview-media")).toHaveCount(1);
+  expect(await invokeTauri<Snapshot>(page, "project_snapshot")).toEqual(before);
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect.poll(() => page.locator("video.preview-media").evaluate(
+    (element) => (element as HTMLVideoElement).currentTime,
+  )).toBeGreaterThan(1);
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  expect(await invokeTauri<Snapshot>(page, "project_snapshot")).toEqual(before);
+});
