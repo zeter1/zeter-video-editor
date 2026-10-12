@@ -73,6 +73,36 @@ describe("PreviewPlayer", () => {
     expect(onSeek).not.toHaveBeenCalled();
   });
 
+  it("names and describes Preview controls in Russian without changing project data", () => {
+    const onCommit = vi.fn();
+    render(<PreviewPlayer sequence={sequence} selectedClip={null} selectedTrackId={null}
+      playheadTimeUs={0} onSeek={vi.fn()} onCommit={onCommit} />);
+
+    for (const [name, tooltip] of [
+      ["К предыдущей границе клипа", "Перейти к предыдущей границе клипа"],
+      ["Предыдущий кадр", "Предыдущий кадр"],
+      ["Воспроизвести", "Воспроизвести"],
+      ["Остановить и вернуться к началу", "Остановить и вернуться к началу"],
+      ["Следующий кадр", "Следующий кадр"],
+      ["К следующей границе клипа", "Перейти к следующей границе клипа"],
+      ["Качество предпросмотра: Полное", "Качество предпросмотра: Полное"],
+      ["Качество предпросмотра: 1/2", "Качество предпросмотра: 1/2"],
+      ["Качество предпросмотра: 1/4", "Качество предпросмотра: 1/4"],
+      ["Масштаб предпросмотра: Вписать", "Масштаб предпросмотра: Вписать"],
+      ["Масштаб предпросмотра: 100%", "Масштаб предпросмотра: 100%"],
+    ]) {
+      expect(screen.getByRole("button", { name, exact: true }).getAttribute("title")).toBe(tooltip);
+    }
+
+    expect(screen.getByTestId("preview-quality").textContent).toBe("Полное");
+    expect(screen.getByTestId("preview-scale").textContent).toBe("Вписать");
+    fireEvent.click(screen.getByRole("button", { name: "Качество предпросмотра: 1/4" }));
+    fireEvent.click(screen.getByRole("button", { name: "Масштаб предпросмотра: 100%" }));
+    expect(screen.getByTestId("preview-quality").textContent).toBe("1/4");
+    expect(screen.getByTestId("preview-scale").textContent).toBe("100%");
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("keeps quality and Fit/100% controls transient and never emits an edit command", () => {
     const onCommit = vi.fn();
     render(
