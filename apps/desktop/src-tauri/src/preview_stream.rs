@@ -294,6 +294,24 @@ mod tests {
             debug_stall_delay(&format!("{id} 900 trailing"), id, 1),
             None
         );
+        // A third token arms the delay only from an explicit byte offset,
+        // allowing the native decoder to present frames before rebuffering.
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900 524288"), id, 524_287),
+            None
+        );
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900 524288"), id, 524_288),
+            Some(900)
+        );
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900 0"), id, 524_288),
+            None
+        );
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900 999999999"), id, 524_288),
+            None
+        );
         assert_eq!(debug_stall_delay("invalid", id, 1), None);
     }
 
