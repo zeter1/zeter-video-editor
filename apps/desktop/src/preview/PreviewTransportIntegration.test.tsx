@@ -717,6 +717,23 @@ describe("PreviewPlayer continuous transport", () => {
       present(4.35, 99);
       expect(onSeek).toHaveBeenLastCalledWith(1_350_000);
 
+      // Once buffering/stalling begins, a compositor callback gap is NOT
+      // uninterrupted playback. A later decoder timestamp may be stale;
+      // it must not move the playhead or let a WAV track run ahead.
+      const beforeBuffering = onSeek.mock.calls.length;
+      fireEvent.waiting(video);
+      video.currentTime = 4.8;
+      present(4.8, 103);
+      expect(onSeek).toHaveBeenCalledTimes(beforeBuffering);
+      video.currentTime = 4.35;
+      present(4.35, 104); // A matching frame may re-anchor after buffering.
+      fireEvent.stalled(video);
+      video.currentTime = 4.85;
+      present(4.85, 110);
+      expect(onSeek).toHaveBeenCalledTimes(beforeBuffering);
+      video.currentTime = 4.35;
+      present(4.35, 111);
+
       // A small user scrub (20ms) does NOT exceed the normal decoder jitter
       // threshold and does not trigger native seeking. It still invalidates
       // dropped-frame recovery, otherwise a late 4.8s callback jumps ahead.
