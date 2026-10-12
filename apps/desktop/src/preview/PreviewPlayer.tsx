@@ -495,7 +495,7 @@ export function PreviewPlayer({
               ))}
             </div>
           ) : image && src ? (
-            <img className="preview-media" src={src} alt="Кадр изображения" style={pictureStyle(active)} />
+            <img className="preview-media" src={src} alt="Кадр изображения" style={active ? pictureStyle(active) : undefined} />
           ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
           ) : null}
