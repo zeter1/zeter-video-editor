@@ -75,6 +75,64 @@ fn parse_range(value: &str, file_len: u64) -> Option<(u64, u64)> {
     Some((start, end.min(start + MAX_CHUNK - 1)))
 }
 
+
+// Delays *real bytes* in the debug E2E process, never in a release build.
+// The marker is created by Playwright after the application starts. Its
+// strict media UUID and bounded millisecond delay prevent cross-media leaks,
+// and a per-range receipt proves the stream handler actually delayed data.
+#[cfg(debug_assertions)]
+fn debug_stall_delay(control: &str, media_id: &str, offset: u64) -> Option<u64> {
+    if offset == 0 || control.len() > 128 {
+        return None;
+    }
+    let mut parts = control.split_ascii_whitespace();
+    let (Some(id), Some(delay), None) = (parts.next(), parts.next(), parts.next()) else {
+        return None;
+    };
+    if id != media_id {
+        return None;
+    }
+    let ms = delay.parse::<u64>().ok()?;
+    (250..=2_000).contains(&ms).then_some(ms)
+}
+
+#[cfg(debug_assertions)]
+fn maybe_delay_e2e_video_range(media_id: &str, start: u64) {
+    use std::io::Write;
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+    let Ok(path) = std::env::var("ZETER_E2E_MEDIA_STALL_CONTROL") else {
+        return;
+    };
+    let Ok(metadata) = std::fs::metadata(&path) else {
+        return;
+    };
+    if metadata.len() > 128 {
+        return;
+    }
+    let Ok(control) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let Some(ms) = debug_stall_delay(&control, media_id, start) else {
+        return;
+    };
+
+    let started = Instant::now();
+    std::thread::sleep(Duration::from_millis(ms));
+    let finished = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    // This receipt contains no media contents or filesystem paths.
+    if let Ok(mut receipts) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(format!("{path}.hits"))
+    {
+        let _ = writeln!(receipts, "{start} {ms} {} {finished}", started.elapsed().as_millis());
+    }
+}
+
 pub fn serve(app: &AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
     if request.method().as_str() != "GET" && request.method().as_str() != "HEAD" {
         return failure(405);
@@ -137,6 +195,10 @@ pub fn serve(app: &AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
     };
     let partial = requested.is_some() || total > MAX_CHUNK;
     let count = end - start + 1;
+    #[cfg(debug_assertions)]
+    if request.method().as_str() == "GET" && mime.starts_with("video/") {
+        maybe_delay_e2e_video_range(media_id, start);
+    }
     if file.seek(SeekFrom::Start(start)).is_err() {
         return failure(500);
     }
@@ -172,6 +234,20 @@ mod tests {
         assert_eq!(parse_range("bytes=0-1,5-10", 100), None);
         assert_eq!(parse_range("bytes=-0", 100), None);
         assert_eq!(parse_range("bytes=0-", 0), None);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn debug_starvation_requires_exact_media_and_bounded_nonzero_range() {
+        use super::debug_stall_delay;
+        let id = "44444444-4444-4444-8444-444444444441";
+        assert_eq!(debug_stall_delay(&format!("{id} 900"), id, 1_048_576), Some(900));
+        assert_eq!(debug_stall_delay(&format!("{id} 900"), id, 0), None);
+        assert_eq!(debug_stall_delay(&format!("{id} 900"), "different", 1), None);
+        assert_eq!(debug_stall_delay(&format!("{id} 100"), id, 1), None);
+        assert_eq!(debug_stall_delay(&format!("{id} 2001"), id, 1), None);
+        assert_eq!(debug_stall_delay(&format!("{id} 900 trailing"), id, 1), None);
+        assert_eq!(debug_stall_delay("invalid", id, 1), None);
     }
 
     #[test]

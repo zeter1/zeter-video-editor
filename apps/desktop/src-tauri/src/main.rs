@@ -26,10 +26,26 @@ mod task18_tests;
 mod task19_tests;
 
 fn main() {
-    tauri::Builder::default()
-        .register_uri_scheme_protocol("zeter-media", |ctx, request| {
-            preview_stream::serve(ctx.app_handle(), request)
-        })
+    let builder = tauri::Builder::default();
+    // The debug E2E byte-starvation fixture deliberately delays real range
+    // responses. Serve on worker threads so stalled file IO cannot block the
+    // editor's WebView event loop; release builds retain the existing handler.
+    #[cfg(debug_assertions)]
+    let builder = builder.register_asynchronous_uri_scheme_protocol(
+        "zeter-media",
+        |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            std::thread::spawn(move || {
+                responder.respond(preview_stream::serve(&app, request));
+            });
+        },
+    );
+    #[cfg(not(debug_assertions))]
+    let builder = builder.register_uri_scheme_protocol("zeter-media", |ctx, request| {
+        preview_stream::serve(ctx.app_handle(), request)
+    });
+
+    builder
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .manage(app::AppState::new())
