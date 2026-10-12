@@ -262,30 +262,35 @@ export function PreviewPlayer({
             skippedCallbacks,
           );
           const recovery = bufferedRecoveryRef.current;
-          if (nextUs === null && recovery?.key === key && recovery.resumed &&
-              recovery.playheadUs === clockPositionRef.current &&
-              !pendingExternalFrameRef.current &&
-              Number.isFinite(metadata.presentedFrames)) {
-            // During buffering the video decoder can restart beyond the
-            // timeline's tight 120ms window. A single late frame is not
-            // sufficient evidence: require a SECOND, strictly newer
-            // compositor frame and a matching native decoder clock. Source
-            // bounds and forward-only checks remain in the pure validator.
-            const recoveredUs = presentedFrameToTimelineUs(
-              active, metadata.mediaTime, current.currentTime, clockPositionRef.current, true,
-            );
-            if (recoveredUs !== null && recoveredUs > clockPositionRef.current + 120_000) {
+          if (recovery?.key === key) {
+            // A frame queued during waiting/stalled may still be close to the
+            // playhead. Even that frame must NOT release independent WAV before
+            // native 'playing' and two advancing compositor submissions.
+            if (!recovery.resumed || recovery.playheadUs !== clockPositionRef.current ||
+                !Number.isFinite(metadata.presentedFrames)) {
+              nextUs = null;
+            } else {
+              // Tight near-playhead validation is always required after a user
+              // scrub. Only uninterrupted, post-playing buffer recovery may
+              // use the wider catch-up window beyond 120ms.
+              const recoveryUs = nextUs !== null ? nextUs :
+                !pendingExternalFrameRef.current ? presentedFrameToTimelineUs(
+                  active, metadata.mediaTime, current.currentTime, clockPositionRef.current, true,
+                ) : null;
+              const eligibleUs = recoveryUs !== null &&
+                (nextUs !== null || recoveryUs > clockPositionRef.current + 120_000)
+                ? recoveryUs : null;
               const first = recovery.candidate;
-              if (first && metadata.presentedFrames > first.presentedFrames &&
+              if (eligibleUs !== null && first &&
+                  metadata.presentedFrames > first.presentedFrames &&
                   metadata.mediaTime > first.mediaSeconds) {
-                nextUs = recoveredUs;
+                nextUs = eligibleUs;
               } else {
-                recovery.candidate = {
+                recovery.candidate = eligibleUs === null ? null : {
                   mediaSeconds: metadata.mediaTime, presentedFrames: metadata.presentedFrames,
                 };
+                nextUs = null;
               }
-            } else {
-              recovery.candidate = null;
             }
           }
           if (nextUs !== null) {
