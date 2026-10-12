@@ -197,4 +197,46 @@ describe("Editor keyboard shortcuts", () => {
     fireEvent.keyDown(window, { key: "k", ctrlKey: true, repeat: true });
     expect(client.executeEditCommand).not.toHaveBeenCalled();
   });
+
+  it("adds a marker at the playhead with M without requiring a selected clip", async () => {
+    const { client, projectStore, transientStore } = mount();
+    transientStore.selectClip(null);
+    transientStore.setPlayheadTime(1_250_000);
+    fireEvent.keyDown(window, { key: "m" });
+
+    await waitFor(() => expect(client.executeEditCommand).toHaveBeenCalledWith({
+      request_id: expect.any(String),
+      expected_revision: 4,
+      command: {
+        AddMarker: {
+          sequence_id: "sequence-1",
+          marker: {
+            id: expect.any(String),
+            time: 1_250_000,
+            label: "Маркер 1",
+          },
+        },
+      },
+    }));
+    expect(projectStore.getState().revision).toBe(4);
+    await waitFor(() => expect(client.reconcileCommandResult).toHaveBeenCalledTimes(1));
+  });
+
+  it("never steals M from inputs, modifiers, dialogs, active drags or key repeats", () => {
+    const { client, transientStore } = mount();
+    const input = screen.getByRole("slider", { name: "Opacity" });
+    fireEvent.keyDown(input, { key: "m" });
+    fireEvent.keyDown(window, { key: "m", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "m", metaKey: true });
+    fireEvent.keyDown(window, { key: "M", shiftKey: true });
+    fireEvent.keyDown(window, { key: "m", repeat: true });
+    transientStore.beginClipDrag("clip-1", 0);
+    fireEvent.keyDown(window, { key: "m" });
+    transientStore.endClipDrag();
+    expect(client.executeEditCommand).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: "ь", code: "KeyM" });
+    fireEvent.keyDown(window, { key: "m" });
+    expect(client.executeEditCommand).toHaveBeenCalledTimes(1);
+  });
 });

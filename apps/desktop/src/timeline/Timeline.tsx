@@ -208,7 +208,7 @@ export function Timeline({
         marker: {
           id: crypto.randomUUID(),
           time: transient.playheadTimeUs,
-          label: `Marker ${sequence.markers.length + 1}`,
+          label: `Маркер ${sequence.markers.length + 1}`,
         },
       },
     });

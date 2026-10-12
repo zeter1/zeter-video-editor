@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
@@ -102,6 +102,7 @@ export function AppShell({
   const [openError, setOpenError] = useState<AppErrorDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const markerShortcutPending = useRef(false);
 
   const project = projectState.snapshot?.project ?? null;
   const activeSequence = project?.sequences[0] ?? null;
@@ -398,13 +399,38 @@ export function AppShell({
       const transientState = transientStore.getState();
       if (transientState.drag) return;
       const sequence = state.snapshot?.project.sequences[0];
-      const track = sequence?.tracks.find(
+      if (!sequence) return;
+
+      // Match the physical M key also on a Russian keyboard layout (KeyM = ь).
+      // Never enqueue two markers against the same Rust revision while a
+      // previous shortcut is still awaiting authoritative reconciliation.
+      if (!control && !event.metaKey && !event.shiftKey &&
+          (key === "m" || event.code === "KeyM")) {
+        event.preventDefault();
+        if (markerShortcutPending.current) return;
+        markerShortcutPending.current = true;
+        void handleEditCommand({
+          AddMarker: {
+            sequence_id: sequence.id,
+            marker: {
+              id: crypto.randomUUID(),
+              time: transientState.playheadTimeUs,
+              label: `Маркер ${sequence.markers.length + 1}`,
+            },
+          },
+        }).finally(() => {
+          markerShortcutPending.current = false;
+        });
+        return;
+      }
+
+      const track = sequence.tracks.find(
         (candidate) =>
           !candidate.locked &&
           candidate.clips.some((clip) => clip.id === transientState.selectedClipId),
       );
       const clip = track?.clips.find((candidate) => candidate.id === transientState.selectedClipId);
-      if (!sequence || !track || !clip) return;
+      if (!track || !clip) return;
 
       if (control && !event.shiftKey && key === "k" &&
           transientState.playheadTimeUs > clip.timeline_start &&
