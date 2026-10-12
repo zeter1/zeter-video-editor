@@ -789,6 +789,11 @@ describe("PreviewPlayer continuous transport", () => {
       video.currentTime = 4.4;
       present(4.4, 116);
       scrub(1_400_000);
+      // While video waited, the independent WAV performed its own native seek
+      // to the paused timeline clock. Native currentTime changed immediately,
+      // but the audio decoder must still acknowledge it with 'seeked'.
+      expect(audioPlays()).toBe(playsBeforeStalled);
+      fireEvent.seeked(audio);
       expect(audioPlays()).toBe(playsBeforeStalled + 1);
 
       // After a true buffer interruption WebView2 can resume >120 ms
