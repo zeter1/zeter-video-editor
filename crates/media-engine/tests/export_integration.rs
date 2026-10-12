@@ -312,3 +312,154 @@ fn real_export_has_no_audio_after_a_short_audio_clip_ends() {
         "audio must not leak into the picture-only gap after the 0.5-second audio clip"
     );
 }
+
+#[test]
+fn real_export_holds_still_images_and_keeps_the_intervening_gap_black() {
+    let Ok(dir) = env::var("ZETER_TEST_FFMPEG_DIR") else {
+        eprintln!("SKIP: set ZETER_TEST_FFMPEG_DIR for real still-image pixel oracle");
+        return;
+    };
+
+    let runtime = ManagedRuntime::from_dir(PathBuf::from(dir), "still-image-parity");
+    let capabilities = detect_capabilities(&runtime).expect("managed FFmpeg capabilities");
+    assert!(capabilities.software.h264, "managed FFmpeg requires libx264");
+
+    let temp = tempfile::tempdir().unwrap();
+    let make_image = |color: &str| {
+        let image = temp.path().join(format!("{color}.png"));
+        run(&ProcessSpec::new(&runtime.ffmpeg_path)
+            .arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-f")
+            .arg("lavfi")
+            .arg("-i")
+            .arg(format!("color=c={color}:s=160x90:r=30"))
+            .arg("-frames:v")
+            .arg("1")
+            .arg("-update")
+            .arg("1")
+            .arg(image.as_os_str()))
+        .expect("create a one-frame PNG input");
+        image
+    };
+    let red = make_image("red");
+    let blue = make_image("blue");
+    let red_id = MediaId::new();
+    let blue_id = MediaId::new();
+    let sequence_id = SequenceId::new();
+
+    let make_clip = |media_id, start, end| Clip {
+        id: ClipId::new(),
+        kind: ClipKind::Image,
+        media_id: Some(media_id),
+        source_in: time(0),
+        source_out: time(end - start),
+        timeline_start: time(start),
+        timeline_end: time(end),
+        transform: Transform::default(),
+        color: ColorAdjustments::default(),
+        audio: AudioState::default(),
+        speed: 1.0,
+        transition: None,
+        text: None,
+    };
+    let make_media = |id, path: &std::path::Path| MediaRef {
+        id,
+        absolute_path: path.to_string_lossy().into_owned(),
+        project_relative_path: None,
+        file_size: std::fs::metadata(path).unwrap().len(),
+        duration: None,
+        width: Some(160),
+        height: Some(90),
+    };
+
+    let project = Project {
+        id: ProjectId::new(),
+        name: "Still image and black-gap parity".into(),
+        settings: ProjectSettings::default(),
+        media: vec![make_media(red_id, &red), make_media(blue_id, &blue)],
+        sequences: vec![Sequence {
+            id: sequence_id,
+            name: "Still / gap / still".into(),
+            width: 160,
+            height: 90,
+            fps: 30.0,
+            tracks: vec![Track {
+                id: TrackId::new(),
+                name: "Images".into(),
+                kind: TrackKind::Video,
+                muted: false,
+                locked: false,
+                hidden: false,
+                clips: vec![
+                    make_clip(red_id, 0, 1_000_000),
+                    make_clip(blue_id, 1_500_000, 2_000_000),
+                ],
+            }],
+            subtitle_segments: Vec::new(),
+            subtitle_style: SubtitleStyle::default(),
+            markers: Vec::new(),
+        }],
+    };
+    let snapshot =
+        RenderSnapshot::from_sequence(&project, sequence_id, ProjectRevision::new(8)).unwrap();
+    let plan = RenderPlan::compile(
+        &snapshot,
+        ExportSettings {
+            container: ExportContainer::Mp4,
+            codec: VideoCodec::H264,
+            width: 160,
+            height: 90,
+            fps: 30.0,
+            quality: ExportQuality::High,
+            custom_bitrate: None,
+            prefer_hardware: false,
+        },
+    )
+    .unwrap();
+    let output = temp.path().join("stills-and-gap.mp4");
+    ExportJob::new(runtime.clone(), capabilities)
+        .run(plan, &output, CancellationToken::new())
+        .expect("export sequence with two image clips");
+    let center_pixel_at = |seconds: &str, filename: &str| {
+        let sample = temp.path().join(filename);
+        run(&ProcessSpec::new(&runtime.ffmpeg_path)
+            .arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-i")
+            .arg(output.as_os_str())
+            .arg("-ss")
+            .arg(seconds)
+            .arg("-frames:v")
+            .arg("1")
+            .arg("-vf")
+            .arg("crop=2:2:80:44,format=rgb24")
+            .arg("-f")
+            .arg("rawvideo")
+            .arg(sample.as_os_str()))
+        .expect("independently decode a raw RGB frame at a chosen timeline time");
+        let rgb = std::fs::read(sample).expect("read RGB frame");
+        assert_eq!(rgb.len(), 12, "expected 2x2 RGB pixel oracle at {seconds}");
+        [rgb[0], rgb[1], rgb[2]]
+    };
+    let in_red = center_pixel_at("0.750", "red.rgb");
+    let in_gap = center_pixel_at("1.250", "gap.rgb");
+    let in_blue = center_pixel_at("1.750", "blue.rgb");
+
+    assert!(
+        in_red[0] > 180 && in_red[1] < 80 && in_red[2] < 80,
+        "red still must remain visible throughout its clip: {in_red:?}"
+    );
+    assert!(
+        in_gap.iter().all(|channel| *channel < 40),
+        "the timeline interval without images must be black: {in_gap:?}"
+    );
+    assert!(
+        in_blue[2] > 100 && in_blue[0] < 80 && in_blue[1] < 100,
+        "blue still must remain visible throughout its clip: {in_blue:?}"
+    );
+}
