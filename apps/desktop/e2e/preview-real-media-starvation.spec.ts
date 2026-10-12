@@ -11,9 +11,11 @@ type Clip = {
 };
 type Project = {
   revision: number;
-  project: { name: string; sequences: Array<{
-    tracks: Array<{ name: string; clips: Clip[] }>;
-  }> };
+  project: {
+    name: string;
+    media: Array<{ id: string; [key: string]: unknown }>;
+    sequences: Array<{ tracks: Array<{ name: string; clips: Clip[] }> }>;
+  };
 };
 type EventRecord = { type: string; atMs: number; readyState: number; currentTime: number };
 
@@ -35,8 +37,15 @@ test("real delayed media bytes recover 2x compositor and independent WAV", async
 
   project.revision = 0;
   project.project.name = "Real 206 byte-starvation 2x WAV regression";
+  // Give this test a fresh, project-authorized media UUID, not a cached URL
+  // reused by earlier WebView2 tests. The physical source file is untouched.
+  const mediaRecord = project.project.media.find((item) => item.id === videoClip.media_id);
+  if (!mediaRecord) throw new Error("Missing authorized fixture video media");
+  const uniqueVideoMediaId = randomUUID();
+  mediaRecord.id = uniqueVideoMediaId;
   track("Video").clips = [{
-    ...videoClip, id: randomUUID(), source_in: 0, source_out: 6_000_000,
+    ...videoClip, id: randomUUID(), media_id: uniqueVideoMediaId,
+    source_in: 0, source_out: 6_000_000,
     timeline_start: 0, timeline_end: 3_000_000, speed: 2,
   }];
   track("Audio").clips = [{
@@ -56,7 +65,7 @@ test("real delayed media bytes recover 2x compositor and independent WAV", async
   rmSync(rangesPath, { force: true });
   // Debug-only native hook delays GET ranges beyond the first chunk by 2s.
   // Production release builds have no stall hook and use the old sync handler.
-  writeFileSync(control, videoClip.media_id + " 2000\n");
+  writeFileSync(control, uniqueVideoMediaId + " 2000\n");
   try {
     await invokeTauri(page, "project_open", { path: fixturePath });
     await page.reload();
