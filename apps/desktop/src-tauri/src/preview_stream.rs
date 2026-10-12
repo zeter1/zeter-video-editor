@@ -93,7 +93,12 @@ fn parse_debug_stall_control(control: &str, media_id: &str) -> Option<(u64, u64,
     let ms = parts.next()?.parse::<u64>().ok()?;
     // Optional bounded byte window for genuine mid-play starvation. The
     // original two-token fixture still delays every nonzero request.
-    let from = parts.next().map(str::parse::<u64>).transpose().ok()?.unwrap_or(1);
+    let from = parts
+        .next()
+        .map(str::parse::<u64>)
+        .transpose()
+        .ok()?
+        .unwrap_or(1);
     let until = parts
         .next()
         .map(str::parse::<u64>)
