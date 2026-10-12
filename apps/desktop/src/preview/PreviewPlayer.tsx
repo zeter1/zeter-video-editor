@@ -76,7 +76,7 @@ export function PreviewPlayer({
   // A seek within the SAME clip keeps its media key. The decoder may report
   // the new currentTime before WebView2 has submitted that frame to the screen.
   const [presentedVideoFrame, setPresentedVideoFrame] = useState<{
-    key: string; timeUs: number;
+    key: string; timeUs: number; timingKey: string;
   } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   // Accepted compositor frames anchor recovery after dropped callbacks.
@@ -92,6 +92,9 @@ export function PreviewPlayer({
   // A manual scrub inside the 120ms decoder tolerance may not cause native
   // seeking. Require a fresh accepted compositor callback before releasing WAV.
   const pendingExternalFrameRef = useRef(false);
+  // A same-ID clip may be retimed without remounting the native video.
+  // Remember its source↔timeline mapping, not merely its media identity.
+  const frameTimingKeyRef = useRef<string | null>(null);
   const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
   const playableEndUs = useMemo(() => sequencePlayableEndUs(sequence), [sequence]);
   const clockPositionRef = useRef(playheadTimeUs);
@@ -130,6 +133,17 @@ export function PreviewPlayer({
   const key = active && source ? `${active.id}:${source.id}` : "";
   const image = active?.kind === "Image";
   const videoSource = active?.kind === "Video" && src ? src : null;
+  const frameTimingKey = active && videoSource
+    ? `${key}:${active.source_in}:${active.source_out}:${active.timeline_start}:${active.timeline_end}:${active.speed}`
+    : key;
+  if (frameTimingKeyRef.current !== frameTimingKey) {
+    // The old compositor frame still belongs to the same DOM <video>, but
+    // maps to a different edit time after a speed/trim/boundary change.
+    frameTimingKeyRef.current = frameTimingKey;
+    frameAnchorRef.current = null;
+    bufferedRecoveryRef.current = null;
+    pendingExternalFrameRef.current = true;
+  }
   // Guard audio release against a premature decoder event, especially during
   // a cut to a different video's trimmed source in-point.
   const videoClockReady = (): boolean => {
@@ -148,6 +162,7 @@ export function PreviewPlayer({
     (!videoSource || (syncedVideoKey === key && videoClockReady() &&
       (!supportsPresentedFrames(video.current) ||
         (!pendingExternalFrameRef.current && presentedVideoFrame?.key === key &&
+          presentedVideoFrame.timingKey === frameTimingKey &&
           Math.abs(presentedVideoFrame.timeUs - playheadTimeUs) <= 120_000))));
 
   useEffect(() => {
@@ -284,7 +299,7 @@ export function PreviewPlayer({
             // 'playing' and 'seeked' are not compositor-frame acknowledgements.
             // Record the actual submitted frame, not just the clip key: after
             // an in-clip scrub the old key must not release standalone audio.
-            setPresentedVideoFrame({ key, timeUs: nextUs });
+            setPresentedVideoFrame({ key, timeUs: nextUs, timingKey: frameTimingKey });
             setSyncedVideoKey(key);
             if (publish(nextUs)) return;
           }
@@ -322,7 +337,7 @@ export function PreviewPlayer({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, active?.id, key, videoSource, playableEndUs]);
+  }, [playing, active?.id, key, frameTimingKey, videoSource, playableEndUs]);
 
   return (
     <>

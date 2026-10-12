@@ -1,3 +1,13 @@
+# CURRENT WORK — 2026-10-12 — SAME-CLIP RETIME AV CLOCK (PR #48)
+
+- **PR/BRANCH:** [#48](https://github.com/zeter1/zeter-video-editor/pull/48), `fix/preview-retimed-clip-frame-clock-20261012`; based on main `0a29e7644c5a14649717981d86326739660609ca`. Treat as DRAFT/unmerged until actual merge readback. Test-first commit `8ab67e10`; product-code fix commit `96e8886e`.
+- **PRODUCT:** `apps/desktop/src/preview/PreviewPlayer.tsx` rekeys live frame verification when the same clip ID changes speed/trim/source/timeline bounds, revoking the previous compositor/WAV readiness and re-registering callbacks with the new source↔timeline mapping. Pure gain/mute changes don't force a frame relock.
+- **REGRESSION:** `PreviewTransportIntegration.test.tsx` tests live 1×→2× edit, WAV pause until accepted frame, and rVFC PTS mapping of 2.1s source→1.05s edit. Exact-final-HEAD Windows CI (version policy, Rust format/tests, frontend build/Vitest, real WebView2 E2E, debug NSIS) must be terminal SUCCESS before merge. Initial test-only red run was triggered; do not mark it verified without actual logs.
+- **INVARIANTS:** desktop 0.1.0-alpha.1 source development, .vcut v2; Rust export, sources, app release/signing/tag, user PC remain untouched. Manual owner Windows QA is not a precondition for otherwise verified merge.
+- **NEXT PRODUCT-CODE TASK:** Build deterministic actual media starvation/rebuffer Windows WebView2 E2E (not synthetic events), record frame-PTS↔independent-WAV p50/p95/max and recovery latency at 2× with forward/backward scrubs and decoder fallback in `apps/desktop/e2e/preview-two-speed-av-drift.spec.ts`. Then independent preview↔FFmpeg export overlay/gap parity across Direct/Proxy/Composite/RenderSnapshot (`crates/media-engine/tests/render_parity.rs`). Never remove old tests.
+
+---
+
 # CURRENT MAIN CHECKPOINT — 2026-10-12 — WEBVIEW2 BUFFER RECOVERY #47 MERGED
 
 - **MERGED AND VERIFIED:** [PR #47](https://github.com/zeter1/zeter-video-editor/pull/47) source HEAD `805f009b63270a1472e0a14ceaa2409e8ff1caa3` was terminal SUCCESS on exact-head [Windows CI run 38204006031](https://github.com/zeter1/zeter-video-editor/actions/runs/38204006031), all 20 steps (version scripts, Rust format/tests, frontend build/Vitest, genuine Windows Tauri/WebView2 E2E, NSIS debug bundle and upload). PR changed 5 files; full GitHub patch reviewed, 90 additions / 3 deletions; marked ready, then **squash-merged to main** with GitHub-confirmed commit `61e11b4cce778f1752d3a13a0b485b6bd6347732`. Readback of `main` and PR both confirmed this exact merge.

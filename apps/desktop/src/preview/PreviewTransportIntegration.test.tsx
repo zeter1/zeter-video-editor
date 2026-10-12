@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Sequence } from "../generated/ipc";
@@ -780,6 +781,102 @@ describe("PreviewPlayer continuous transport", () => {
       expect(callbacks.size).toBe(0);
       expect(onCommit).not.toHaveBeenCalled();
     } finally {
+      if (previousRequest) Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", previousRequest);
+      else delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).requestVideoFrameCallback;
+      if (previousCancel) Object.defineProperty(HTMLVideoElement.prototype, "cancelVideoFrameCallback", previousCancel);
+      else delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).cancelVideoFrameCallback;
+    }
+  });
+
+  it("relocks compositor and WAV after retiming a playing clip without changing its id", () => {
+    let stopPlayback: (() => void) | null = null;
+    const previousRequest = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "requestVideoFrameCallback");
+    const previousCancel = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "cancelVideoFrameCallback");
+    let nextFrameId = 0;
+    const callbacks = new Map<number, VideoFrameRequestCallback>();
+    Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", {
+      configurable: true, value: (callback: VideoFrameRequestCallback) => {
+        callbacks.set(++nextFrameId, callback);
+        return nextFrameId;
+      },
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, "cancelVideoFrameCallback", {
+      configurable: true, value: (id: number) => { callbacks.delete(id); },
+    });
+    try {
+      const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      const nativePause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+      const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+      const clip = {
+        id: "retime-video", kind: "Video", media_id: mediaId,
+        source_in: 0, source_out: 4_000_000, timeline_start: 0, timeline_end: 4_000_000,
+        speed: 1, audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+      } as Sequence["tracks"][number]["clips"][number];
+      const audioClip = { ...clip, id: "retime-wav", kind: "Audio" };
+      const sequenceFor = (videoClip: typeof clip) => ({
+        ...baseSequence, tracks: [
+          { id: "v", name: "Video", kind: "Video", hidden: false, muted: false, clips: [videoClip] },
+          { id: "a", name: "Audio", kind: "Audio", hidden: false, muted: false, clips: [audioClip] },
+        ],
+      }) as Sequence;
+      const media = [{ id: mediaId }] as import("../generated/ipc").MediaRef[];
+      const onSeek = vi.fn();
+      const onCommit = vi.fn();
+      const props = { media, selectedClip: null, selectedTrackId: null, onCommit };
+      // Mirror the real parent transport: onSeek is fed back as the playhead
+      // prop, never held at the previous time during compositor callbacks.
+      const ClockHarness = ({ videoClip }: { videoClip: typeof clip }) => {
+        const [timeUs, setTimeUs] = useState(1_000_000);
+        return <PreviewPlayer {...props} sequence={sequenceFor(videoClip)}
+          playheadTimeUs={timeUs} onSeek={(next) => { onSeek(next); setTimeUs(next); }} />;
+      };
+      const { container, rerender } = render(<ClockHarness videoClip={clip} />);
+      stopPlayback = () => fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      const video = container.querySelector("video.preview-media") as HTMLVideoElement;
+      const audio = screen.getByTestId("preview-audio-retime-wav") as HTMLAudioElement;
+      Object.defineProperty(video, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
+      Object.defineProperty(video, "paused", { configurable: true, value: false });
+      Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
+      fireEvent.loadedMetadata(audio);
+      fireEvent.seeked(audio);
+      video.currentTime = 1;
+      const audioPlays = () => nativePlay.mock.instances.filter((node) => node === audio).length;
+      const audioPauses = () => nativePause.mock.instances.filter((node) => node === audio).length;
+      const present = (mediaTime: number, presentedFrames: number) => {
+        const scheduled = [...callbacks.values()];
+        callbacks.clear();
+        act(() => {
+          for (const callback of scheduled)
+            callback(1000, { mediaTime, presentedFrames } as VideoFrameCallbackMetadata);
+        });
+      };
+      fireEvent.click(screen.getByRole("button", { name: "Play" }));
+      fireEvent.playing(video);
+      present(1, 1);
+      expect(audioPlays()).toBe(1);
+
+      // The clip keeps its React key but its source clock becomes 2x faster.
+      // The previous frame still matches the SAME timeline position; it must
+      // no longer authorize audio before a fresh 2x compositor submission.
+      const pausesBeforeRetime = audioPauses();
+      const retimed = { ...clip, speed: 2, timeline_end: 2_000_000 };
+      rerender(<ClockHarness videoClip={retimed} />);
+      expect(container.querySelector("video.preview-media")).toBe(video);
+      expect(video.currentTime).toBeCloseTo(2);
+      expect(audioPauses()).toBeGreaterThan(pausesBeforeRetime);
+      expect(audioPlays()).toBe(1);
+
+      // A 2.1s source frame maps to 1.05s of edit time, not 2.1s (the
+      // mapping that a stale requestVideoFrameCallback closure would use).
+      video.currentTime = 2.1;
+      present(2.1, 2);
+      expect(onSeek).toHaveBeenLastCalledWith(1_050_000);
+      expect(audioPlays()).toBe(2);
+      expect(onCommit).not.toHaveBeenCalled();
+      // Stop is also performed on assertion failure, before mock APIs are restored.
+    } finally {
+      stopPlayback?.();
+      expect(callbacks.size).toBe(0);
       if (previousRequest) Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", previousRequest);
       else delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).requestVideoFrameCallback;
       if (previousCancel) Object.defineProperty(HTMLVideoElement.prototype, "cancelVideoFrameCallback", previousCancel);
