@@ -91,7 +91,7 @@ describe("PreviewPlayer", () => {
       ["Масштаб предпросмотра: Вписать", "Масштаб предпросмотра: Вписать"],
       ["Масштаб предпросмотра: 100%", "Масштаб предпросмотра: 100%"],
     ]) {
-      expect(screen.getByRole("button", { name, exact: true }).getAttribute("title")).toBe(tooltip);
+      expect(screen.getByRole("button", { name }).getAttribute("title")).toBe(tooltip);
     }
 
     expect(screen.getByTestId("preview-quality").textContent).toBe("Полное");
