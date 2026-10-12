@@ -139,4 +139,64 @@ describe("PreviewPlayer", () => {
     expect(remaining).toHaveLength(1);
     expect(remaining[0].src).toBe(`http://zeter-media.localhost/${upper.media_id}`);
   });
+
+  it("keeps one decoded video beneath a translucent still overlay without remounting on overlay entry", () => {
+    const videoId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const imageId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const videoClip = {
+      id: "base-video", kind: "Video" as const, media_id: videoId,
+      source_in: 0, source_out: 3_000_000, timeline_start: 0, timeline_end: 3_000_000,
+      transform: { position_x: 0, position_y: 0, scale_x: 1, scale_y: 1,
+        rotation_degrees: 0, opacity: 1,
+        crop: { left: 0, top: 0, right: 0, bottom: 0 } },
+      color: { exposure: 0, contrast: 0, highlights: 0, shadows: 0,
+        saturation: 1, temperature: 0, tint: 0 },
+      audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+      speed: 1, transition: null, text: null,
+    };
+    const overlayClip = {
+      ...videoClip, id: "upper-still", kind: "Image" as const, media_id: imageId,
+      timeline_start: 500_000, timeline_end: 2_000_000,
+      transform: { ...videoClip.transform, opacity: 0.5 },
+    };
+    const lowerTrack = {
+      id: "video-track", name: "Video", kind: "Video" as const,
+      muted: false, locked: false, hidden: false, clips: [videoClip],
+    };
+    const upperTrack = {
+      id: "overlay-track", name: "Overlay", kind: "Overlay" as const,
+      muted: false, locked: false, hidden: false, clips: [overlayClip],
+    };
+    const media = [videoId, imageId].map((id) => ({
+      id, absolute_path: "D:\\private\\source.mp4", project_relative_path: null,
+      file_size: 100, duration: null, width: 160, height: 90,
+    }));
+    const onCommit = vi.fn();
+    const props = { media, selectedClip: null, selectedTrackId: null,
+      onSeek: vi.fn(), onCommit };
+    const { container, rerender } = render(<PreviewPlayer {...props}
+      sequence={{ ...sequence, tracks: [lowerTrack, upperTrack] }}
+      playheadTimeUs={250_000} />);
+    const video = screen.getByLabelText("Предпросмотр видео") as HTMLVideoElement;
+    expect(container.querySelectorAll("video")).toHaveLength(1);
+    expect(screen.queryAllByRole("img", { name: "Кадр изображения" })).toHaveLength(0);
+
+    rerender(<PreviewPlayer {...props}
+      sequence={{ ...sequence, tracks: [lowerTrack, upperTrack] }}
+      playheadTimeUs={1_000_000} />);
+    const layers = Array.from(container.querySelectorAll(".preview-still-layers > .preview-media"));
+    expect(layers.map((element) => element.tagName)).toEqual(["VIDEO", "IMG"]);
+    expect(layers[0]).toBe(video);
+    expect((layers[0] as HTMLVideoElement).src).toBe(`http://zeter-media.localhost/${videoId}`);
+    expect((layers[1] as HTMLImageElement).src).toBe(`http://zeter-media.localhost/${imageId}`);
+    expect((layers[1] as HTMLImageElement).style.opacity).toBe("0.5");
+    expect(container.querySelectorAll("video")).toHaveLength(1);
+
+    rerender(<PreviewPlayer {...props}
+      sequence={{ ...sequence, tracks: [lowerTrack, { ...upperTrack, hidden: true }] }}
+      playheadTimeUs={1_000_000} />);
+    expect(screen.getByLabelText("Предпросмотр видео")).toBe(video);
+    expect(screen.queryAllByRole("img", { name: "Кадр изображения" })).toHaveLength(0);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
 });
