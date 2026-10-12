@@ -50,8 +50,10 @@ test("real delayed media bytes recover 2x compositor and independent WAV", async
 
   const control = state.stallControlPath;
   const receiptsPath = control + ".hits";
+  const rangesPath = control + ".ranges";
   rmSync(control, { force: true });
   rmSync(receiptsPath, { force: true });
+  rmSync(rangesPath, { force: true });
   // Debug-only native hook delays GET ranges beyond the first chunk by 2s.
   // Production release builds have no stall hook and use the old sync handler.
   writeFileSync(control, videoClip.media_id + " 2000\n");
@@ -78,10 +80,30 @@ test("real delayed media bytes recover 2x compositor and independent WAV", async
 
     // The receipt is written by Rust only AFTER a delayed real range read;
     // an HTTP status, mocked event, or mere sleeping in Playwright cannot pass.
-    await expect.poll(() => {
-      if (!existsSync(receiptsPath)) return 0;
-      return readFileSync(receiptsPath, "utf8").trim().split(/\r?\n/).filter(Boolean).length;
-    }, { timeout: 18_000, intervals: [100, 200, 400] }).toBeGreaterThan(0);
+    try {
+      await expect.poll(() => {
+        if (!existsSync(receiptsPath)) return 0;
+        return readFileSync(receiptsPath, "utf8").trim().split(/\r?\n/).filter(Boolean).length;
+      }, { timeout: 18_000, intervals: [100, 200, 400] }).toBeGreaterThan(0);
+    } catch (error) {
+      // Do not hide missing real byte requests with synthetic media events.
+      // Print native request offsets and decoder state so Windows CI can
+      // distinguish "never requested more bytes" from scheme handler failure.
+      const ranges = existsSync(rangesPath) ? readFileSync(rangesPath, "utf8") : "(no native GET requests)";
+      const decoder = await video.evaluate((node) => {
+        const v = node as HTMLVideoElement & { __byteStallEvents?: EventRecord[] };
+        return {
+          currentTime: v.currentTime, readyState: v.readyState, paused: v.paused,
+          networkState: v.networkState, errorCode: v.error?.code ?? null,
+          bufferedRanges: Array.from({ length: v.buffered.length }, (_, i) => [
+            v.buffered.start(i), v.buffered.end(i),
+          ]),
+          events: v.__byteStallEvents,
+        };
+      }).catch((reason: unknown) => ({ evaluationError: String(reason) }));
+      console.log("[real WebView2 starvation missing receipt] " + JSON.stringify({ ranges, decoder }));
+      throw error;
+    }
 
     const receipts = readFileSync(receiptsPath, "utf8").trim().split(/\r?\n/).map((line) => {
       const [start, delayMs, elapsedMs, endedAtMs] = line.split(" ").map(Number);
@@ -92,6 +114,8 @@ test("real delayed media bytes recover 2x compositor and independent WAV", async
 
     const beforeReleaseEvents = await video.evaluate((element) =>
       (element as HTMLVideoElement & { __byteStallEvents?: EventRecord[] }).__byteStallEvents ?? []);
+    console.log("[real WebView2 native buffering before release] " +
+      JSON.stringify({ ranges: readFileSync(rangesPath, "utf8"), receipts, beforeReleaseEvents }));
     // A missing native event is a real test failure, never disguised by
     // dispatchEvent: it signals that the fixture/prebuffering needs adjustment.
     expect(beforeReleaseEvents.some((event) => event.type === "waiting" || event.type === "stalled"),
