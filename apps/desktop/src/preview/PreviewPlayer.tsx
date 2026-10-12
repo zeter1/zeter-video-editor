@@ -82,8 +82,9 @@ export function PreviewPlayer({
   // Accepted compositor frames anchor recovery after dropped callbacks.
   // Pause/Stop and native or UI-initiated seek retire this trusted anchor.
   const frameAnchorRef = useRef<{ key: string; mediaSeconds: number; presentedFrames: number } | null>(null);
-  // After buffering, require native 'playing' and TWO advancing compositor
-  // frames before catching up a playhead left >120ms behind by the decoder.
+  // After 'waiting', require native 'playing'; after a fetch-only 'stalled'
+  // event, already-buffered video may continue without a new playing event.
+  // In both cases require TWO advancing compositor frames before recovery.
   // This proof is never reusable after a seek, pause, Stop or clip switch.
   const bufferedRecoveryRef = useRef<{
     key: string; playheadUs: number; resumed: boolean;
@@ -262,30 +263,35 @@ export function PreviewPlayer({
             skippedCallbacks,
           );
           const recovery = bufferedRecoveryRef.current;
-          if (nextUs === null && recovery?.key === key && recovery.resumed &&
-              recovery.playheadUs === clockPositionRef.current &&
-              !pendingExternalFrameRef.current &&
-              Number.isFinite(metadata.presentedFrames)) {
-            // During buffering the video decoder can restart beyond the
-            // timeline's tight 120ms window. A single late frame is not
-            // sufficient evidence: require a SECOND, strictly newer
-            // compositor frame and a matching native decoder clock. Source
-            // bounds and forward-only checks remain in the pure validator.
-            const recoveredUs = presentedFrameToTimelineUs(
-              active, metadata.mediaTime, current.currentTime, clockPositionRef.current, true,
-            );
-            if (recoveredUs !== null && recoveredUs > clockPositionRef.current + 120_000) {
+          if (recovery?.key === key) {
+            // A frame queued during waiting/stalled may still be close to the
+            // playhead. Even that frame must NOT release independent WAV before
+            // native 'playing' and two advancing compositor submissions.
+            if (!recovery.resumed || recovery.playheadUs !== clockPositionRef.current ||
+                !Number.isFinite(metadata.presentedFrames)) {
+              nextUs = null;
+            } else {
+              // Tight near-playhead validation is always required after a user
+              // scrub. Only uninterrupted, post-playing buffer recovery may
+              // use the wider catch-up window beyond 120ms.
+              const recoveryUs = nextUs !== null ? nextUs :
+                !pendingExternalFrameRef.current ? presentedFrameToTimelineUs(
+                  active, metadata.mediaTime, current.currentTime, clockPositionRef.current, true,
+                ) : null;
+              const eligibleUs = recoveryUs !== null &&
+                (nextUs !== null || recoveryUs > clockPositionRef.current + 120_000)
+                ? recoveryUs : null;
               const first = recovery.candidate;
-              if (first && metadata.presentedFrames > first.presentedFrames &&
+              if (eligibleUs !== null && first &&
+                  metadata.presentedFrames > first.presentedFrames &&
                   metadata.mediaTime > first.mediaSeconds) {
-                nextUs = recoveredUs;
+                nextUs = eligibleUs;
               } else {
-                recovery.candidate = {
+                recovery.candidate = eligibleUs === null ? null : {
                   mediaSeconds: metadata.mediaTime, presentedFrames: metadata.presentedFrames,
                 };
+                nextUs = null;
               }
-            } else {
-              recovery.candidate = null;
             }
           }
           if (nextUs !== null) {
@@ -377,8 +383,15 @@ export function PreviewPlayer({
               }}
               onStalled={() => {
                 frameAnchorRef.current = null;
+                // A stalled fetch may leave buffered playback advancing, so
+                // new 'playing' is not guaranteed. But if 'waiting' already
+                // stopped playback, a subsequent stalled event MUST NOT bypass
+                // its requirement for native 'playing' before recovery.
+                const stillWaiting = bufferedRecoveryRef.current?.key === key &&
+                  !bufferedRecoveryRef.current.resumed;
                 bufferedRecoveryRef.current = {
-                  key, playheadUs: clockPositionRef.current, resumed: false, candidate: null,
+                  key, playheadUs: clockPositionRef.current,
+                  resumed: !stillWaiting, candidate: null,
                 };
                 setPresentedVideoFrame(null);
                 setSyncedVideoKey(null);
