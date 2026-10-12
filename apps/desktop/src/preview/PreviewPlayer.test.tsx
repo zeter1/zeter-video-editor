@@ -83,4 +83,60 @@ describe("PreviewPlayer", () => {
     expect(screen.queryByLabelText("Предпросмотр видео")).toBeNull();
     expect(screen.getByText("На позиции курсора нет видеоклипа.")).toBeTruthy();
   });
+
+  it("composites two visible still-image tracks bottom-to-top using upper opacity", () => {
+    const lower = {
+      id: "image-lower", kind: "Image" as const,
+      media_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      source_in: 0, source_out: 2_000_000, timeline_start: 0, timeline_end: 2_000_000,
+      transform: {
+        position_x: 0, position_y: 0, scale_x: 1, scale_y: 1, rotation_degrees: 0,
+        opacity: 1, crop: { left: 0, top: 0, right: 0, bottom: 0 },
+      },
+      color: { exposure: 0, contrast: 0, highlights: 0, shadows: 0,
+        saturation: 1, temperature: 0, tint: 0 },
+      audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+      speed: 1, transition: null, text: null,
+    };
+    const upper = {
+      ...lower, id: "image-upper",
+      media_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      transform: { ...lower.transform, opacity: 0.5 },
+    };
+    const lowerTrack = {
+      id: "lower", name: "Lower", kind: "Video" as const,
+      muted: false, locked: false, hidden: false, clips: [lower],
+    };
+    const upperTrack = {
+      id: "upper", name: "Upper", kind: "Overlay" as const,
+      muted: false, locked: false, hidden: false, clips: [upper],
+    };
+    const media = [lower.media_id, upper.media_id].map((id) => ({
+      id, absolute_path: "D:\\private\\source.png", project_relative_path: null,
+      file_size: 100, duration: null, width: 160, height: 90,
+    }));
+    const props = {
+      media, selectedClip: null, selectedTrackId: null,
+      playheadTimeUs: 1_000_000, onSeek: vi.fn(), onCommit: vi.fn(),
+    };
+    const { rerender } = render(
+      <PreviewPlayer {...props} sequence={{ ...sequence, tracks: [lowerTrack, upperTrack] }} />,
+    );
+    const images = screen.getAllByRole("img", { name: "Кадр изображения" }) as HTMLImageElement[];
+    expect(images).toHaveLength(2);
+    expect(images.map((image) => image.src)).toEqual([
+      `http://zeter-media.localhost/${lower.media_id}`,
+      `http://zeter-media.localhost/${upper.media_id}`,
+    ]);
+    expect(images.map((image) => image.style.opacity)).toEqual(["1", "0.5"]);
+
+    rerender(
+      <PreviewPlayer {...props} sequence={{
+        ...sequence, tracks: [{ ...lowerTrack, hidden: true }, upperTrack],
+      }} />,
+    );
+    const remaining = screen.getAllByRole("img", { name: "Кадр изображения" }) as HTMLImageElement[];
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].src).toBe(`http://zeter-media.localhost/${upper.media_id}`);
+  });
 });
