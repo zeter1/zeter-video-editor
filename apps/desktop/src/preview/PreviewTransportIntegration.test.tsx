@@ -865,6 +865,9 @@ describe("PreviewPlayer continuous transport", () => {
       expect(onSeek).toHaveBeenLastCalledWith(1_050_000);
       expect(audioPlays()).toBe(2);
       expect(onCommit).not.toHaveBeenCalled();
+      // Unsubscribe the native frame loop while the mocked API still exists.
+      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      expect(callbacks.size).toBe(0);
     } finally {
       if (previousRequest) Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", previousRequest);
       else delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).requestVideoFrameCallback;
