@@ -1,3 +1,12 @@
+# CURRENT CHECKPOINT — 2026-10-12 — WebView2 dropped-frame catch-up (DRAFT #44)
+
+- PRODUCT CODE: in an already anchored requestVideoFrameCallback playback, missed metadata.presentedFrames now authorizes a forward compositor/decoder catch-up past 120ms without freezing the playhead; respects clip.source_out. UI/native seeks and Pause retire anchor to keep stale backward-scrub frames rejected.
+- TESTS: previewTransport.test.ts tests guarded 2x catch-up vs stale decoder/source; PreviewTransportIntegration.test.tsx simulates actual compositor count gaps after seek resynchronization, with no Rust project mutation. Tests authored, NOT locally executed; exact-head Windows CI required for verification, manual WebView2 GUI and audio drift QA still NOT VERIFIED.
+- GIT: existing OPEN DRAFT PR https://github.com/zeter1/zeter-video-editor/pull/44 on #43→#42→#41→#40→#39→main. DO NOT merge/tag/sign/release before independent review and Windows QA. Desktop version 0.1.0-alpha.1, .vcut v2, source assets and Rust/export unchanged.
+- NEXT: check terminal exact-HEAD Windows CI; investigate failures in SAME PR. Add genuine Windows WebView2 + standalone WAV timing/drift acceptance at 2x and forward/back seek; then preview/export parity.
+- Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/requestVideoFrameCallback
+
+---
 # CURRENT CHECKPOINT — 2026-10-12 — stale native video EOF (draft #44)
 
 - PRODUCT: PreviewPlayer rejects delayed native ended events after scrub/Stop unless Play is active AND decoder source clock and current timeline playhead are within 120ms of actual clip end (speed-normalized). No project mutation, source-media changes, export changes, .vcut v2 changes, or release.

@@ -57,17 +57,24 @@ export function mediaClockMatchesTimeline(
 // advancing the edit or releasing standalone audio.
 export function presentedFrameToTimelineUs(
   clip: Clip, frameMediaSeconds: number, decoderMediaSeconds: number, playheadUs: number,
+  allowDroppedFrameCatchUp = false,
 ): number | null {
   if (![frameMediaSeconds, decoderMediaSeconds, playheadUs].every(Number.isFinite)) return null;
   const speed = clip.speed > 0 ? clip.speed : 1;
   const toleranceSeconds = 0.12 * speed; // 120ms on the timeline, scaled to source clock.
   const expectedSourceSeconds = (clip.source_in +
     Math.max(0, playheadUs - clip.timeline_start) * speed) / 1_000_000;
+  // Missed compositor callbacks can leave a real frame far ahead. Recover
+  // only from a previously confirmed frame in uninterrupted playback;
+  // first frames after a seek still require tight playhead matching.
+  const uninterruptedCatchUp = allowDroppedFrameCatchUp &&
+    frameMediaSeconds > expectedSourceSeconds + toleranceSeconds &&
+    frameMediaSeconds <= clip.source_out / 1_000_000 + toleranceSeconds;
   // A backward scrub can leave both currentTime and mediaTime at the old
   // later position. Agreement between decoder and compositor alone is not
   // proof that a frame belongs to the newly requested playhead.
   if (frameMediaSeconds < clip.source_in / 1_000_000 - 0.001 ||
-      Math.abs(frameMediaSeconds - expectedSourceSeconds) > toleranceSeconds ||
+      (Math.abs(frameMediaSeconds - expectedSourceSeconds) > toleranceSeconds && !uninterruptedCatchUp) ||
       Math.abs(frameMediaSeconds - decoderMediaSeconds) > toleranceSeconds) return null;
   return mediaTimeToTimelineUs(clip, frameMediaSeconds);
 }

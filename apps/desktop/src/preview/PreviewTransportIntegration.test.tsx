@@ -651,12 +651,13 @@ describe("PreviewPlayer continuous transport", () => {
       fireEvent.seeked(audio);
       video.currentTime = 4;
       const audioPlays = () => nativePlay.mock.instances.filter((node) => node === audio).length;
-      const present = (mediaTime: number) => {
+      let presentedFramesCounter = 0;
+      const present = (mediaTime: number, presentedFrames = ++presentedFramesCounter) => {
         const currentCallbacks = [...callbacks.values()];
         callbacks.clear();
         act(() => {
           for (const callback of currentCallbacks)
-            callback(1000, { mediaTime } as VideoFrameCallbackMetadata);
+            callback(1000, { mediaTime, presentedFrames } as VideoFrameCallbackMetadata);
         });
       };
       fireEvent.click(screen.getByRole("button", { name: "Play" }));
@@ -708,8 +709,13 @@ describe("PreviewPlayer continuous transport", () => {
       expect(onSeek).toHaveBeenCalledTimes(seeksBeforeStale);
       expect(audioPlays()).toBe(2);
       video.currentTime = 4;
-      present(4);
+      present(4, 91);
       expect(onSeek).toHaveBeenCalledTimes(seeksBeforeStale);
+      // After resynchronizing the compositor following scrub, WebView2 may
+      // skip >120ms of callbacks due to UI load. Do not freeze forever.
+      video.currentTime = 4.35;
+      present(4.35, 99);
+      expect(onSeek).toHaveBeenLastCalledWith(1_350_000);
 
       fireEvent.click(screen.getByRole("button", { name: "Stop" }));
       expect(onSeek).toHaveBeenLastCalledWith(0);

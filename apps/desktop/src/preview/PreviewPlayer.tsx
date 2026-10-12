@@ -79,6 +79,9 @@ export function PreviewPlayer({
     key: string; timeUs: number;
   } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
+  // Accepted compositor frames anchor recovery after dropped callbacks.
+  // Pause/Stop and native or UI-initiated seek retire this trusted anchor.
+  const frameAnchorRef = useRef<{ key: string; mediaSeconds: number; presentedFrames: number } | null>(null);
   const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
   const playableEndUs = useMemo(() => sequencePlayableEndUs(sequence), [sequence]);
   const clockPositionRef = useRef(playheadTimeUs);
@@ -136,6 +139,7 @@ export function PreviewPlayer({
   // wait for the native decoder's next playing/seeked signal on restart.
   useEffect(() => {
     if (!playing) {
+      frameAnchorRef.current = null;
       setSyncedVideoKey(null);
       setPresentedVideoFrame(null);
     }
@@ -161,6 +165,7 @@ export function PreviewPlayer({
     const speed = active.speed > 0 ? active.speed : 1;
     const tolerance = (playing ? 0.12 : 0.001) * speed;
     if (Number.isFinite(requested) && Math.abs(current.currentTime - requested) > tolerance) {
+      frameAnchorRef.current = null;
       current.currentTime = Math.max(0, requested);
     }
   }, [active, playheadTimeUs, videoSource, playing]);
@@ -210,10 +215,21 @@ export function PreviewPlayer({
         if (cancelled) return;
         if (video.current === current && !current.paused && !current.seeking &&
             current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          const anchor = frameAnchorRef.current;
+          // WebView2 increments presentedFrames even if JavaScript missed
+          // callbacks; never authorize this catch-up without a current anchor.
+          const skippedCallbacks = anchor?.key === key &&
+            Number.isFinite(metadata.presentedFrames) &&
+            metadata.presentedFrames > anchor.presentedFrames + 1 &&
+            metadata.mediaTime > anchor.mediaSeconds;
           const nextUs = presentedFrameToTimelineUs(
             active, metadata.mediaTime, current.currentTime, clockPositionRef.current,
+            skippedCallbacks,
           );
           if (nextUs !== null) {
+            frameAnchorRef.current = {
+              key, mediaSeconds: metadata.mediaTime, presentedFrames: metadata.presentedFrames,
+            };
             // 'playing' and 'seeked' are not compositor-frame acknowledgements.
             // Record the actual submitted frame, not just the clip key: after
             // an in-clip scrub the old key must not release standalone audio.
@@ -283,7 +299,10 @@ export function PreviewPlayer({
               }}
               onWaiting={() => setSyncedVideoKey(null)}
               onStalled={() => setSyncedVideoKey(null)}
-              onSeeking={() => setSyncedVideoKey(null)}
+              onSeeking={() => {
+                frameAnchorRef.current = null;
+                setSyncedVideoKey(null);
+              }}
               onSeeked={() => {
                 // Seek can complete without another "playing" event; resume
                 // the external audio only after a usable video frame is ready.

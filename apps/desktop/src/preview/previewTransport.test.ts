@@ -70,6 +70,16 @@ describe("preview transport timeline mapping", () => {
     expect(presentedFrameToTimelineUs(clip, 2, Infinity, 5_000_000)).toBeNull();
   });
 
+  it("allows forward dropped-frame recovery only after compositor clock is anchored", () => {
+    // 400ms of 2x source = 200ms on the timeline.
+    expect(presentedFrameToTimelineUs(clip, 2.6, 2.6, 5_100_000)).toBeNull();
+    expect(presentedFrameToTimelineUs(clip, 2.6, 2.6, 5_100_000, true)).toBe(5_300_000);
+    // Never catch up from stale decoder, source after out, or backward old frame.
+    expect(presentedFrameToTimelineUs(clip, 2.6, 2.2, 5_100_000, true)).toBeNull();
+    expect(presentedFrameToTimelineUs(clip, 6.5, 6.5, 6_950_000, true)).toBeNull();
+    expect(presentedFrameToTimelineUs(clip, 2, 2, 5_300_000, true)).toBeNull();
+  });
+
   it("rejects a pre-seek frame after a backward scrub", () => {
     const adjacent = { ...clip, speed: 1, source_in: 4_000_000,
       timeline_start: 1_000_000, timeline_end: 2_000_000 };
