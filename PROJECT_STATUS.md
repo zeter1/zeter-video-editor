@@ -1,10 +1,12 @@
-# CURRENT PRODUCT WORK — 2026-10-12 — KEY M ADD MARKER / alpha.5 (PR #64)
+# VERIFIED MAIN CHECKPOINT — 2026-10-12 — MARKER HOTKEY M / alpha.5 (PR #64 MERGED)
 
-- **ONE TASK (ZVE-003):** Add a timeline marker with unmodified M / physical KeyM even without a selected clip, using existing revisioned Rust AddMarker, native Undo/Redo and exact transient playhead microseconds. Shared Russian label «Маркер N» for timeline button and keyboard.
-- **GUARDS:** Do not intercept text inputs, modal dialogs, Ctrl/Meta/Alt/Shift, repeated keys or drags; wait for Rust reconciliation before accepting a second M. No .vcut schema, source-media, export or playback changes.
-- **FILES:** AppShell.tsx, AppShellShortcuts.test.tsx, Timeline.tsx, native Windows WebView2 e2e/marker-shortcut.spec.ts, SemVer manifests/lockfiles, README/CHANGELOG/status. Source version 0.1.0-alpha.5, not signed or publicly released.
-- **PR:** https://github.com/zeter1/zeter-video-editor/pull/64, branch feat/timeline-marker-shortcut-alpha5-20261012, based on main 03cd88497c11a2a3695828250682474e590a939b. Test-first HEAD 07ee2400b8a89f3db73c32d8a6fbb283d1cc07e8; check exact-head Windows CI and review before merge. Do not treat this pending work as shipping until merged.
-- **NEXT PRODUCT-CODE TASK (NEXT DIALOG ONLY):** Examine ZVE-002 multi-video Preview architecture (requires approval if new compositor architecture) or a separate ZVE-003 navigation/editing slice not already covered by open PR #17/#36/#38. Confirm main, exact CI, and existing PRs first.
+- **ONE COMPLETED PRODUCT TASK (ZVE-003a):** Unmodified M or physical KeyM under Russian layout (ь) creates a timeline marker at the playhead without selecting a clip. Uses existing revisioned Rust AddMarker and Rust Undo/Redo; both toolbar and keyboard create «Маркер N».
+- **GUARDS:** Text inputs, dialogs, Ctrl/Meta/Alt/Shift, key repeats, active clip drags, unsynced project and concurrent marker requests are excluded. No change to .vcut v2 schema, originals, playback or FFmpeg export.
+- **IMPLEMENTATION & TESTS:** AppShell.tsx, Timeline.tsx, AppShellShortcuts.test.tsx, native Windows WebView2 marker-shortcut.spec.ts, version files/README/CHANGELOG. Test-only commit 07ee2400b8a89f3db73c32d8a6fbb283d1cc07e8 had its CI cancelled while branch advanced (no observed RED); do not claim RED success.
+- **EXACT PR HEAD GREEN:** 66a00c67301796a9cdffa676da1830a13a21b7b4. Windows CI https://github.com/zeter1/zeter-video-editor/actions/runs/38300439020 attempt 1 COMPLETED SUCCESS: version policy/check-version, rustfmt, managed FFmpeg/AI, Rust workspace tests, TS build/Vitest, all real Tauri/WebView2 E2E incl. Rust marker Undo/Redo, DEBUG NSIS smoke and artifact upload.
+- **MERGED:** https://github.com/zeter1/zeter-video-editor/pull/64 closed/merged, squash main SHA dd19be0af61a51b8071b62a41bd7620b2ccc8a5f confirmed on refs/heads/main after merge. Source version 0.1.0-alpha.5 is PRELIMINARY and NOT a signed/public installer; no user-PC manual QA or independent human review.
+- **MAIN PUSH CI:** https://github.com/zeter1/zeter-video-editor/actions/runs/38301668456 was still in progress after merge on dd19be0af61a51b8071b62a41bd7620b2ccc8a5f; do not infer its conclusion from PR CI. This post-merge checkpoint commit creates a distinct main SHA and CI which also requires its own status check.
+- **NEXT ONE PRODUCT-CODE TASK (NEW DIALOG):** Verify current main SHA/CI then pick ONE fresh approved improvement, considering ZVE-003 navigation/edit UX but avoiding stacked draft #17/#36/#38. ZVE-002 moving-video multilayer Preview requires separate architecture design/approval before changing compositor. Do not redo ZVE-003a.
 
 ---
 
