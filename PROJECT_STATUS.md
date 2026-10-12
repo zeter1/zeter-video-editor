@@ -1,3 +1,14 @@
+# CURRENT BRANCH CHECKPOINT — 2026-10-12 — SHORT SCRUB WAV GATE + MULTI-SAMPLE DRIFT
+
+- **BRANCH ONLY (NOT MAIN):** `fix/preview-short-scrub-audio-gate-20261012`, base `4b3a8b99b7f732b71c4f65fc1674516d47028600` (main). Check the live branch/PR head SHA and exact Windows CI before merging.
+- **PRODUCT FIX:** `PreviewPlayer.tsx` now holds standalone WAV when the user manually scrubs by less than the native 120ms seek tolerance, even without `seeking`. Prior compositor readiness no longer permits premature audio; a newly accepted rVFC frame clears the gate. Old WebView2 without rVFC retains its decoder fallback.
+- **REGRESSION:** `PreviewTransportIntegration.test.tsx` covers a 20ms same-clip scrub after buffering, stale presented frame and release after the matching frame, without a Rust commit.
+- **REAL WINDOWS E2E:** `preview-two-speed-av-drift.spec.ts` records six post-recovery source-PTS vs WAV samples per phase at video 2x and forward/backward scrub; logs p50/p95/max absolute drift, recovery latency, `presentedFrames`, `expectedDisplayTime`, callback time and decoder fallback explicitly. Acceptance: >=6 valid samples, single clock source, median <250ms and peak <350ms after recovery. Not a continuous 3s sweep, manual speaker test or sample-accurate guarantee; actual CI not yet confirmed.
+- **INVARIANTS:** desktop `0.1.0-alpha.1` development, `.vcut` v2, media originals, Rust project and FFmpeg export untouched. No tag/release/signing/installation or owner-PC access.
+- **NEXT PRODUCT-CODE TASK:** review exact HEAD Windows Actions test result (version, Rust format/tests, TS build/Vitest, true WebView2 E2E, debug NSIS); if red inspect failing job logs, fix production/test, and rerun. If green review full PR diff and merge under standing owner authorization without waiting for owner Windows QA. Next implement a real sustained buffering/reclock A/V measurement and Direct/Proxy/Composite/RenderSnapshot ↔ FFmpeg export parity for overlays/gaps, with regressions.
+
+---
+
 # CURRENT MAIN CHECKPOINT — 2026-10-12 — BUFFERING GUARD + WEBVIEW2 2× WAV DRIFT (#45 MERGED)
 
 - **VERIFIED IN MAIN:** PR [#45](https://github.com/zeter1/zeter-video-editor/pull/45) was independently diff-reviewed, marked ready and squash-merged; merge SHA `cc921f5cb3b4dcdb6952a096c1d2704bf656a735` confirmed by actual GitHub main branch and PR readback. The older branch-only and CI-pending #45 paragraphs below are historical, not current.

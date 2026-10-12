@@ -82,6 +82,9 @@ export function PreviewPlayer({
   // Accepted compositor frames anchor recovery after dropped callbacks.
   // Pause/Stop and native or UI-initiated seek retire this trusted anchor.
   const frameAnchorRef = useRef<{ key: string; mediaSeconds: number; presentedFrames: number } | null>(null);
+  // A manual scrub inside the 120ms decoder tolerance may not cause native
+  // seeking. Require a fresh accepted compositor callback before releasing WAV.
+  const pendingExternalFrameRef = useRef(false);
   const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
   const playableEndUs = useMemo(() => sequencePlayableEndUs(sequence), [sequence]);
   const clockPositionRef = useRef(playheadTimeUs);
@@ -91,7 +94,10 @@ export function PreviewPlayer({
   // and never emit native 'seeking'. An internally published onSeek updates
   // clockPositionRef synchronously; a different prop position is a new user
   // request and must revoke the previous compositor catch-up anchor.
-  if (clockPositionRef.current !== playheadTimeUs) frameAnchorRef.current = null;
+  if (clockPositionRef.current !== playheadTimeUs) {
+    frameAnchorRef.current = null;
+    pendingExternalFrameRef.current = true;
+  }
   // Keep the transient clock aligned with seeks from the timeline, keyboard
   // and frame-step controls; the Rust project model is never mutated here.
   clockPositionRef.current = playheadTimeUs;
@@ -133,7 +139,7 @@ export function PreviewPlayer({
   const audioTransportPlaying = playing &&
     (!videoSource || (syncedVideoKey === key && videoClockReady() &&
       (!supportsPresentedFrames(video.current) ||
-        (presentedVideoFrame?.key === key &&
+        (!pendingExternalFrameRef.current && presentedVideoFrame?.key === key &&
           Math.abs(presentedVideoFrame.timeUs - playheadTimeUs) <= 120_000))));
 
   useEffect(() => {
@@ -232,6 +238,9 @@ export function PreviewPlayer({
             skippedCallbacks,
           );
           if (nextUs !== null) {
+            // This is the first decoder/compositor acknowledgement for a
+            // short user scrub even when no native seeking event was fired.
+            pendingExternalFrameRef.current = false;
             frameAnchorRef.current = {
               key, mediaSeconds: metadata.mediaTime, presentedFrames: metadata.presentedFrames,
             };
