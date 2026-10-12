@@ -204,7 +204,7 @@ describe("PreviewPlayer", () => {
       sequence={{ ...sequence, tracks: [lowerTrack, { ...upperTrack, clips: [positionedOverlay] }] }}
       playheadTimeUs={1_000_000} />);
     expect((layers[1] as HTMLImageElement).style.transform).toBe("translate(25%, -12.5%)");
-    expect((layers[0] as HTMLVideoElement).style.transform).toBe("translate(0%, 0%)");
+    expect((layers[0] as HTMLVideoElement).style.transform).toBe("");
     expect(screen.getByLabelText("Предпросмотр видео")).toBe(video);
 
     rerender(<PreviewPlayer {...props}
