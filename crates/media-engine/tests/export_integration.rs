@@ -467,7 +467,6 @@ fn real_export_holds_still_images_and_keeps_the_intervening_gap_black() {
     );
 }
 
-
 #[test]
 fn real_export_blends_two_still_tracks_with_opacity_and_z_order() {
     let Ok(dir) = env::var("ZETER_TEST_FFMPEG_DIR") else {
@@ -621,14 +620,13 @@ fn real_export_blends_two_still_tracks_with_opacity_and_z_order() {
         "base image should be red before the overlay: {lower_only:?}"
     );
     assert!(
-        (85..=180).contains(&overlapping[0]) &&
-            overlapping[1] < 70 &&
-            (85..=180).contains(&overlapping[2]),
+        (85..=180).contains(&overlapping[0])
+            && overlapping[1] < 70
+            && (85..=180).contains(&overlapping[2]),
         "red under 50%-opaque blue must blend to purple: {overlapping:?}"
     );
     assert!(
-        upper_only[0] < 55 && upper_only[1] < 55 &&
-            (85..=180).contains(&upper_only[2]),
+        upper_only[0] < 55 && upper_only[1] < 55 && (85..=180).contains(&upper_only[2]),
         "blue alone at 50% opacity must blend over black: {upper_only:?}"
     );
 }
