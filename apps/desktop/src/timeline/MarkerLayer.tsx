@@ -7,6 +7,7 @@ interface MarkerLayerProps {
   zoom: number;
   scrollLeftPx: number;
   originOffsetPx?: number;
+  onSeekMarker: (timeUs: number) => void;
   onRemoveMarker: (markerId: string) => void;
 }
 
@@ -16,13 +17,13 @@ export function MarkerLayer({
   zoom,
   scrollLeftPx,
   originOffsetPx = 0,
+  onSeekMarker,
   onRemoveMarker,
 }: MarkerLayerProps) {
   return (
-    <div className="marker-layer" aria-label="Timeline markers">
+    <div className="marker-layer" aria-label="Маркеры таймлайна">
       {markers.map((marker) => (
-        <button
-          type="button"
+        <div
           className="timeline-marker"
           key={marker.id}
           style={{
@@ -35,13 +36,25 @@ export function MarkerLayer({
                 scrollLeftPx,
               ),
           }}
-          title={marker.label}
-          aria-label={`Remove marker ${marker.label}`}
-          onClick={() => onRemoveMarker(marker.id)}
         >
-          <span aria-hidden="true" className="marker-pin" />
-          <span className="marker-label">{marker.label}</span>
-        </button>
+          <button
+            type="button"
+            className="timeline-marker-seek"
+            title={`Перейти к маркеру ${marker.label}`}
+            aria-label={`Перейти к маркеру ${marker.label}`}
+            onClick={() => onSeekMarker(marker.time)}
+          >
+            <span aria-hidden="true" className="marker-pin" />
+            <span className="marker-label">{marker.label}</span>
+          </button>
+          <button
+            type="button"
+            className="timeline-marker-delete"
+            title={`Удалить маркер ${marker.label}`}
+            aria-label={`Удалить маркер ${marker.label}`}
+            onClick={() => onRemoveMarker(marker.id)}
+          >×</button>
+        </div>
       ))}
     </div>
   );
