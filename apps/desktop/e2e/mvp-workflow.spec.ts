@@ -557,55 +557,26 @@ test("rejects incomplete Whisper model import without mutating the real project"
   expect(after).toEqual(before);
 });
 
-// Playwright's 'dialog' event handles JavaScript prompts, not Win32 file
-// pickers. Intercept only Tauri's file-dialog IPC while keeping transcription,
-// model validation, project edits and Undo on the real Windows Rust backend.
-// The interactive native picker remains covered by manual Windows acceptance.
-async function provideWhisperModelPaths(
+// Native Win32 dialogs cannot be driven with Playwright's JavaScript dialog
+// events. Provision the actual verified fixture model through the real Rust
+// command before testing browser UI; no transcription, edit or undo is mocked.
+// The native picker itself has separate React/Vitest behavior tests.
+async function installWhisperFixtureViaRust(
   page: TauriPage,
-  modelPath: string,
-  manifestPath: string,
+  mediaId: string,
+  state: { modelPath: string; modelManifestPath: string },
 ): Promise<void> {
-  await page.evaluate(({ modelPath, manifestPath }) => {
-    const testWindow = globalThis as typeof globalThis & {
-      __TAURI_INTERNALS__?: {
-        invoke: (
-          command: string,
-          args?: Record<string, unknown>,
-          options?: unknown,
-        ) => Promise<unknown>;
-      };
-      __e2eWhisperDialogCalls?: number;
-    };
-    const bridge = testWindow.__TAURI_INTERNALS__;
-    if (!bridge?.invoke) throw new Error("real Tauri dialog bridge is unavailable");
-    const invoke = bridge.invoke.bind(bridge);
-    testWindow.__e2eWhisperDialogCalls = 0;
-    bridge.invoke = (command, args, options) => {
-      if (command !== "plugin:dialog|open") {
-        return invoke(command, args, options);
-      }
-      const index = testWindow.__e2eWhisperDialogCalls ?? 0;
-      const extension = index === 0 ? "bin" : index === 1 ? "json" : null;
-      const dialog = (args?.options ?? null) as {
-        directory?: boolean;
-        multiple?: boolean;
-        filters?: Array<{ extensions?: string[] }>;
-      } | null;
-      if (
-        !extension ||
-        dialog?.directory !== false ||
-        dialog?.multiple !== false ||
-        !dialog.filters?.some((filter) => filter.extensions?.includes(extension))
-      ) {
-        return Promise.reject(new Error(
-          "Unexpected Whisper file dialog (expected .bin then .json)",
-        ));
-      }
-      testWindow.__e2eWhisperDialogCalls = index + 1;
-      return Promise.resolve(index === 0 ? modelPath : manifestPath);
-    };
-  }, { modelPath, manifestPath });
+  const before = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  const installed = await invokeTauri<ExportJobView>(page, "start_transcription", {
+    mediaId,
+    sequenceId: SEQUENCE,
+    language: "auto",
+    modelPath: state.modelPath,
+    manifestPath: state.modelManifestPath,
+  });
+  const completed = await waitForJob(page, installed.job_id, 45_000);
+  expect(completed.state, completed.failure?.technical_detail).toBe("Completed");
+  expect(await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot")).toEqual(before);
 }
 
 test("runs local Whisper through modern AI workspace, Undo and stale revision", async () => {
@@ -623,16 +594,11 @@ test("runs local Whisper through modern AI workspace, Undo and stale revision", 
   await expect(transcription).toBeVisible();
   expect((await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot")).revision).toBe(0);
 
-  await provideWhisperModelPaths(page, state.modelPath, state.modelManifestPath);
+  await installWhisperFixtureViaRust(page, audioMedia!.id, state);
   await transcription.getByRole("button", { name: "Generate subtitles" }).click();
   await expect(transcription.getByText("English · 1 segments", { exact: true }))
     .toBeVisible({ timeout: 45_000 });
   await expect(transcription.getByText("Production runtime subtitle", { exact: true })).toBeVisible();
-  // In the first Whisper acceptance test no model is yet installed: both
-  // picker requests must occur in order, while actual Rust inference runs.
-  expect(await page.evaluate(() => (
-    globalThis as typeof globalThis & { __e2eWhisperDialogCalls?: number }
-  ).__e2eWhisperDialogCalls)).toBe(2);
 
   const preview = await invokeTauri<Snapshot & AiWorkflowSnapshot>(page, "project_snapshot");
   expect(preview).toEqual(before); // local worker review is not a project edit
@@ -702,7 +668,11 @@ test("drops real Whisper review between duplicate timeline clips of the same sou
   await page.getByTestId(`clip-${AUDIO_CLIP}`).click();
   const transcription = page.getByRole("region", { name: "Automatic subtitles" });
   await expect(transcription).toBeVisible();
-  await provideWhisperModelPaths(page, state.modelPath, state.modelManifestPath);
+  const audioMedia = initial.project.media.find((media) =>
+    media.absolute_path.endsWith("synthetic-audio.wav"),
+  );
+  expect(audioMedia).toBeDefined();
+  await installWhisperFixtureViaRust(page, audioMedia!.id, state);
   await transcription.getByRole("button", { name: "Generate subtitles" }).click();
   await expect(transcription.getByText("Production runtime subtitle", { exact: true }))
     .toBeVisible({ timeout: 45_000 });
