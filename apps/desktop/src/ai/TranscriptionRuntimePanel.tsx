@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 
 import type {
   AppErrorDto,
@@ -127,19 +128,22 @@ export function TranscriptionRuntimePanel({
           throw error;
         }
 
-        const modelPath = window.prompt(
-          "Select local whisper.cpp model.bin path",
-        );
-        if (!modelPath) {
-          return;
-        }
-        const manifestPath = window.prompt(
-          "Select matching model manifest.json path",
-        );
-        if (!manifestPath) {
-          return;
-        }
-        if (generation !== generationRef.current) return;
+        // A native file picker avoids error-prone pasted Windows paths.
+        // Rust still verifies the selected model and manifest before use.
+        const modelPath = await open({
+          title: "Выберите локальную модель Whisper (.bin)",
+          directory: false,
+          multiple: false,
+          filters: [{ name: "Whisper model", extensions: ["bin"] }],
+        });
+        if (generation !== generationRef.current || !modelPath) return;
+        const manifestPath = await open({
+          title: "Выберите манифест модели (.json)",
+          directory: false,
+          multiple: false,
+          filters: [{ name: "Model manifest", extensions: ["json"] }],
+        });
+        if (generation !== generationRef.current || !manifestPath) return;
         await run(generation, modelPath, manifestPath);
       }
     } catch (error) {

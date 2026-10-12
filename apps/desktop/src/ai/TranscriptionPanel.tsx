@@ -63,7 +63,7 @@ export function TranscriptionPanel({
         </div>
       ) : (
         <p className="empty-copy">
-          Generate a local transcript, review it, then apply it as editable subtitles.
+          Generate a local transcript, review it, then apply it as editable subtitles. If no model is installed, select the Whisper .bin file and its matching .json manifest in Windows file dialogs.
         </p>
       )}
     </section>

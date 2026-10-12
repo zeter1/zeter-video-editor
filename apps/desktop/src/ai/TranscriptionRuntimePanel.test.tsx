@@ -1,10 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { open } from "@tauri-apps/plugin-dialog";
 import type { CommandResultDto } from "../generated/ipc";
 import {
   startTranscription, getTranscriptionResult, applyTranscription,
 } from "../ipc/transcription";
 import { TranscriptionRuntimePanel } from "./TranscriptionRuntimePanel";
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 
 vi.mock("../ipc/transcription", () => ({
   startTranscription: vi.fn(),
@@ -25,6 +28,79 @@ const transcript = {
 beforeEach(() => vi.resetAllMocks());
 
 describe("modern local transcription review-before-apply", () => {
+  it("uses native Windows pickers for a missing Whisper model and passes both chosen paths to Rust", async () => {
+    vi.mocked(startTranscription)
+      .mockRejectedValueOnce({
+        category: "AiModel", code: "model_unavailable", message: "Model is missing",
+      })
+      .mockResolvedValueOnce({
+        job_id: "model-import", state: "Completed",
+      } as Awaited<ReturnType<typeof startTranscription>>);
+    vi.mocked(open)
+      .mockResolvedValueOnce("C:/models/ggml-base.bin")
+      .mockResolvedValueOnce("C:/models/manifest.json");
+    vi.mocked(getTranscriptionResult).mockResolvedValue(transcript);
+    const onError = vi.fn();
+    render(<TranscriptionRuntimePanel mediaId="media-1" sequenceId="sequence-1"
+      onApplied={vi.fn()} onError={onError} />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate subtitles" }));
+    await screen.findByText("Проверка");
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(open).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      directory: false, multiple: false,
+      filters: [{ name: "Whisper model", extensions: ["bin"] }],
+    }));
+    expect(open).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      filters: [{ name: "Model manifest", extensions: ["json"] }],
+    }));
+    expect(startTranscription).toHaveBeenNthCalledWith(2, {
+      mediaId: "media-1", sequenceId: "sequence-1", language: "auto",
+      modelPath: "C:/models/ggml-base.bin", manifestPath: "C:/models/manifest.json",
+    });
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("does not launch a second job when the model picker is cancelled", async () => {
+    vi.mocked(startTranscription).mockRejectedValueOnce({
+      category: "AiModel", code: "model_unavailable", message: "Model is missing",
+    });
+    vi.mocked(open).mockResolvedValueOnce(null);
+    const onError = vi.fn();
+    render(<TranscriptionRuntimePanel mediaId="media-1" sequenceId="sequence-1"
+      onApplied={vi.fn()} onError={onError} />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate subtitles" }));
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(
+      screen.getByRole("button", { name: "Generate subtitles" }).hasAttribute("disabled"),
+    ).toBe(false));
+    expect(startTranscription).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("never imports a model into an old clip after selection changes during its picker", async () => {
+    vi.mocked(startTranscription).mockRejectedValueOnce({
+      category: "AiModel", code: "model_unavailable", message: "Model is missing",
+    });
+    let completePicker!: (path: string | null) => void;
+    vi.mocked(open).mockImplementationOnce(() =>
+      new Promise((resolve) => { completePicker = resolve; }));
+    const onError = vi.fn();
+    const { rerender } = render(
+      <TranscriptionRuntimePanel mediaId="media-1" sequenceId="sequence-1"
+        onApplied={vi.fn()} onError={onError} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate subtitles" }));
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    rerender(<TranscriptionRuntimePanel mediaId="media-2" sequenceId="sequence-1"
+      onApplied={vi.fn()} onError={onError} />);
+    await act(async () => { completePicker("C:/models/ggml-base.bin"); });
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(startTranscription).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Generate subtitles" })
+      .hasAttribute("disabled")).toBe(false);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it("starts only one native Whisper job for two clicks before React can rerender", async () => {
     let resolveFirst!: (job: Awaited<ReturnType<typeof startTranscription>>) => void;
     vi.mocked(startTranscription).mockImplementationOnce(

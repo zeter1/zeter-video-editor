@@ -557,6 +557,28 @@ test("rejects incomplete Whisper model import without mutating the real project"
   expect(after).toEqual(before);
 });
 
+// Native Win32 dialogs cannot be driven with Playwright's JavaScript dialog
+// events. Provision the actual verified fixture model through the real Rust
+// command before testing browser UI; no transcription, edit or undo is mocked.
+// The native picker itself has separate React/Vitest behavior tests.
+async function installWhisperFixtureViaRust(
+  page: TauriPage,
+  mediaId: string,
+  state: { modelPath: string; modelManifestPath: string },
+): Promise<void> {
+  const before = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
+  const installed = await invokeTauri<ExportJobView>(page, "start_transcription", {
+    mediaId,
+    sequenceId: SEQUENCE,
+    language: "auto",
+    modelPath: state.modelPath,
+    manifestPath: state.modelManifestPath,
+  });
+  const completed = await waitForJob(page, installed.job_id, 45_000);
+  expect(completed.state, completed.failure?.technical_detail).toBe("Completed");
+  expect(await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot")).toEqual(before);
+}
+
 test("runs local Whisper through modern AI workspace, Undo and stale revision", async () => {
   test.setTimeout(120_000);
   const { page, state } = await connectTauri();
@@ -572,21 +594,11 @@ test("runs local Whisper through modern AI workspace, Undo and stale revision", 
   await expect(transcription).toBeVisible();
   expect((await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot")).revision).toBe(0);
 
-  const prompts = [state.modelPath, state.modelManifestPath];
-  const onDialog = async (dialog: import("@playwright/test").Dialog) => {
-    const value = prompts.shift();
-    if (value) await dialog.accept(value);
-    else await dialog.dismiss();
-  };
-  page.on("dialog", onDialog);
-  try {
-    await transcription.getByRole("button", { name: "Generate subtitles" }).click();
-    await expect(transcription.getByText("English · 1 segments", { exact: true }))
-      .toBeVisible({ timeout: 45_000 });
-    await expect(transcription.getByText("Production runtime subtitle", { exact: true })).toBeVisible();
-  } finally {
-    page.off("dialog", onDialog);
-  }
+  await installWhisperFixtureViaRust(page, audioMedia!.id, state);
+  await transcription.getByRole("button", { name: "Generate subtitles" }).click();
+  await expect(transcription.getByText("English · 1 segments", { exact: true }))
+    .toBeVisible({ timeout: 45_000 });
+  await expect(transcription.getByText("Production runtime subtitle", { exact: true })).toBeVisible();
 
   const preview = await invokeTauri<Snapshot & AiWorkflowSnapshot>(page, "project_snapshot");
   expect(preview).toEqual(before); // local worker review is not a project edit
@@ -656,21 +668,15 @@ test("drops real Whisper review between duplicate timeline clips of the same sou
   await page.getByTestId(`clip-${AUDIO_CLIP}`).click();
   const transcription = page.getByRole("region", { name: "Automatic subtitles" });
   await expect(transcription).toBeVisible();
-  const prompts = [state.modelPath, state.modelManifestPath];
-  const onDialog = async (dialog: import("@playwright/test").Dialog) => {
-    const value = prompts.shift();
-    if (value) await dialog.accept(value);
-    else await dialog.dismiss();
-  };
-  page.on("dialog", onDialog);
-  try {
-    await transcription.getByRole("button", { name: "Generate subtitles" }).click();
-    await expect(transcription.getByText("Production runtime subtitle", { exact: true }))
-      .toBeVisible({ timeout: 45_000 });
-    await expect(transcription.getByRole("button", { name: "Apply subtitles" })).toBeVisible();
-  } finally {
-    page.off("dialog", onDialog);
-  }
+  const audioMedia = initial.project.media.find((media) =>
+    media.absolute_path.endsWith("synthetic-audio.wav"),
+  );
+  expect(audioMedia).toBeDefined();
+  await installWhisperFixtureViaRust(page, audioMedia!.id, state);
+  await transcription.getByRole("button", { name: "Generate subtitles" }).click();
+  await expect(transcription.getByText("Production runtime subtitle", { exact: true }))
+    .toBeVisible({ timeout: 45_000 });
+  await expect(transcription.getByRole("button", { name: "Apply subtitles" })).toBeVisible();
   const reviewed = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
   expect(reviewed.revision).toBe(1);
   expect(reviewed.project.sequences[0].subtitle_segments)
@@ -1034,8 +1040,6 @@ test("exports a sanitized support bundle through the real desktop command bounda
   expect(existsSync(outputPath)).toBe(true);
   expect(readFileSync(outputPath).byteLength).toBeGreaterThan(0);
 });
-
-
 
 test("applies native video audio volume and track mute in real WebView2", async () => {
   const { page, state } = await connectTauri();
