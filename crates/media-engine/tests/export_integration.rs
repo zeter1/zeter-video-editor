@@ -159,34 +159,34 @@ fn real_export_has_no_audio_after_a_short_audio_clip_ends() {
     };
 
     let runtime = ManagedRuntime::from_dir(PathBuf::from(dir), "audio-tail-parity");
-    let capabilities =
-        detect_capabilities(&runtime).expect("managed FFmpeg capability detection");
-    assert!(capabilities.software.h264, "pinned FFmpeg must support libx264");
+    let capabilities = detect_capabilities(&runtime).expect("managed FFmpeg capability detection");
+    assert!(
+        capabilities.software.h264,
+        "pinned FFmpeg must support libx264"
+    );
 
     let temp = tempfile::tempdir().unwrap();
     let source = temp.path().join("tone-and-video.mp4");
-    run(
-        &ProcessSpec::new(&runtime.ffmpeg_path)
-            .arg("-y")
-            .arg("-hide_banner")
-            .arg("-loglevel")
-            .arg("error")
-            .arg("-f")
-            .arg("lavfi")
-            .arg("-i")
-            .arg("color=c=red:s=160x90:r=30:d=2")
-            .arg("-f")
-            .arg("lavfi")
-            .arg("-i")
-            .arg("sine=frequency=1000:sample_rate=48000:duration=2")
-            .arg("-c:v")
-            .arg("libx264")
-            .arg("-pix_fmt")
-            .arg("yuv420p")
-            .arg("-c:a")
-            .arg("aac")
-            .arg(source.as_os_str()),
-    )
+    run(&ProcessSpec::new(&runtime.ffmpeg_path)
+        .arg("-y")
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-f")
+        .arg("lavfi")
+        .arg("-i")
+        .arg("color=c=red:s=160x90:r=30:d=2")
+        .arg("-f")
+        .arg("lavfi")
+        .arg("-i")
+        .arg("sine=frequency=1000:sample_rate=48000:duration=2")
+        .arg("-c:v")
+        .arg("libx264")
+        .arg("-pix_fmt")
+        .arg("yuv420p")
+        .arg("-c:a")
+        .arg("aac")
+        .arg(source.as_os_str()))
     .expect("generate input containing two seconds of tone");
 
     let media_id = MediaId::new();
@@ -283,24 +283,22 @@ fn real_export_has_no_audio_after_a_short_audio_clip_ends() {
 
     let decode_window = |start: &str, name: &str| {
         let pcm = temp.path().join(name);
-        run(
-            &ProcessSpec::new(&runtime.ffmpeg_path)
-                .arg("-y")
-                .arg("-hide_banner")
-                .arg("-loglevel")
-                .arg("error")
-                .arg("-i")
-                .arg(output.as_os_str())
-                .arg("-map")
-                .arg("0:a:0")
-                .arg("-ss")
-                .arg(start)
-                .arg("-t")
-                .arg("0.200")
-                .arg("-f")
-                .arg("s16le")
-                .arg(pcm.as_os_str()),
-        )
+        run(&ProcessSpec::new(&runtime.ffmpeg_path)
+            .arg("-y")
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-i")
+            .arg(output.as_os_str())
+            .arg("-map")
+            .arg("0:a:0")
+            .arg("-ss")
+            .arg(start)
+            .arg("-t")
+            .arg("0.200")
+            .arg("-f")
+            .arg("s16le")
+            .arg(pcm.as_os_str()))
         .expect("decode independent PCM audio window");
         std::fs::metadata(pcm).unwrap().len()
     };
