@@ -161,6 +161,20 @@ test("2x compositor frame stays aligned with independent WAV after forward/backw
   await scrub(0.45);
   await sampleDrift("backward scrub", backwardRequestedAtMs);
 
+  // These are deterministic DOM buffering signals against ACTUAL native
+  // WebView2 video/WAV decoders, not an emulation of network starvation.
+  // The React transport must relock audio to presented frames after each
+  // signal. A real spontaneous network stall remains a separate QA case.
+  for (const signal of ["waiting", "stalled"] as const) {
+    await scrub(0.45); // Leave enough timeline for six fresh frame samples.
+    const requestedAtMs = Date.now();
+    await video.evaluate((node, nativeSignal) => {
+      node.dispatchEvent(new Event(nativeSignal));
+      node.dispatchEvent(new Event("playing"));
+    }, signal);
+    await sampleDrift("native decoders after synthetic " + signal, requestedAtMs);
+  }
+
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   await expect(page.locator(".preview-controls .timecode")).toHaveText("0.000 с");
   await expect.poll(() => audio.evaluate((node) => (node as HTMLAudioElement).paused)).toBe(true);
