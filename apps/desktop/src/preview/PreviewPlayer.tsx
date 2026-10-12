@@ -455,7 +455,7 @@ export function PreviewPlayer({
                   className="preview-media"
                   src={layerSrc}
                   alt="Кадр изображения"
-                  style={{ opacity: Math.max(0, Math.min(1, clip.transform.opacity)) }}
+                  style={{ opacity: Math.max(0, Math.min(1, clip.transform?.opacity ?? 1)) }}
                 />
               ))}
             </div>
