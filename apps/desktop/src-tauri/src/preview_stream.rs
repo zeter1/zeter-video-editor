@@ -75,7 +75,6 @@ fn parse_range(value: &str, file_len: u64) -> Option<(u64, u64)> {
     Some((start, end.min(start + MAX_CHUNK - 1)))
 }
 
-
 // Delays *real bytes* in the debug E2E process, never in a release build.
 // The marker is created by Playwright after the application starts. Its
 // strict media UUID and bounded millisecond delay prevent cross-media leaks,
@@ -129,7 +128,11 @@ fn maybe_delay_e2e_video_range(media_id: &str, start: u64) {
         .append(true)
         .open(format!("{path}.hits"))
     {
-        let _ = writeln!(receipts, "{start} {ms} {} {finished}", started.elapsed().as_millis());
+        let _ = writeln!(
+            receipts,
+            "{start} {ms} {} {finished}",
+            started.elapsed().as_millis()
+        );
     }
 }
 
@@ -241,12 +244,21 @@ mod tests {
     fn debug_starvation_requires_exact_media_and_bounded_nonzero_range() {
         use super::debug_stall_delay;
         let id = "44444444-4444-4444-8444-444444444441";
-        assert_eq!(debug_stall_delay(&format!("{id} 900"), id, 1_048_576), Some(900));
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900"), id, 1_048_576),
+            Some(900)
+        );
         assert_eq!(debug_stall_delay(&format!("{id} 900"), id, 0), None);
-        assert_eq!(debug_stall_delay(&format!("{id} 900"), "different", 1), None);
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900"), "different", 1),
+            None
+        );
         assert_eq!(debug_stall_delay(&format!("{id} 100"), id, 1), None);
         assert_eq!(debug_stall_delay(&format!("{id} 2001"), id, 1), None);
-        assert_eq!(debug_stall_delay(&format!("{id} 900 trailing"), id, 1), None);
+        assert_eq!(
+            debug_stall_delay(&format!("{id} 900 trailing"), id, 1),
+            None
+        );
         assert_eq!(debug_stall_delay("invalid", id, 1), None);
     }
 
