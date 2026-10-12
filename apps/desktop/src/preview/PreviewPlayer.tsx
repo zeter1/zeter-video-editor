@@ -66,10 +66,39 @@ export function PreviewPlayer({
   const key = active && source ? `${active.id}:${source.id}` : "";
   const image = active?.kind === "Image";
   const videoSource = active?.kind === "Video" && src ? src : null;
+  const activeTrack = sequence.tracks.find((track) =>
+    track.clips.some((clip) => clip.id === active?.id),
+  );
+
+  // The browser's media clock must follow the authoritative clip speed and
+  // audio settings; these are transient preview properties, not edit commands.
+  const applyPlaybackSettings = (element: HTMLVideoElement): void => {
+    if (!active) return;
+    element.playbackRate = Number.isFinite(active.speed) && active.speed > 0 ? active.speed : 1;
+    const amplifiedVolume = active.audio.volume * 10 ** (active.audio.gain_db / 20);
+    element.volume = Number.isFinite(amplifiedVolume)
+      ? Math.min(1, Math.max(0, amplifiedVolume))
+      : 0;
+    element.muted = Boolean(activeTrack?.muted || active.audio.muted);
+  };
+
+  const finishCurrentClip = (clip: Clip): void => {
+    const next = findVisibleClip(sequence, clip.timeline_end);
+    // Keep the transport playing only across directly adjacent playable videos.
+    // Gaps, images and the end of the sequence require a new explicit Play.
+    if (next?.kind !== "Video" || !media.some((item) => item.id === next.media_id)) {
+      setPlaying(false);
+    }
+    onSeek(clip.timeline_end);
+  };
 
   useEffect(() => {
     setMediaError(null);
   }, [key]);
+
+  useEffect(() => {
+    if (video.current) applyPlaybackSettings(video.current);
+  }, [active, activeTrack, key]);
 
   useEffect(() => {
     if (!videoSource || !active || !video.current) return;
@@ -81,6 +110,10 @@ export function PreviewPlayer({
   }, [active, playheadTimeUs, videoSource]);
 
   useEffect(() => {
+    if (playing && !videoSource) {
+      setPlaying(false);
+      return;
+    }
     if (!video.current) return;
     const current = video.current;
     if (playing && videoSource) {
@@ -93,13 +126,32 @@ export function PreviewPlayer({
     }
   }, [playing, key, videoSource]);
 
+  // Space toggles playback in the workspace, never while typing or using a button.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.code !== "Space" || event.repeat || event.defaultPrevented ||
+          event.altKey || event.ctrlKey || event.metaKey || !videoSource) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("input, textarea, select, button, [contenteditable], [role='button'], [role='textbox']")) return;
+      event.preventDefault();
+      setPlaying((current) => !current);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [videoSource]);
+
   const onTimeUpdate = (): void => {
     const current = video.current;
     if (!current || !active || !playing) return;
     const speed = active.speed > 0 ? active.speed : 1;
     const mediaElapsed = Math.max(0, current.currentTime * 1_000_000 - active.source_in);
     const nextTime = Math.min(active.timeline_end, active.timeline_start + mediaElapsed / speed);
-    if (Number.isFinite(nextTime)) onSeek(nextTime);
+    if (!Number.isFinite(nextTime)) return;
+    if (nextTime >= active.timeline_end) {
+      finishCurrentClip(active);
+    } else {
+      onSeek(nextTime);
+    }
   };
 
   return (
@@ -118,13 +170,13 @@ export function PreviewPlayer({
               playsInline
               preload="auto"
               onLoadedMetadata={() => {
-                if (video.current) video.current.currentTime = sourceTime(active, playheadTimeUs);
+                if (video.current) {
+                  applyPlaybackSettings(video.current);
+                  video.current.currentTime = sourceTime(active, playheadTimeUs);
+                }
               }}
               onTimeUpdate={onTimeUpdate}
-              onEnded={() => {
-                setPlaying(false);
-                onSeek(active.timeline_end);
-              }}
+              onEnded={() => finishCurrentClip(active)}
               onError={() => {
                 setPlaying(false);
                 setMediaError("Формат или видеокодек не поддерживается WebView2. Требуется прокси-файл.");

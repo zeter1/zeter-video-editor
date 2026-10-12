@@ -186,6 +186,12 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
     (el as HTMLVideoElement).readyState), { timeout: 15_000 }).toBeGreaterThan(0);
   await expect(liveVideo).toHaveAttribute("src", new RegExp(video.id));
 
+  // This is a real WebView2 playback check, not a mocked HTMLVideoElement.
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("button", { name: "Play" })).toBeVisible();
+
   // Keyboard zoom is timeline-only. The playhead must not move.
   const zoomInput = page.getByRole("slider", { name: "Масштаб таймлайна" });
   await expect(zoomInput).toHaveValue("1");
