@@ -44,6 +44,8 @@
 
 ### Изменено
 
+- **Whisper WebView2 regression follow-up:** Windows CI 38199352162 confirmed that attempting to intercept Win32 Tauri file-selection through page-scoped JavaScript still blocked the real GUI. Two acceptance scenarios now install a verified local test model via real Rust `start_transcription` and await completed inference before exercising GUI Generate/Review/Apply/Undo and clip-switch behavior. Picker dialog behavior stays covered by React tests; native interactive click-through is not covered by E2E. Full revised Windows CI remains pending.
+
 - **Whisper native model selection and Windows E2E consistency (PR #42 follow-up, awaiting CI):** Local .bin and matching .json are selected by Tauri dialogs when the model is missing; cancelling or changing clips safely abandons the retry. Windows WebView2 E2E injects only the two dialog results and asserts their extension/order, but still runs real offline Rust Whisper inference, review, Apply, Undo and stale-revision protection; the old Playwright browser-prompt handler caused Windows CI 38155482768 to hang. A live interactive Windows dialog click-through remains unverified. Desktop version and .vcut format unchanged.
 
 - Версия desktop-приложения изменена с `0.0.1` на `0.1.0-alpha.1` в npm-манифесте, npm lockfile, Tauri JSON, Tauri Cargo package, Cargo lockfile и `release/runtime-manifest.json`; эти представления вместе с README/PROJECT_STATUS проверяются автоматически. Схема проектов `.vcut` осталась v2 — версия приложения не меняет формат пользовательских проектов.
