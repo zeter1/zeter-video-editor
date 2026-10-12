@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Clip, MediaRef, Sequence, Track, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
@@ -395,7 +395,10 @@ export function PreviewPlayer({
       <div className="preview-stage">
         <div
           className={`preview-frame preview-scale-${scale === "Fit" ? "fit" : "100"}`}
-          style={{ aspectRatio: `${sequence.width} / ${sequence.height}` }}
+          style={{
+            aspectRatio: `${sequence.width} / ${sequence.height}`,
+            "--preview-aspect": sequence.width / sequence.height,
+          } as CSSProperties}
         >
           {videoSource && active ? (
             <div className="preview-still-layers">

@@ -1,3 +1,12 @@
+# ACTIVE PRODUCT FIX — 2026-10-12 — PORTRAIT 9:16 FIT IN SHALLOW PREVIEW (PR #59)
+
+- **SCOPE:** https://github.com/zeter1/zeter-video-editor/pull/59, branch `fix/preview-portrait-fit-height-20261012`, based on directly verified main `574f851744b049c1ef2d3758bf8f2422dd3f2230`. Product CSS/React change constrains Fit width by the stage's available content height via CSS container-size units and the actual sequence aspect; preserves 100%, media decoding/audio, export, originals, .vcut v2, and alpha version.
+- **REAL RED / ROOT CAUSE:** native Windows WebView2 test-only HEAD `e1bda4ad46f029b6fe85400865159b707344d337`, https://github.com/zeter1/zeter-video-editor/actions/runs/38265124906, terminal FAILURE in new `preview-portrait-fit.spec.ts`: tall 9:16 image extends beyond preview stage and intercepts pointer events for `Preview scale Fit`. Previous test-only `69310bba6defd97e829f26b53c4926e2bc161de8` timed out without diagnostics (https://github.com/zeter1/zeter-video-editor/actions/runs/38264078960); DO NOT call the first timeout a geometry RED. Rust, TypeScript build and frontend tests passed in the diagnostic RED run; downstream Playwright CDP errors followed the first failed test.
+- **NEXT VERIFICATION (before merging):** check the PR's FINAL exact HEAD Windows CI terminal SUCCESS, including Rust/managed FFmpeg, frontend/Vitest, all actual WebView2 E2E, DEBUG NSIS smoke and artifact upload. Inspect PR diff; merge only after success and re-read main ref + PR merged state. No manual Windows QA or public/signed release.
+- **NEXT ONE SMALL PRODUCT-CODE TASK FOR A NEW DIALOG ONLY:** verify `preview-scale-100` with portrait 9:16 + shallow dock: whether full-resolution content obscures transport buttons or needs a clipped/scrollable viewport, test actual native WebView2 clickability and one small UI change without affecting Fit, rVFC/WAV or project model. Do not implement this next task in this conversation.
+
+---
+
 # VERIFIED MAIN CHECKPOINT — 2026-10-12 — PREVIEW 4:3 POSITION OFFSETS PR #57 MERGED
 
 - **CODE MERGED IN MAIN:** https://github.com/zeter1/zeter-video-editor/pull/57 is closed, merged=true. Reviewed branch `fix/preview-aspect-offset-parity-20261012`, exact PR HEAD `23f4bccf2805c6967cff2b902d566f8bff425d3f`, source main `f25025076a0229131b926554814b215a94ca690c`, GitHub squash-merge `4effd1f67636638b1a63d273dab50decd1552b25`. Verified GitHub `refs/heads/main` immediately after merge **exactly equals that squash SHA**.
