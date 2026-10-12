@@ -1,3 +1,11 @@
+# PRODUCT CHECKPOINT — 2026-10-12 — PREVIEW CLIP-BOUNDARY NAVIGATION / alpha.3
+
+- **ONE PRODUCT TASK:** Preview now offers previous/next clip-boundary controls. Boundary points from every track (including locked/hidden) are sorted and deduplicated; clicks move the transient playhead strictly to the next/previous position and pause playback. Unavailable navigation is disabled. No Rust edit command, .vcut format change, media write or native playback changes.
+- **FILES:** `apps/desktop/src/preview/editNavigation.ts` + unit tests, `PreviewPlayer.tsx` + React tests; desktop SemVer source manifests/lockfiles, CHANGELOG, README, PROJECT_STATUS. Branch `feat/preview-edit-boundaries-alpha3-20261012`, base main `5a81c3f42897072679f7589cbdff1c7ce2d8700b`. Version `0.1.0-alpha.3` is an unpublished source prerelease. PR, exact-head Windows CI and merge must be verified separately; do not infer passing CI from code or previous main.
+- **NEXT ONE PRODUCT-CODE TASK (NEXT DIALOG ONLY):** Translate English Preview transport/quality/scale accessible names in `apps/desktop/src/preview/PreviewPlayer.tsx` to Russian, adapt related Vitest/Playwright and verify Windows Tauri/WebView2; bump one further alpha version in the resulting PR. Do not change playback logic, .vcut, Rust or media files. One dialogue = one task.
+
+---
+
 # VERSION CHECKPOINT — 2026-10-12 — SOURCE 0.1.0-alpha.2 / PER-TASK PRERELEASE RULE
 
 - **SINGLE REQUESTED TASK:** Desktop source version `0.1.0-alpha.1` → `0.1.0-alpha.2` across all app manifests, npm/Tauri/Cargo lockfiles, runtime app manifest, README, changelog and status marker. `CHANGELOG.md` retains earlier history. No changes to Preview, export, `.vcut v2`, worker/FFmpeg versions or user's media.
@@ -530,7 +538,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.2` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.3` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
