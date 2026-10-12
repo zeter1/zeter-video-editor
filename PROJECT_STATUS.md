@@ -1,3 +1,12 @@
+# PRODUCT CHECKPOINT — 2026-10-12 — RUSSIAN PREVIEW CONTROLS / alpha.4 (PR #63)
+
+- **ONE TASK (ZVE-001):** Preview transport, quality and scale accessible names, titles/tooltips and visible quality/scale indicators are now Russian. Internal quality/scale identifiers stay Full/1/2/1/4/Fit/100%, no playback, Rust, FFmpeg, .vcut or source-media changes.
+- **TDD:** RED test-only PR #63 Windows CI run 38291710939 failed exactly on missing Russian accessible button name «Предыдущий кадр» (32 other Vitest test files passed); first test-only TS2769 error was fixed before verifying real RED. Final green exact-HEAD Windows CI and merge are to be verified independently — do NOT treat this branch as main until merged.
+- **FILES:** PreviewPlayer.tsx, two React suites, six Windows WebView2 E2E specs, version manifests, CHANGELOG and README. Branch feat/preview-russian-controls-alpha4-20261012, base main 91aadb67c6f53bc9042784501bd2f6061b325654. Source version 0.1.0-alpha.4 not published or signed.
+- **NEXT PRODUCT TASK (NEXT DIALOG ONLY):** From separate Google task document, re-check ZVE-002 layered Preview compositing / ZVE-003 editing UX against main and open stacked draft PRs. Choose ONE approved bounded code slice, with architecture approval before changing fundamental preview composition. Never resume this task as if unfinished if PR #63 merged and CI success confirmed.
+
+---
+
 # PRODUCT CHECKPOINT — 2026-10-12 — PREVIEW CLIP-BOUNDARY NAVIGATION / alpha.3
 
 - **ONE PRODUCT TASK:** Preview now offers previous/next clip-boundary controls. Boundary points from every track (including locked/hidden) are sorted and deduplicated; clicks move the transient playhead strictly to the next/previous position and pause playback. Unavailable navigation is disabled. No Rust edit command, .vcut format change, media write or native playback changes.
@@ -538,7 +547,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.3` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.4` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

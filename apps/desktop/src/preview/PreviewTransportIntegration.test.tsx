@@ -96,13 +96,13 @@ describe("PreviewPlayer continuous transport", () => {
       onCommit={onCommit}
     />);
 
-    const play = screen.getByRole("button", { name: "Play" });
+    const play = screen.getByRole("button", { name: "Воспроизвести" });
     expect((play as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(play);
     flushFrame(1000);
     flushFrame(1050);
     expect(onSeek).toHaveBeenLastCalledWith(50_000);
-    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Пауза" })).toBeTruthy();
     expect(onCommit).not.toHaveBeenCalled();
   });
 
@@ -128,11 +128,11 @@ describe("PreviewPlayer continuous transport", () => {
       onCommit={vi.fn()}
     />);
     expect(screen.getByAltText("Кадр изображения")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     flushFrame(1000);
     flushFrame(1100);
     expect(onSeek).toHaveBeenLastCalledWith(50_000);
-    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Воспроизвести" })).toBeTruthy();
     expect(pending.size).toBe(0);
   });
 
@@ -200,7 +200,7 @@ describe("PreviewPlayer continuous transport", () => {
     const { container, rerender } = render(<PreviewPlayer {...props} playheadTimeUs={1_000_000} />);
     const video = container.querySelector("video.preview-media") as HTMLVideoElement;
     expect(video.currentTime).toBeCloseTo(3); // source_in=1s + 1s*2x
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
 
     // 150ms SOURCE = 75ms timeline: safe decoder jitter, not a seek.
     video.currentTime = 3.15;
@@ -212,7 +212,7 @@ describe("PreviewPlayer continuous transport", () => {
     rerender(<PreviewPlayer {...props} playheadTimeUs={1_000_002} />);
     expect(video.currentTime).toBeCloseTo(3.000004, 5);
 
-    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Пауза" }));
     // The 1ms paused timeline budget equals 2ms on a 2x SOURCE clock.
     video.currentTime = 3.0015;
     rerender(<PreviewPlayer {...props} playheadTimeUs={1_000_003} />);
@@ -236,11 +236,11 @@ describe("PreviewPlayer continuous transport", () => {
       onCommit={onCommit}
     />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
-    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
+    expect(screen.getByRole("button", { name: "Пауза" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Остановить и вернуться к началу" }));
     expect(onSeek).toHaveBeenLastCalledWith(0);
-    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Воспроизвести" })).toBeTruthy();
     expect(pending.size).toBe(0);
     expect(onCommit).not.toHaveBeenCalled();
   });
@@ -257,7 +257,7 @@ describe("PreviewPlayer continuous transport", () => {
       onCommit={vi.fn()}
     />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Остановить и вернуться к началу" }));
     expect(onSeek).toHaveBeenLastCalledWith(0);
     rerender(<PreviewPlayer
       sequence={withImageClip(0, 2_000_000)}
@@ -268,7 +268,7 @@ describe("PreviewPlayer continuous transport", () => {
       onSeek={onSeek}
       onCommit={vi.fn()}
     />);
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     flushFrame(1_000);
     flushFrame(1_050);
     expect(onSeek).toHaveBeenLastCalledWith(50_000);
@@ -293,18 +293,18 @@ describe("PreviewPlayer continuous transport", () => {
     };
     const { container, rerender } = render(<PreviewPlayer {...props} playheadTimeUs={500_000} />);
     const video = container.querySelector("video.preview-media") as HTMLVideoElement;
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     video.currentTime = 2; // stale EOF of old decoder position
     fireEvent.ended(video);
     expect(onSeek).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Пауза" })).toBeTruthy();
 
     rerender(<PreviewPlayer {...props} playheadTimeUs={1_950_000} />);
     video.currentTime = 2;
     fireEvent.ended(video);
     expect(onSeek).toHaveBeenCalledTimes(1);
     expect(onSeek).toHaveBeenLastCalledWith(2_000_000);
-    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Воспроизвести" })).toBeTruthy();
     fireEvent.ended(video); // duplicate after playback stopped
     expect(onSeek).toHaveBeenCalledTimes(1);
     expect(onCommit).not.toHaveBeenCalled();
@@ -333,16 +333,16 @@ describe("PreviewPlayer continuous transport", () => {
       playheadTimeUs={500_000} onSeek={vi.fn()} onCommit={onCommit}
     />);
     expect(container.querySelector("video.preview-media")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     await act(async () => { await Promise.resolve(); });
-    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Пауза" })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Пауза" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     await act(async () => { await Promise.resolve(); });
     expect(screen.getByRole("alert").textContent).toContain("Не удалось запустить видео");
-    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Воспроизвести" })).toBeTruthy();
     expect(nativePlay).toHaveBeenCalledTimes(2);
     expect(onCommit).not.toHaveBeenCalled();
   });
@@ -382,14 +382,14 @@ describe("PreviewPlayer continuous transport", () => {
     fireEvent.loadedMetadata(audio);
     fireEvent.seeked(audio);
 
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     expect(audioPlays()).toBe(0); // An unbuffered video has not started its clock.
     fireEvent.playing(video);
     expect(audioPlays()).toBe(1);
-    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Пауза" }));
     const pausedAudioCount = audioPauses();
     expect(pausedAudioCount).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     expect(audioPlays()).toBe(1); // Old decoder readiness must not leak into restart.
     fireEvent.playing(video);
     expect(audioPlays()).toBe(2);
@@ -423,20 +423,20 @@ describe("PreviewPlayer continuous transport", () => {
     const props = { sequence, media: [], selectedClip: null, selectedTrackId: null, onSeek, onCommit };
     const { rerender } = render(<PreviewPlayer {...props} playheadTimeUs={500_000} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     expect(pending.size).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Next frame" }));
+    fireEvent.click(screen.getByRole("button", { name: "Следующий кадр" }));
     expect(onSeek).toHaveBeenLastCalledWith(533_333);
-    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Воспроизвести" })).toBeTruthy();
     expect(pending.size).toBe(0);
     flushFrame(1_000);
     expect(onSeek).toHaveBeenCalledTimes(1);
 
     rerender(<PreviewPlayer {...props} playheadTimeUs={990_000} />);
-    fireEvent.click(screen.getByRole("button", { name: "Next frame" }));
+    fireEvent.click(screen.getByRole("button", { name: "Следующий кадр" }));
     expect(onSeek).toHaveBeenLastCalledWith(1_000_000);
     rerender(<PreviewPlayer {...props} playheadTimeUs={10_000} />);
-    fireEvent.click(screen.getByRole("button", { name: "Previous frame" }));
+    fireEvent.click(screen.getByRole("button", { name: "Предыдущий кадр" }));
     expect(onSeek).toHaveBeenLastCalledWith(0);
     expect(onCommit).not.toHaveBeenCalled();
   });
@@ -477,16 +477,16 @@ describe("PreviewPlayer continuous transport", () => {
     fireEvent.loadedMetadata(audio);
     fireEvent.seeked(audio);
 
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     fireEvent.playing(video);
     expect(nativePlay.mock.instances).toContain(audio);
     const pausedVideoBefore = nativePause.mock.instances.filter((node) => node === video).length;
     const pausedAudioBefore = nativePause.mock.instances.filter((node) => node === audio).length;
-    fireEvent.click(screen.getByRole("button", { name: "Next frame" }));
+    fireEvent.click(screen.getByRole("button", { name: "Следующий кадр" }));
     expect(nativePause.mock.instances.filter((node) => node === video).length).toBeGreaterThan(pausedVideoBefore);
     expect(nativePause.mock.instances.filter((node) => node === audio).length).toBeGreaterThan(pausedAudioBefore);
     expect(onSeek).toHaveBeenLastCalledWith(533_333);
-    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Воспроизвести" })).toBeTruthy();
     expect(onCommit).not.toHaveBeenCalled();
   });
 
@@ -528,7 +528,7 @@ describe("PreviewPlayer continuous transport", () => {
     fireEvent.loadedMetadata(audioNode);
     fireEvent.seeked(audioNode);
     firstVideo.currentTime = 0.5;
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     fireEvent.playing(firstVideo);
     expect(plays()).toBe(1);
     const pausesBefore = pauses();
@@ -588,7 +588,7 @@ describe("PreviewPlayer continuous transport", () => {
     fireEvent.loadedMetadata(audio);
     fireEvent.seeked(audio);
     video.currentTime = 0.5;
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
     fireEvent.playing(video);
     expect(audioPlays()).toBe(1);
 
@@ -672,7 +672,7 @@ describe("PreviewPlayer continuous transport", () => {
             callback(1000, { mediaTime, presentedFrames } as VideoFrameCallbackMetadata);
         });
       };
-      fireEvent.click(screen.getByRole("button", { name: "Play" }));
+      fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
       fireEvent.playing(video);
       fireEvent.seeked(video);
       expect(audioPlays()).toBe(0);
@@ -812,7 +812,7 @@ describe("PreviewPlayer continuous transport", () => {
       expect(onSeek).toHaveBeenLastCalledWith(1_790_000);
       expect(onSeek).toHaveBeenCalledTimes(beforeBufferCatchUp + 1);
 
-      fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      fireEvent.click(screen.getByRole("button", { name: "Остановить и вернуться к началу" }));
       expect(onSeek).toHaveBeenLastCalledWith(0);
       expect(callbacks.size).toBe(0);
       expect(onCommit).not.toHaveBeenCalled();
@@ -869,7 +869,7 @@ describe("PreviewPlayer continuous transport", () => {
           playheadTimeUs={timeUs} onSeek={(next) => { onSeek(next); setTimeUs(next); }} />;
       };
       const { container, rerender } = render(<ClockHarness videoClip={clip} />);
-      stopPlayback = () => fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+      stopPlayback = () => fireEvent.click(screen.getByRole("button", { name: "Остановить и вернуться к началу" }));
       const video = container.querySelector("video.preview-media") as HTMLVideoElement;
       const audio = screen.getByTestId("preview-audio-retime-wav") as HTMLAudioElement;
       Object.defineProperty(video, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
@@ -888,7 +888,7 @@ describe("PreviewPlayer continuous transport", () => {
             callback(1000, { mediaTime, presentedFrames } as VideoFrameCallbackMetadata);
         });
       };
-      fireEvent.click(screen.getByRole("button", { name: "Play" }));
+      fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
       fireEvent.playing(video);
       present(1, 1);
       expect(audioPlays()).toBe(1);
@@ -931,6 +931,6 @@ describe("PreviewPlayer continuous transport", () => {
       onSeek={vi.fn()}
       onCommit={vi.fn()}
     />);
-    expect((screen.getByRole("button", { name: "Play" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Воспроизвести" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

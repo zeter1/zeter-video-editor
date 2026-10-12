@@ -103,7 +103,7 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
         });
       }
     });
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
 
     // The receipt is written by Rust only AFTER a delayed real range read;
     // an HTTP status, mocked event, or mere sleeping in Playwright cannot pass.
@@ -218,7 +218,7 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
     expect(summary.p50Us, "sustained A/V drift median").toBeLessThan(250_000);
     expect(summary.maxUs, "sustained A/V drift maximum").toBeLessThan(350_000);
 
-    await page.getByRole("button", { name: "Stop", exact: true }).click();
+    await page.getByRole("button", { name: "Остановить и вернуться к началу", exact: true }).click();
     await expect(page.locator(".preview-controls .timecode")).toHaveText("0.000 с");
     await expect.poll(() => audio.evaluate((node) => (node as HTMLAudioElement).paused)).toBe(true);
     expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);

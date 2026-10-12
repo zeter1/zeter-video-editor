@@ -527,7 +527,7 @@ export function PreviewPlayer({
         </div>
       </div>
       <PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={playheadTimeUs} playing={audioTransportPlaying} />
-      <div className="preview-controls" aria-label="Preview controls">
+      <div className="preview-controls" aria-label="Управление предпросмотром">
         <button
           type="button"
           aria-label="К предыдущей границе клипа"
@@ -537,14 +537,14 @@ export function PreviewPlayer({
         >|‹</button>
         <button
           type="button"
-          aria-label="Previous frame"
+          aria-label="Предыдущий кадр"
           title="Предыдущий кадр"
           onClick={() => stepFrame(-1)}
         >‹</button>
         <button
           type="button"
           className="play-button"
-          aria-label={playing ? "Pause" : "Play"}
+          aria-label={playing ? "Пауза" : "Воспроизвести"}
           title={playing ? "Пауза" : "Воспроизвести"}
           disabled={playableEndUs <= 0}
           onClick={() => {
@@ -557,7 +557,7 @@ export function PreviewPlayer({
         >{playing ? "Ⅱ" : "▶"}</button>
         <button
           type="button"
-          aria-label="Stop"
+          aria-label="Остановить и вернуться к началу"
           title="Остановить и вернуться к началу"
           onClick={() => {
             // Stop is a transient transport action, never an EditCommand.
@@ -569,7 +569,7 @@ export function PreviewPlayer({
         >■</button>
         <button
           type="button"
-          aria-label="Next frame"
+          aria-label="Следующий кадр"
           title="Следующий кадр"
           onClick={() => stepFrame(1)}
         >›</button>
@@ -585,22 +585,24 @@ export function PreviewPlayer({
           <button
             type="button"
             key={value}
-            aria-label={`Preview quality ${value}`}
+            aria-label={`Качество предпросмотра: ${value === "Full" ? "Полное" : value}`}
+            title={`Качество предпросмотра: ${value === "Full" ? "Полное" : value}`}
             className={quality === value ? "is-active" : ""}
             onClick={() => setQuality(value)}
-          >{value}</button>
+          >{value === "Full" ? "Полное" : value}</button>
         ))}
         {(["Fit", "100%"] as const).map((value) => (
           <button
             type="button"
             key={value}
-            aria-label={`Preview scale ${value}`}
+            aria-label={`Масштаб предпросмотра: ${value === "Fit" ? "Вписать" : value}`}
+            title={`Масштаб предпросмотра: ${value === "Fit" ? "Вписать" : value}`}
             className={scale === value ? "is-active" : ""}
             onClick={() => setScale(value)}
           >{value === "Fit" ? "Вписать" : "100%"}</button>
         ))}
-        <span className="quality-pill" data-testid="preview-quality">{quality}</span>
-        <span className="quality-pill" data-testid="preview-scale">{scale}</span>
+        <span className="quality-pill" data-testid="preview-quality">{quality === "Full" ? "Полное" : quality}</span>
+        <span className="quality-pill" data-testid="preview-scale">{scale === "Fit" ? "Вписать" : scale}</span>
       </div>
     </>
   );

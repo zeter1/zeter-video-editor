@@ -75,8 +75,8 @@ test("real WebView2 holds WAV at a zero-gap A→B cut until trimmed video seeks 
     { timeout: 15_000 },
   ).toBeGreaterThan(0);
 
-  await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Пауза", exact: true })).toBeVisible();
 
   // Two consecutive clips share a media ID but have distinct source in-points:
   // their <video> elements MUST be replaced and the new one must seek to 4s.
@@ -104,7 +104,7 @@ test("real WebView2 holds WAV at a zero-gap A→B cut until trimmed video seeks 
     intervals: [50, 100, 150], timeout: 15_000,
   }).toBeLessThan(0.3);
 
-  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await page.getByRole("button", { name: "Пауза", exact: true }).click();
   await expect.poll(() => video.evaluate(
     (node) => (node as HTMLVideoElement).paused,
   )).toBe(true);
@@ -113,9 +113,9 @@ test("real WebView2 holds WAV at a zero-gap A→B cut until trimmed video seeks 
   )).toBe(true);
 
   // Pause/restart/Stop are transport operations, never Rust timeline edits.
-  await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Пауза", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Остановить и вернуться к началу", exact: true }).click();
   await expect(page.locator(".preview-controls .timecode")).toHaveText("0.000 с");
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
 });

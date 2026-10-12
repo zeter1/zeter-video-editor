@@ -1072,9 +1072,9 @@ test("applies native video audio volume and track mute in real WebView2", async 
   ).toBe(true);
 
   const beforeTransport = await invokeTauri<Snapshot>(page, "project_snapshot");
-  await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Пауза", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Пауза", exact: true }).click();
   expect(await invokeTauri<Snapshot>(page, "project_snapshot")).toEqual(beforeTransport);
 });
 
@@ -1092,14 +1092,14 @@ test("plays a standalone audio track in real WebView2 without editing the projec
     { timeout: 15_000 },
   ).toBeGreaterThan(0);
 
-  await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Пауза", exact: true })).toBeVisible();
   await expect.poll(
     () => audio.evaluate((element) => (element as HTMLAudioElement).currentTime),
     { timeout: 15_000 },
   ).toBeGreaterThan(0.15);
 
-  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await page.getByRole("button", { name: "Пауза", exact: true }).click();
   await expect.poll(
     () => audio.evaluate((element) => (element as HTMLAudioElement).paused),
   ).toBe(true);
@@ -1194,8 +1194,8 @@ test("plays real video through an audio-backed gap and still into the next video
     (element) => (element as HTMLVideoElement).playbackRate,
   )).toBe(2);
 
-  await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Пауза", exact: true })).toBeVisible();
 
   // Real native media ends at 1.5s of timeline, not 4s of source media.
   // Preview keeps a genuinely empty black picture gap while standalone WAV plays.
@@ -1218,16 +1218,16 @@ test("plays real video through an audio-backed gap and still into the next video
 
   // Stop must reset both media clocks and the UI playhead, but never mutate
   // the Rust project/revision. Replay starts at the first source in-point.
-  await page.getByRole("button", { name: "Stop", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Остановить и вернуться к началу", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Воспроизвести", exact: true })).toBeVisible();
   await expect(page.locator(".preview-controls .timecode")).toHaveText("0.000 с");
   await expect(page.locator("video.preview-media")).toHaveCount(1);
   expect(await invokeTauri<Snapshot>(page, "project_snapshot")).toEqual(before);
-  await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Пауза", exact: true })).toBeVisible();
   await expect.poll(() => page.locator("video.preview-media").evaluate(
     (element) => (element as HTMLVideoElement).currentTime,
   )).toBeGreaterThan(1);
-  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await page.getByRole("button", { name: "Остановить и вернуться к началу", exact: true }).click();
   expect(await invokeTauri<Snapshot>(page, "project_snapshot")).toEqual(before);
 });
