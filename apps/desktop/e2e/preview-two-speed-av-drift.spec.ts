@@ -68,51 +68,98 @@ test("2x compositor frame stays aligned with independent WAV after forward/backw
     await slider.click({ position: { x: position, y: 10 } });
   };
 
-  // metadata.mediaTime is the actually presented frame timestamp. Decoder
-  // currentTime is only a fallback for old WebView2 runtimes without rVFC.
+  // metadata.mediaTime is the submitted compositor frame PTS, not decoder
+  // currentTime. Capture WAV currentTime inside the callback so two IPC
+  // round-trips do not pollute the drift measurement. Older WebView2 versions
+  // use a distinctly labeled decoder-clock fallback.
   const measure = async () => page.evaluate(async (audioId) => {
     const v = document.querySelector("video.preview-media") as HTMLVideoElement | null;
-    const a = document.querySelector(`[data-testid="preview-audio-${audioId}"]`) as HTMLAudioElement | null;
-    if (!v || !a || v.paused || a.paused || v.seeking || a.seeking ||
-        v.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
-        a.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return null;
-    let frameMediaSeconds: number;
-    let clock: "rVFC" | "decoder" = "decoder";
-    if (typeof v.requestVideoFrameCallback === "function" &&
-        typeof v.cancelVideoFrameCallback === "function") {
-      const time = await new Promise<number | null>((resolve) => {
-        const id = v.requestVideoFrameCallback((_now, metadata) => resolve(metadata.mediaTime));
-        setTimeout(() => { v.cancelVideoFrameCallback(id); resolve(null); }, 400);
-      });
-      if (time === null || v.paused || a.paused || v.seeking || a.seeking) return null;
-      frameMediaSeconds = time;
-      clock = "rVFC";
-    } else {
-      frameMediaSeconds = v.currentTime;
+    const a = document.querySelector('[data-testid="preview-audio-' + audioId + '"]') as HTMLAudioElement | null;
+    const ready = () => Boolean(v && a && !v.paused && !a.paused && !v.seeking &&
+      !a.seeking && v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+      a.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA);
+    if (!v || !a || !ready()) return null;
+
+    const sample = (
+      sourceSeconds: number, clock: "rVFC" | "decoder",
+      callbackNowMs: number | null, expectedDisplayTimeMs: number | null,
+      presentedFrames: number | null,
+    ) => ({
+      driftUs: Math.round((sourceSeconds / 2 - a.currentTime) * 1_000_000),
+      clock, sourceSeconds, wavSeconds: a.currentTime,
+      callbackNowMs, expectedDisplayTimeMs, presentedFrames,
+      observedAtMs: performance.now(),
+    });
+
+    if (typeof v.requestVideoFrameCallback !== "function" ||
+        typeof v.cancelVideoFrameCallback !== "function") {
+      return sample(v.currentTime, "decoder", null, null, null);
     }
-    // Video source 0..6s @2x maps to timeline seconds 0..3; independent WAV
-    // source and timeline both begin at 0s @1x.
-    return { driftUs: Math.round((frameMediaSeconds / 2 - a.currentTime) * 1_000_000), clock };
+    return new Promise<ReturnType<typeof sample> | null>((resolve) => {
+      let done = false;
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const finish = (value: ReturnType<typeof sample> | null) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timeoutId);
+        resolve(value);
+      };
+      const callbackId = v.requestVideoFrameCallback((now, metadata) => {
+        finish(ready()
+          ? sample(metadata.mediaTime, "rVFC", now, metadata.expectedDisplayTime, metadata.presentedFrames)
+          : null);
+      });
+      timeoutId = setTimeout(() => {
+        v.cancelVideoFrameCallback(callbackId);
+        finish(null);
+      }, 400);
+    });
   }, wavSource.id);
 
-  const sampleDrift = async (phase: string): Promise<void> => {
-    const samples: Array<{ driftUs: number; clock: string }> = [];
+  const sampleDrift = async (phase: string, requestedAtMs: number): Promise<void> => {
+    // An explicit recovery gate permits the actual native seek/decoder to
+    // settle; a single lucky sample is no longer sufficient to pass the test.
+    let recoveryMs: number | null = null;
     await expect.poll(async () => {
-      const sample = await measure();
-      if (!sample) return Number.POSITIVE_INFINITY;
-      samples.push(sample);
-      return Math.abs(sample.driftUs);
+      const observation = await measure();
+      if (!observation) return Number.POSITIVE_INFINITY;
+      if (Math.abs(observation.driftUs) < 300_000) recoveryMs = Date.now() - requestedAtMs;
+      return Math.abs(observation.driftUs);
     }, { intervals: [50, 100, 150], timeout: 12_000 }).toBeLessThan(300_000);
-    // Keep the actual normalized frame/audio samples in Windows CI logs.
-    console.log(`[2x A/V] ${phase}: ${JSON.stringify(samples.slice(-6))}`);
+
+    const samples: Array<NonNullable<Awaited<ReturnType<typeof measure>>>> = [];
+    for (let attempt = 0; attempt < 16 && samples.length < 6; attempt++) {
+      const observation = await measure();
+      if (observation) samples.push(observation);
+      await page.waitForTimeout(35);
+    }
+    const absDrifts = samples.map((entry) => Math.abs(entry.driftUs)).sort((a, b) => a - b);
+    const percentile = (fraction: number) =>
+      absDrifts[Math.max(0, Math.ceil(absDrifts.length * fraction) - 1)];
+    const summary = {
+      phase, recoveryMs, count: samples.length,
+      clocks: [...new Set(samples.map((entry) => entry.clock))],
+      p50Us: percentile(0.5), p95Us: percentile(0.95),
+      maxUs: absDrifts.at(-1), samples,
+    };
+    // Include actual frame metadata, independent WAV clock and phase-level
+    // drift percentiles in real Windows CI logs for root-cause investigation.
+    console.log("[2x A/V sustained] " + JSON.stringify(summary));
+    expect(samples.length, phase + ": insufficient consecutive clock samples").toBeGreaterThanOrEqual(6);
+    expect(summary.clocks, phase + ": mixed decoder clock sources").toHaveLength(1);
+    expect(summary.p50Us, phase + ": persistent median drift").toBeLessThan(250_000);
+    expect(summary.maxUs, phase + ": transient peak drift").toBeLessThan(350_000);
   };
 
+  const playRequestedAtMs = Date.now();
   await page.getByRole("button", { name: "Play", exact: true }).click();
-  await sampleDrift("initial");
+  await sampleDrift("initial", playRequestedAtMs);
+  const forwardRequestedAtMs = Date.now();
   await scrub(1.35);
-  await sampleDrift("forward scrub");
+  await sampleDrift("forward scrub", forwardRequestedAtMs);
+  const backwardRequestedAtMs = Date.now();
   await scrub(0.45);
-  await sampleDrift("backward scrub");
+  await sampleDrift("backward scrub", backwardRequestedAtMs);
 
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   await expect(page.locator(".preview-controls .timecode")).toHaveText("0.000 с");
