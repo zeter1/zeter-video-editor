@@ -82,8 +82,9 @@ export function PreviewPlayer({
   // Accepted compositor frames anchor recovery after dropped callbacks.
   // Pause/Stop and native or UI-initiated seek retire this trusted anchor.
   const frameAnchorRef = useRef<{ key: string; mediaSeconds: number; presentedFrames: number } | null>(null);
-  // After buffering, require native 'playing' and TWO advancing compositor
-  // frames before catching up a playhead left >120ms behind by the decoder.
+  // After 'waiting', require native 'playing'; after a fetch-only 'stalled'
+  // event, already-buffered video may continue without a new playing event.
+  // In both cases require TWO advancing compositor frames before recovery.
   // This proof is never reusable after a seek, pause, Stop or clip switch.
   const bufferedRecoveryRef = useRef<{
     key: string; playheadUs: number; resumed: boolean;
@@ -382,8 +383,11 @@ export function PreviewPlayer({
               }}
               onStalled={() => {
                 frameAnchorRef.current = null;
+                // Fetch starvation does not necessarily stop decoding already
+                // buffered video (unlike 'waiting'). Two advancing compositor
+                // frames can prove continuity without another 'playing' event.
                 bufferedRecoveryRef.current = {
-                  key, playheadUs: clockPositionRef.current, resumed: false, candidate: null,
+                  key, playheadUs: clockPositionRef.current, resumed: true, candidate: null,
                 };
                 setPresentedVideoFrame(null);
                 setSyncedVideoKey(null);

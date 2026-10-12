@@ -780,6 +780,23 @@ describe("PreviewPlayer continuous transport", () => {
       />);
       expect(audioPlays()).toBe(playsBeforeNearBuffer + 1);
 
+      // 'stalled' means a fetch paused, not necessarily that playback did.
+      // Already buffered video can continue to advance without a new 'playing'
+      // event; two real advancing frame callbacks must permit WAV to resume.
+      const playsBeforeStalled = audioPlays();
+      fireEvent.stalled(video);
+      video.currentTime = 4.38;
+      present(4.38, 115);
+      expect(audioPlays()).toBe(playsBeforeStalled);
+      video.currentTime = 4.4;
+      present(4.4, 116);
+      rerender(<PreviewPlayer
+        sequence={sequence} media={media}
+        selectedClip={null} selectedTrackId={null}
+        playheadTimeUs={1_400_000} onSeek={onSeek} onCommit={onCommit}
+      />);
+      expect(audioPlays()).toBe(playsBeforeStalled + 1);
+
       // After a true buffer interruption WebView2 can resume >120 ms
       // ahead of the parked playhead. One old compositor callback must NOT
       // catch up; two strictly advancing frames after native 'playing' can.
