@@ -1198,9 +1198,11 @@ test("plays real video through an audio-backed gap and still into the next video
   await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
 
   // Real native media ends at 1.5s of timeline, not 4s of source media.
-  // Preview continues over 1s of empty picture while standalone WAV plays.
+  // Preview keeps a genuinely empty black picture gap while standalone WAV plays.
+  await expect(page.locator(".preview-frame .preview-media"))
+    .toHaveCount(0, { timeout: 15_000 });
   await expect(page.getByText("На позиции курсора нет видеоклипа.", { exact: true }))
-    .toBeVisible({ timeout: 15_000 });
+    .toHaveCount(0);
   await expect(page.getByTestId(`preview-audio-${AUDIO_CLIP}`)).toHaveCount(1);
   await expect(page.locator("img.preview-media")).toHaveCount(1, { timeout: 15_000 });
   await expect(page.locator("video.preview-media")).toHaveCount(1, { timeout: 15_000 });
