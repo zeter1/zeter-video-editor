@@ -16,6 +16,20 @@ const files = [
   "CHANGELOG.md", "release/runtime-manifest.json",
 ];
 const note = "Проверяется атомарная согласованность обновления версий на всех уровнях приложения.";
+const currentVersion = JSON.parse(readFileSync(join(sourceRoot, "apps/desktop/package.json"), "utf8")).version;
+
+function nextDesktopVersion(current) {
+  const parsed = parseDesktopVersion(current);
+  assert.ok(parsed, `Invalid source desktop SemVer: ${current}`);
+  const suffix = /^(.*-[0-9A-Za-z-]+\.)(\d+)$/.exec(current);
+  if (suffix) return `${suffix[1]}${BigInt(suffix[2]) + 1n}`;
+  const [major, minor, patch] = parsed.core;
+  if (parsed.prerelease.length) return `${major}.${minor}.${patch}-${parsed.prerelease.join(".")}.1`;
+  return `${major}.${minor}.${patch + 1n}-alpha.1`;
+}
+
+const nextVersion = nextDesktopVersion(currentVersion);
+
 
 function fixture(run) {
   const folder = mkdtempSync(join(tmpdir(), "zeter-version-test-"));
@@ -54,6 +68,10 @@ test("SemVer rejects invalid numeric prerelease identifiers and compares precede
   assert.equal(compareDesktopVersions("1.0.0-9007199254740993", "1.0.0-9007199254740992"), 1);
 });
 
+test("fixture next version advances source SemVer", () => {
+  assert.ok(compareDesktopVersions(nextVersion, currentVersion) > 0);
+});
+
 test("Changelog dates must be actual calendar dates", () => {
   assert.equal(isValidCalendarDate("2026-10-11"), true);
   assert.equal(isValidCalendarDate("2024-02-29"), true);
@@ -66,15 +84,15 @@ test("version bump updates all manifests and release notes even with CRLF Cargo.
   const cargoPath = join(folder, "Cargo.lock");
   writeFileSync(cargoPath, readFileSync(cargoPath, "utf8").replace(/\r?\n/g, "\r\n"));
   const updated = script(folder, "set-version.mjs", [
-    "0.1.0-alpha.2", "--note", note, "--date", "2026-10-12",
+    nextVersion, "--note", note, "--date", "2026-10-12",
   ]);
   assert.equal(updated.status, 0, updated.stderr);
-  const check = script(folder, "check-version.mjs", ["--tag", "v0.1.0-alpha.2"]);
+  const check = script(folder, "check-version.mjs", ["--tag", `v${nextVersion}`]);
   assert.equal(check.status, 0, check.stderr);
-  const notes = script(folder, "release-notes.mjs", ["0.1.0-alpha.2"]);
+  const notes = script(folder, "release-notes.mjs", [nextVersion]);
   assert.equal(notes.status, 0, notes.stderr);
-  assert.match(notes.stdout, /## \[0\.1\.0-alpha\.2\] — 2026-10-12/);
-  assert.ok(!notes.stdout.includes("## [0.1.0-alpha.1]"));
+  assert.ok(notes.stdout.includes(`## [${nextVersion}] — 2026-10-12`));
+  assert.ok(!notes.stdout.includes(`## [${currentVersion}]`));
   assert.ok(readFileSync(cargoPath, "utf8").includes("\r\n"));
 }));
 
@@ -84,7 +102,7 @@ test("invalid date, downgrade and numeric-leading-zero prerelease cannot mutate 
   for (const [version, date] of [
     ["0.1.0-alpha.01", "2026-10-12"],
     ["0.0.9", "2026-10-12"],
-    ["0.1.0-alpha.2", "2026-02-30"],
+    [nextVersion, "2026-02-30"],
   ]) {
     const result = script(folder, "set-version.mjs", [version, "--note", note, "--date", date]);
     assert.notEqual(result.status, 0, version + " " + date);
@@ -112,12 +130,12 @@ test("version check detects malformed version headings instead of silently ignor
 test("version bump rejects pre-existing manifest drift without modifying another file", () => fixture((folder) => {
   const tauri = join(folder, "apps/desktop/src-tauri/tauri.conf.json");
   const before = readFileSync(tauri, "utf8");
-  const modified = before.replace('"version": "0.1.0-alpha.1"', '"version": "0.1.0-alpha.9"');
+  const modified = before.replace(`"version": "${currentVersion}"`, `"version": "${nextVersion}"`);
   assert.notEqual(modified, before);
   writeFileSync(tauri, modified);
   const snapshot = files.map((name) => [name, readFileSync(join(folder, name), "utf8")]);
   const result = script(folder, "set-version.mjs", [
-    "0.1.0-alpha.2", "--note", note, "--date", "2026-10-12",
+    nextVersion, "--note", note, "--date", "2026-10-12",
   ]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Cannot bump an inconsistent desktop version/);
@@ -129,7 +147,7 @@ test("version bump rejects pre-existing manifest drift without modifying another
 test("version check refuses mismatched manifests and incorrectly ordered changelog", () => fixture((folder) => {
   const packagePath = join(folder, "apps/desktop/package.json");
   const originalPackage = readFileSync(packagePath, "utf8");
-  writeFileSync(packagePath, originalPackage.replace('"version": "0.1.0-alpha.1"', '"version": "0.1.0-alpha.2"'));
+  writeFileSync(packagePath, originalPackage.replace(`"version": "${currentVersion}"`, `"version": "${nextVersion}"`));
   assert.notEqual(script(folder, "check-version.mjs").status, 0);
   writeFileSync(packagePath, originalPackage);
   const changelogPath = join(folder, "CHANGELOG.md");

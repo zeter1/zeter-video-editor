@@ -1,3 +1,12 @@
+# VERSION CHECKPOINT — 2026-10-12 — SOURCE 0.1.0-alpha.2 / PER-TASK PRERELEASE RULE
+
+- **SINGLE REQUESTED TASK:** Desktop source version `0.1.0-alpha.1` → `0.1.0-alpha.2` across all app manifests, npm/Tauri/Cargo lockfiles, runtime app manifest, README, changelog and status marker. `CHANGELOG.md` retains earlier history. No changes to Preview, export, `.vcut v2`, worker/FFmpeg versions or user's media.
+- **CONTINUING RULE:** Every subsequently completed new user-facing feature/bugfix merged to `main` increments `alpha.N` once inside that PR through `node scripts/set-version.mjs NEXT --note "description"`. Docs/test/after-merge checkpoint commits do not bump again. `node scripts/check-version.mjs` and full exact-head Windows CI are mandatory. Source version is NOT a signed/released installer.
+- **BRANCH:** `chore/version-alpha2-per-task-20261012`, from `e7f7cb06099f71088bea5fb3921f041a6560cce2`; PR merge and checks must be verified separately, not assumed from this checkpoint.
+- **NEXT ONE PRODUCT TASK (NEW DIALOG ONLY):** Translate accessible button names and tooltips for Preview transport/quality/scale in `apps/desktop/src/preview/PreviewPlayer.tsx`, update relevant Vitest and Playwright selectors and real Windows Tauri/WebView2 E2E, then advance `0.1.0-alpha.2` → `0.1.0-alpha.3` in that product PR. Do not change native playback, rVFC/WAV, FFmpeg export, original media or `.vcut v2`. One dialogue = one task.
+
+---
+
 # VERIFIED MAIN CHECKPOINT — 2026-10-12 — PORTRAIT 9:16 PREVIEW 100% CONTROLS (PR #60 MERGED)
 
 - **MAIN: YES.** PR https://github.com/zeter1/zeter-video-editor/pull/60 is CLOSED / merged=true. GitHub confirmed squash merge `82e55fb4cdbfb132a11fcd0c94c678815c3a3b53` is actual `main` HEAD immediately after merge. Starting main `10151ca0f8382fe6aa80b467f04b29d4f8f701de`; final PR code+test+changelog HEAD `d104458b2a74da45e0df0b486df4c8e37e66fa29`.
@@ -520,7 +529,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.1` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.2` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
