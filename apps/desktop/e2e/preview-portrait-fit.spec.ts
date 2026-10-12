@@ -53,6 +53,7 @@ test("Fit keeps the entire portrait sequence inside a shallow preview stage", as
     "-frames:v", "1", "-c:v", "png", "-threads", "1", portrait,
   ], { windowsHide: true });
 
+  console.log("[portrait E2E] generated real PNG, loading fixture");
   const fixture = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as Fixture;
   const sequence = fixture.project.sequences[0];
   const video = sequence.tracks.find((track) => track.name === "Video");
@@ -89,14 +90,20 @@ test("Fit keeps the entire portrait sequence inside a shallow preview stage", as
 
   const file = path.join(path.dirname(state.workflowProjectPath), "preview-portrait-fit-e2e.vcut");
   writeFileSync(file, JSON.stringify(fixture, null, 2));
+  console.log("[portrait E2E] opening disposable 9:16 project");
   await invokeTauri(page, "project_open", { path: file });
-  await page.reload();
+  console.log("[portrait E2E] project_open returned, reloading native page");
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 15_000 });
+  console.log("[portrait E2E] reloaded");
   const before = await invokeTauri<unknown>(page, "project_snapshot");
+  console.log("[portrait E2E] snapshot read");
 
-  await page.getByRole("button", { name: "Preview scale Fit" }).click();
+  await page.getByRole("button", { name: "Preview scale Fit" }).click({ timeout: 10_000 });
+  console.log("[portrait E2E] Fit selected");
   const stage = page.locator(".preview-stage");
   const frame = page.locator(".preview-frame");
   await expect(page.locator("img.preview-media")).toHaveCount(1);
+  console.log("[portrait E2E] image rendered");
   await expect.poll(() => page.locator("img.preview-media").evaluate((img) =>
     (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth === 90,
   )).toBe(true);
@@ -108,6 +115,7 @@ test("Fit keeps the entire portrait sequence inside a shallow preview stage", as
     element.style.height = "180px";
     element.style.alignSelf = "start";
   });
+  console.log("[portrait E2E] stage resized");
   const metrics = await page.evaluate(() => {
     const s = document.querySelector(".preview-stage")!.getBoundingClientRect();
     const f = document.querySelector(".preview-frame")!.getBoundingClientRect();
@@ -118,6 +126,7 @@ test("Fit keeps the entire portrait sequence inside a shallow preview stage", as
       frameHeight: f.height, padding: Number.parseFloat(p),
     };
   });
+  console.log("[portrait E2E] measured: " + JSON.stringify(metrics));
   expect(metrics.stageHeight).toBeCloseTo(180, 0);
   expect(metrics.frameTop, "portrait top must not crop outside preview stage").toBeGreaterThanOrEqual(
     metrics.stageTop + metrics.padding - 1,
