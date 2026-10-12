@@ -98,6 +98,20 @@ test("portrait Fit stays inside a shallow stage and 100% keeps transport clickab
   const before = await invokeTauri<unknown>(page, "project_snapshot");
   console.log("[portrait E2E] snapshot read");
 
+  // Real native WebView2 end-to-end coverage for transient navigation between
+  // authored clip boundaries. This must not mutate or save the .vcut project.
+  const playhead = page.getByRole("slider", { name: "Timeline playhead" });
+  const previousCut = page.getByRole("button", { name: "К предыдущей границе клипа" });
+  const nextCut = page.getByRole("button", { name: "К следующей границе клипа" });
+  await expect(playhead).toHaveAttribute("aria-valuenow", "0");
+  await expect(previousCut).toBeDisabled();
+  await nextCut.click();
+  await expect(playhead).toHaveAttribute("aria-valuenow", "1500000");
+  await expect(nextCut).toBeDisabled();
+  await previousCut.click();
+  await expect(playhead).toHaveAttribute("aria-valuenow", "0");
+  expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
+
   await page.getByRole("button", { name: "Preview scale Fit" }).click({ timeout: 10_000 });
   console.log("[portrait E2E] Fit selected");
   const stage = page.locator(".preview-stage");
