@@ -82,6 +82,13 @@ export function PreviewPlayer({
   // Accepted compositor frames anchor recovery after dropped callbacks.
   // Pause/Stop and native or UI-initiated seek retire this trusted anchor.
   const frameAnchorRef = useRef<{ key: string; mediaSeconds: number; presentedFrames: number } | null>(null);
+  // After buffering, require native 'playing' and TWO advancing compositor
+  // frames before catching up a playhead left >120ms behind by the decoder.
+  // This proof is never reusable after a seek, pause, Stop or clip switch.
+  const bufferedRecoveryRef = useRef<{
+    key: string; playheadUs: number; resumed: boolean;
+    candidate: { mediaSeconds: number; presentedFrames: number } | null;
+  } | null>(null);
   // A manual scrub inside the 120ms decoder tolerance may not cause native
   // seeking. Require a fresh accepted compositor callback before releasing WAV.
   const pendingExternalFrameRef = useRef(false);
@@ -96,6 +103,7 @@ export function PreviewPlayer({
   // request and must revoke the previous compositor catch-up anchor.
   if (clockPositionRef.current !== playheadTimeUs) {
     frameAnchorRef.current = null;
+    bufferedRecoveryRef.current = null;
     pendingExternalFrameRef.current = true;
   }
   // Keep the transient clock aligned with seeks from the timeline, keyboard
@@ -151,6 +159,7 @@ export function PreviewPlayer({
   useEffect(() => {
     if (!playing) {
       frameAnchorRef.current = null;
+      bufferedRecoveryRef.current = null;
       setSyncedVideoKey(null);
       setPresentedVideoFrame(null);
     }
@@ -233,11 +242,39 @@ export function PreviewPlayer({
             Number.isFinite(metadata.presentedFrames) &&
             metadata.presentedFrames > anchor.presentedFrames + 1 &&
             metadata.mediaTime > anchor.mediaSeconds;
-          const nextUs = presentedFrameToTimelineUs(
+          let nextUs = presentedFrameToTimelineUs(
             active, metadata.mediaTime, current.currentTime, clockPositionRef.current,
             skippedCallbacks,
           );
+          const recovery = bufferedRecoveryRef.current;
+          if (nextUs === null && recovery?.key === key && recovery.resumed &&
+              recovery.playheadUs === clockPositionRef.current &&
+              !pendingExternalFrameRef.current &&
+              Number.isFinite(metadata.presentedFrames)) {
+            // During buffering the video decoder can restart beyond the
+            // timeline's tight 120ms window. A single late frame is not
+            // sufficient evidence: require a SECOND, strictly newer
+            // compositor frame and a matching native decoder clock. Source
+            // bounds and forward-only checks remain in the pure validator.
+            const recoveredUs = presentedFrameToTimelineUs(
+              active, metadata.mediaTime, current.currentTime, clockPositionRef.current, true,
+            );
+            if (recoveredUs !== null && recoveredUs > clockPositionRef.current + 120_000) {
+              const first = recovery.candidate;
+              if (first && metadata.presentedFrames > first.presentedFrames &&
+                  metadata.mediaTime > first.mediaSeconds) {
+                nextUs = recoveredUs;
+              } else {
+                recovery.candidate = {
+                  mediaSeconds: metadata.mediaTime, presentedFrames: metadata.presentedFrames,
+                };
+              }
+            } else {
+              recovery.candidate = null;
+            }
+          }
           if (nextUs !== null) {
+            bufferedRecoveryRef.current = null;
             // This is the first decoder/compositor acknowledgement for a
             // short user scrub even when no native seeking event was fired.
             pendingExternalFrameRef.current = false;
@@ -309,22 +346,31 @@ export function PreviewPlayer({
                 }
               }}
               onPlaying={() => {
+                if (bufferedRecoveryRef.current?.key === key) {
+                  bufferedRecoveryRef.current.resumed = true;
+                }
                 if (!supportsPresentedFrames(video.current) && videoClockReady()) setSyncedVideoKey(key);
               }}
               onWaiting={() => {
-                // Buffering breaks the uninterrupted compositor-frame chain:
-                // missed frames after it must pass normal playhead validation.
+                // Never accept the first old compositor frame after buffering.
                 frameAnchorRef.current = null;
+                bufferedRecoveryRef.current = {
+                  key, playheadUs: clockPositionRef.current, resumed: false, candidate: null,
+                };
                 setPresentedVideoFrame(null);
                 setSyncedVideoKey(null);
               }}
               onStalled={() => {
                 frameAnchorRef.current = null;
+                bufferedRecoveryRef.current = {
+                  key, playheadUs: clockPositionRef.current, resumed: false, candidate: null,
+                };
                 setPresentedVideoFrame(null);
                 setSyncedVideoKey(null);
               }}
               onSeeking={() => {
                 frameAnchorRef.current = null;
+                bufferedRecoveryRef.current = null;
                 setSyncedVideoKey(null);
               }}
               onSeeked={() => {

@@ -759,6 +759,22 @@ describe("PreviewPlayer continuous transport", () => {
       expect(onSeek).toHaveBeenCalledTimes(afterRecovery);
       expect(audioPlays()).toBe(audioPlaysBeforeShortScrub + 1);
 
+      // After a true buffer interruption WebView2 can resume >120 ms
+      // ahead of the parked playhead. One old compositor callback must NOT
+      // catch up; two strictly advancing frames after native 'playing' can.
+      const beforeBufferCatchUp = onSeek.mock.calls.length;
+      fireEvent.waiting(video);
+      video.currentTime = 4.75;
+      present(4.75, 120); // Queued before native recovery: never trust it.
+      expect(onSeek).toHaveBeenCalledTimes(beforeBufferCatchUp);
+      fireEvent.playing(video);
+      present(4.75, 121); // First fresh frame is only a recovery candidate.
+      expect(onSeek).toHaveBeenCalledTimes(beforeBufferCatchUp);
+      video.currentTime = 4.79;
+      present(4.79, 122); // Two forward compositor frames prove resumed Play.
+      expect(onSeek).toHaveBeenLastCalledWith(1_790_000);
+      expect(onSeek).toHaveBeenCalledTimes(beforeBufferCatchUp + 1);
+
       fireEvent.click(screen.getByRole("button", { name: "Stop" }));
       expect(onSeek).toHaveBeenLastCalledWith(0);
       expect(callbacks.size).toBe(0);
