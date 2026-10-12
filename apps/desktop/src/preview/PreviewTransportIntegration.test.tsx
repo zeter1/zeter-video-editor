@@ -608,6 +608,7 @@ describe("PreviewPlayer continuous transport", () => {
   });
 
   it("holds standalone audio until a trimmed video frame reaches the compositor", () => {
+    let cleanupHarness: (() => void) | null = null;
     const previousRequest = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "requestVideoFrameCallback");
     const previousCancel = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "cancelVideoFrameCallback");
     let id = 0;
@@ -638,11 +639,21 @@ describe("PreviewPlayer continuous transport", () => {
       ] } as Sequence;
       const onSeek = vi.fn(), onCommit = vi.fn();
       const media = [{ id: mediaId }] as import("../generated/ipc").MediaRef[];
-      const { container, rerender } = render(<PreviewPlayer
-        sequence={sequence} media={media}
-        selectedClip={null} selectedTrackId={null}
-        playheadTimeUs={1_000_000} onSeek={onSeek} onCommit={onCommit}
-      />);
+      // Keep onSeek feedback identical to the real transient playback store.
+      // A static parent can revoke a valid post-buffer frame as a new scrub.
+      let seekExternal: ((timeUs: number) => void) | null = null;
+      const ClockHarness = () => {
+        const [timeUs, setTimeUs] = useState(1_000_000);
+        seekExternal = setTimeUs;
+        return <PreviewPlayer sequence={sequence} media={media}
+          selectedClip={null} selectedTrackId={null}
+          playheadTimeUs={timeUs}
+          onSeek={(next) => { onSeek(next); setTimeUs(next); }}
+          onCommit={onCommit} />;
+      };
+      const { container, unmount } = render(<ClockHarness />);
+      cleanupHarness = unmount;
+      const scrub = (timeUs: number) => act(() => { seekExternal?.(timeUs); });
       const video = container.querySelector("video.preview-media") as HTMLVideoElement;
       const audio = screen.getByTestId("preview-audio-audio-clock") as HTMLAudioElement;
       Object.defineProperty(video, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA });
@@ -681,11 +692,7 @@ describe("PreviewPlayer continuous transport", () => {
       // decoder.currentTime jumps to 4.4 synchronously, but the compositor
       // still has the 4.1 frame. Do not restart audio on this false readiness.
       const pausesBeforeScrub = nativePause.mock.instances.filter((node) => node === audio).length;
-      rerender(<PreviewPlayer
-        sequence={sequence} media={media}
-        selectedClip={null} selectedTrackId={null}
-        playheadTimeUs={1_400_000} onSeek={onSeek} onCommit={onCommit}
-      />);
+      scrub(1_400_000);
       expect(video.currentTime).toBeCloseTo(4.4);
       expect(nativePause.mock.instances.filter((node) => node === audio).length)
         .toBeGreaterThan(pausesBeforeScrub);
@@ -699,11 +706,7 @@ describe("PreviewPlayer continuous transport", () => {
 
       // Backward scrub: native decoder and a delayed compositor callback
       // still agree on 4.9s, but the user requested timeline position 1.0s.
-      rerender(<PreviewPlayer
-        sequence={sequence} media={media}
-        selectedClip={null} selectedTrackId={null}
-        playheadTimeUs={1_000_000} onSeek={onSeek} onCommit={onCommit}
-      />);
+      scrub(1_000_000);
       video.currentTime = 4.9;
       const seeksBeforeStale = onSeek.mock.calls.length;
       present(4.9);
@@ -740,11 +743,7 @@ describe("PreviewPlayer continuous transport", () => {
       // dropped-frame recovery, otherwise a late 4.8s callback jumps ahead.
       const afterRecovery = onSeek.mock.calls.length;
       const audioPlaysBeforeShortScrub = audioPlays();
-      rerender(<PreviewPlayer
-        sequence={sequence} media={media}
-        selectedClip={null} selectedTrackId={null}
-        playheadTimeUs={1_370_000} onSeek={onSeek} onCommit={onCommit}
-      />);
+      scrub(1_370_000);
       expect(video.currentTime).toBeCloseTo(4.35);
       // Even though the old 4.35s frame and decoder are within 120ms of
       // the requested 4.37s, a fresh compositor acknowledgement is needed.
@@ -773,11 +772,7 @@ describe("PreviewPlayer continuous transport", () => {
       expect(audioPlays()).toBe(playsBeforeNearBuffer);
       video.currentTime = 4.38;
       present(4.38, 114); // Second advancing frame confirms recovery.
-      rerender(<PreviewPlayer
-        sequence={sequence} media={media}
-        selectedClip={null} selectedTrackId={null}
-        playheadTimeUs={1_380_000} onSeek={onSeek} onCommit={onCommit}
-      />);
+      scrub(1_380_000);
       expect(audioPlays()).toBe(playsBeforeNearBuffer + 1);
 
       // 'stalled' means a fetch paused, not necessarily that playback did.
@@ -790,11 +785,7 @@ describe("PreviewPlayer continuous transport", () => {
       expect(audioPlays()).toBe(playsBeforeStalled);
       video.currentTime = 4.4;
       present(4.4, 116);
-      rerender(<PreviewPlayer
-        sequence={sequence} media={media}
-        selectedClip={null} selectedTrackId={null}
-        playheadTimeUs={1_400_000} onSeek={onSeek} onCommit={onCommit}
-      />);
+      scrub(1_400_000);
       expect(audioPlays()).toBe(playsBeforeStalled + 1);
 
       // After a true buffer interruption WebView2 can resume >120 ms
@@ -818,6 +809,8 @@ describe("PreviewPlayer continuous transport", () => {
       expect(callbacks.size).toBe(0);
       expect(onCommit).not.toHaveBeenCalled();
     } finally {
+      // React must unmount while the native compositor mocks still exist.
+      cleanupHarness?.();
       if (previousRequest) Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", previousRequest);
       else delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).requestVideoFrameCallback;
       if (previousCancel) Object.defineProperty(HTMLVideoElement.prototype, "cancelVideoFrameCallback", previousCancel);
