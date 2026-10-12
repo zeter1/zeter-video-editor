@@ -199,4 +199,33 @@ describe("PreviewPlayer", () => {
     expect(screen.queryAllByRole("img", { name: "Кадр изображения" })).toHaveLength(0);
     expect(onCommit).not.toHaveBeenCalled();
   });
+
+  it("shows the empty-project hint but keeps real timeline gaps clear for a black frame", () => {
+    const video = {
+      id: "later-video", kind: "Video" as const,
+      media_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      source_in: 0, source_out: 1_000_000,
+      timeline_start: 2_000_000, timeline_end: 3_000_000,
+      transform: { position_x: 0, position_y: 0, scale_x: 1, scale_y: 1,
+        rotation_degrees: 0, opacity: 1,
+        crop: { left: 0, top: 0, right: 0, bottom: 0 } },
+      color: { exposure: 0, contrast: 0, highlights: 0, shadows: 0,
+        saturation: 1, temperature: 0, tint: 0 },
+      audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+      speed: 1, transition: null, text: null,
+    };
+    const props = {
+      selectedClip: null, selectedTrackId: null,
+      playheadTimeUs: 1_500_000, onSeek: vi.fn(), onCommit: vi.fn(),
+    };
+    const { rerender } = render(<PreviewPlayer {...props} sequence={sequence} />);
+    expect(screen.getByText("На позиции курсора нет видеоклипа.")).toBeTruthy();
+
+    rerender(<PreviewPlayer {...props} sequence={{ ...sequence, tracks: [{
+      id: "video-track", name: "Video", kind: "Video", muted: false,
+      locked: false, hidden: false, clips: [video],
+    }] }} />);
+    expect(screen.queryByText("На позиции курсора нет видеоклипа.")).toBeNull();
+    expect(screen.queryByLabelText("Предпросмотр видео")).toBeNull();
+  });
 });
