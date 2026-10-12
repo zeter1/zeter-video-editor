@@ -273,6 +273,42 @@ describe("PreviewPlayer continuous transport", () => {
     expect(onSeek).toHaveBeenLastCalledWith(50_000);
   });
 
+  it("does not skip to EOF after a scrub, and accepts only the current native ended", () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const clip = {
+      id: "video-ended", kind: "Video", media_id: mediaId, source_in: 0,
+      source_out: 2_000_000, timeline_start: 0, timeline_end: 2_000_000,
+      speed: 1, audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+    } as Sequence["tracks"][number]["clips"][number];
+    const sequence = { ...baseSequence, tracks: [
+      { id: "video-track", kind: "Video", hidden: false, muted: false, clips: [clip] },
+    ] } as Sequence;
+    const onSeek = vi.fn(), onCommit = vi.fn();
+    const props = {
+      sequence, media: [{ id: mediaId }] as import("../generated/ipc").MediaRef[],
+      selectedClip: null, selectedTrackId: null, onSeek, onCommit,
+    };
+    const { container, rerender } = render(<PreviewPlayer {...props} playheadTimeUs={500_000} />);
+    const video = container.querySelector("video.preview-media") as HTMLVideoElement;
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    video.currentTime = 2; // stale EOF of old decoder position
+    fireEvent.ended(video);
+    expect(onSeek).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+
+    rerender(<PreviewPlayer {...props} playheadTimeUs={1_950_000} />);
+    video.currentTime = 2;
+    fireEvent.ended(video);
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    expect(onSeek).toHaveBeenLastCalledWith(2_000_000);
+    expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+    fireEvent.ended(video); // duplicate after playback stopped
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("ignores interrupted video play but reports real unsupported decoder errors", async () => {
     const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     nativePlay.mockRejectedValueOnce(new DOMException("Seek interrupted play", "AbortError"));

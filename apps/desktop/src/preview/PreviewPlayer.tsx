@@ -11,6 +11,7 @@ import {
   mediaClockMatchesTimeline,
   presentedFrameToTimelineUs,
   sequencePlayableEndUs,
+  shouldHonorNativeVideoEnded,
 } from "./previewTransport";
 
 type PreviewQuality = "Full" | "1/2" | "1/4";
@@ -290,8 +291,13 @@ export function PreviewPlayer({
               }}
               onPause={() => setSyncedVideoKey(null)}
               onEnded={() => {
-                // A trimmed clip ending does not end the entire sequence.
-                onSeek(active.timeline_end);
+                // Ignore old EOF signals queued before a scrub or Stop.
+                const current = video.current;
+                if (!current || !shouldHonorNativeVideoEnded(
+                  active, current.currentTime, clockPositionRef.current, playing,
+                )) return;
+                clockPositionRef.current = active.timeline_end;
+                onSeekRef.current(active.timeline_end);
                 if (active.timeline_end >= playableEndUs) setPlaying(false);
               }}
               onError={() => {

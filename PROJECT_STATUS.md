@@ -1,3 +1,13 @@
+# CURRENT CHECKPOINT — 2026-10-12 — stale native video EOF (draft #44)
+
+- PRODUCT: PreviewPlayer rejects delayed native ended events after scrub/Stop unless Play is active AND decoder source clock and current timeline playhead are within 120ms of actual clip end (speed-normalized). No project mutation, source-media changes, export changes, .vcut v2 changes, or release.
+- REGRESSIONS: previewTransport.test.ts tests 2x trimmed end and stale EOF/nonfinite/stopped; PreviewTransportIntegration.test.tsx tests delayed, actual, duplicate native ended and no onCommit. Exact-head Windows CI is REQUIRED before PASS claim; manual Windows GUI/audio QA not performed.
+- PR: https://github.com/zeter1/zeter-video-editor/pull/44 remains DRAFT stacked on #43→#42→#41→#40→#39→main. Do not merge, tag, sign, or release without review and Windows QA. Previous HEAD 9e1748c71de710bcf295951676bfcb564860bff2 CI https://github.com/zeter1/zeter-video-editor/actions/runs/38196705936 was still IN PROGRESS when checked, not evidence for this commit.
+- NEXT: exact-head CI status/logs; real Windows WebView2 compositor-frame metadata.mediaTime versus independent WAV drift at 2x and forward/backward scrub, fallback then preview-export parity.
+- Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/ended_event
+
+---
+
 # CURRENT CHECKPOINT — 2026-10-12 — Stage C backward-scrub compositor guard (draft #44)
 
 - PRODUCT: presentedFrameToTimelineUs now bounds compositor mediaTime on BOTH sides of the requested playhead (±120ms timeline, source-scaled by clip.speed), in addition to requiring a matching decoder clock. This prevents a stale later frame after backward scrub from fast-forwarding the timeline when decoder currentTime and old compositor frame agree.

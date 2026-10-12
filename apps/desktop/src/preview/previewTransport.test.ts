@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Clip, Sequence } from "../generated/ipc";
-import { advanceGapTimeUs, mediaClockMatchesTimeline, mediaTimeToTimelineUs, presentedFrameToTimelineUs, sequencePlayableEndUs } from "./previewTransport";
+import { advanceGapTimeUs, mediaClockMatchesTimeline, mediaTimeToTimelineUs, presentedFrameToTimelineUs, sequencePlayableEndUs, shouldHonorNativeVideoEnded } from "./previewTransport";
 
 const clip = {
   id: "clip-1",
@@ -77,6 +77,16 @@ describe("preview transport timeline mapping", () => {
     expect(presentedFrameToTimelineUs(adjacent, 4.9, 4.9, 1_000_000)).toBeNull();
     expect(presentedFrameToTimelineUs(adjacent, 3.9, 4, 1_000_000)).toBeNull();
     expect(presentedFrameToTimelineUs(adjacent, 4.1, 4.1, 1_000_000)).toBe(1_100_000);
+  });
+
+  it("rejects late native ended after seek or Stop, but honors a trimmed 2x clip end", () => {
+    expect(shouldHonorNativeVideoEnded(clip, 6, 7_000_000, true)).toBe(true);
+    expect(shouldHonorNativeVideoEnded(clip, 5.9, 6_950_000, true)).toBe(true);
+    expect(shouldHonorNativeVideoEnded(clip, 6, 5_000_000, true)).toBe(false);
+    expect(shouldHonorNativeVideoEnded(clip, 2, 7_000_000, true)).toBe(false);
+    expect(shouldHonorNativeVideoEnded(clip, 6, 7_000_000, false)).toBe(false);
+    expect(shouldHonorNativeVideoEnded(clip, Infinity, 7_000_000, true)).toBe(false);
+    expect(shouldHonorNativeVideoEnded(clip, 6, Number.NaN, true)).toBe(false);
   });
 
   it("advances through stills and gaps but clamps at edit end and large callback delays", () => {

@@ -71,3 +71,14 @@ export function presentedFrameToTimelineUs(
       Math.abs(frameMediaSeconds - decoderMediaSeconds) > toleranceSeconds) return null;
   return mediaTimeToTimelineUs(clip, frameMediaSeconds);
 }
+
+/** Native ended may arrive after a seek or Stop; the old EOF must not override a new playhead. */
+export function shouldHonorNativeVideoEnded(
+  clip: Clip, decoderMediaSeconds: number, playheadUs: number, playing: boolean,
+): boolean {
+  if (!playing || !Number.isFinite(decoderMediaSeconds) || !Number.isFinite(playheadUs)) return false;
+  const speed = clip.speed > 0 ? clip.speed : 1;
+  const endSourceSeconds = (clip.source_in + (clip.timeline_end - clip.timeline_start) * speed) / 1_000_000;
+  return Math.abs(decoderMediaSeconds - endSourceSeconds) / speed <= 0.12 &&
+    Math.abs(playheadUs - clip.timeline_end) <= 120_000;
+}
