@@ -151,11 +151,11 @@ test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap"
   const waitForVideo = async (sourceSeconds: number) => {
     const video = page.locator("video.preview-media");
     await expect(video).toHaveCount(1);
-    await expect.poll(() => video.evaluate((node) => {
+    await expect.poll(() => video.evaluate((node, expectedSeconds) => {
       const decoder = node as HTMLVideoElement;
       return decoder.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-        ? Math.abs(decoder.currentTime - sourceSeconds) : 100;
-    }), { timeout: 15_000 }).toBeLessThan(0.07);
+        ? Math.abs(decoder.currentTime - expectedSeconds) : 100;
+    }, sourceSeconds), { timeout: 15_000 }).toBeLessThan(0.07);
   };
 
   const redRgb = centerRgb(ffmpeg, red, 0.45);
