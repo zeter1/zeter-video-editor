@@ -81,7 +81,8 @@ describe("PreviewPlayer", () => {
       selectedClip={null} selectedTrackId={null}
       playheadTimeUs={7_000_000} onSeek={onSeek} onCommit={vi.fn()} />);
     expect(screen.queryByLabelText("Предпросмотр видео")).toBeNull();
-    expect(screen.getByText("На позиции курсора нет видеоклипа.")).toBeTruthy();
+    // A populated sequence now shows a true black frame after its video ends.
+    expect(screen.queryByText("На позиции курсора нет видеоклипа.")).toBeNull();
   });
 
   it("composites two visible still-image tracks bottom-to-top using upper opacity", () => {
