@@ -304,10 +304,7 @@ mod tests {
             debug_stall_delay(&format!("{id} 900 524288"), id, 524_288),
             Some(900)
         );
-        assert_eq!(
-            debug_stall_delay(&format!("{id} 900 0"), id, 524_288),
-            None
-        );
+        assert_eq!(debug_stall_delay(&format!("{id} 900 0"), id, 524_288), None);
         assert_eq!(
             debug_stall_delay(&format!("{id} 900 999999999"), id, 524_288),
             None
