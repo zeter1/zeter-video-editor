@@ -981,6 +981,19 @@ button {
   height: 100%;
   object-fit: contain;
 }
+/* An image-only composite shares FFmpeg's black canvas and layer ordering.
+   Positioned children paint in DOM order; each clip owns its alpha. */
+.preview-still-layers {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+.preview-still-layers .preview-media {
+  position: absolute;
+  inset: 0;
+}
 .preview-frame.preview-scale-100 {
   width: min(100%, 1920px);
 }
