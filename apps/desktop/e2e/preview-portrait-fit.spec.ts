@@ -43,7 +43,7 @@ function ffmpegRgb(ffmpeg: string, image: string | Buffer): [number, number, num
 
 // Genuine native Windows WebView2 layout, not jsdom. The 180px stage emulates
 // a shallow editor pane while retaining the actual 9:16 sequence and source.
-test("Fit keeps the entire portrait sequence inside a shallow preview stage", async () => {
+test("portrait Fit stays inside a shallow stage and 100% keeps transport clickable", async () => {
   const { page, state } = await connectTauri();
   const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
   const portrait = path.join(state.mediaDir, "preview-portrait-fit-red.png");
@@ -145,5 +145,36 @@ test("Fit keeps the entire portrait sequence inside a shallow preview stage", as
     expect(Math.abs(observed[i] - expected[i]), "native WebView2 portrait center RGB channel " + i)
       .toBeLessThanOrEqual(35);
   }
+  // A true 100% portrait frame can be taller than its shallow viewport.
+  // Only the picture may be cropped: no overflowing picture may intercept
+  // transport or scale buttons below the stage in native Windows WebView2.
+  await page.getByRole("button", { name: "Preview scale 100%" }).click({ timeout: 10_000 });
+  await expect(page.getByTestId("preview-scale")).toHaveText("100%");
+  const zoomed = await page.evaluate(() => {
+    const s = document.querySelector(".preview-stage")!.getBoundingClientRect();
+    const f = document.querySelector(".preview-frame")!.getBoundingClientRect();
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>(".preview-controls button")];
+    return {
+      stageHeight: s.height,
+      frameHeight: f.height,
+      controls: buttons.map((button) => {
+        const rect = button.getBoundingClientRect();
+        const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return {
+          name: button.getAttribute("aria-label"),
+          clickable: target === button || button.contains(target),
+        };
+      }),
+    };
+  });
+  expect(zoomed.frameHeight, "100% must retain zoom, not silently become Fit")
+    .toBeGreaterThan(zoomed.stageHeight);
+  for (const control of zoomed.controls) {
+    expect(control.clickable, `portrait 100% must not cover ${control.name}`).toBe(true);
+  }
+  await page.getByRole("button", { name: "Next frame" }).click({ timeout: 10_000 });
+  await page.getByRole("button", { name: "Preview scale Fit" }).click({ timeout: 10_000 });
+  await expect(page.getByTestId("preview-scale")).toHaveText("Fit");
+
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
 });

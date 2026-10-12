@@ -286,6 +286,8 @@ button {
   display: grid;
   /* The panel grid owns both dimensions: expose its content box to Fit. */
   container-type: size;
+  /* 100% portrait zoom may exceed this pane; never paint/hit-test over transport. */
+  overflow: clip;
   min-height: 0;
   place-items: center;
   padding: 24px;
