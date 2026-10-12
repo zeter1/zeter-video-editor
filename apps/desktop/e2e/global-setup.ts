@@ -333,6 +333,7 @@ export default async function globalSetup(): Promise<void> {
   createWorkflowProject(mediaDir, workflowProjectPath);
 
   const port = await freePort();
+  const stallControlPath = path.join(FIXTURES, "media-stall-control.txt");
   const webviewDataDir = path.join(E2E_ROOT, "webview-data");
   const e2eConfig = path.join(E2E_ROOT, "tauri.e2e.conf.json");
   writeFileSync(
@@ -388,6 +389,7 @@ export default async function globalSetup(): Promise<void> {
     env: {
       ...process.env,
       ZETER_MANAGED_RUNTIME_DIR: RUNTIME,
+      ZETER_E2E_MEDIA_STALL_CONTROL: stallControlPath,
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: false,
@@ -418,6 +420,7 @@ export default async function globalSetup(): Promise<void> {
         workflowProjectPath,
         recoveryProjectPath,
         mediaDir,
+        stallControlPath,
         modelPath,
         modelManifestPath,
       },
