@@ -369,10 +369,10 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
 
   // Real WebView2 pointer click: x=132px header + 7px -> 70ms,
   // which must land on frame 2 (66,667us) rather than 70,000us.
-  const rulerBox = await playhead.boundingBox();
-  expect(rulerBox).not.toBeNull();
+  const pointerRulerRect = await playhead.boundingBox();
+  expect(pointerRulerRect).not.toBeNull();
   await playhead.click({
-    position: { x: 139, y: Math.min(8, (rulerBox?.height ?? 16) / 2) },
+    position: { x: 139, y: Math.min(8, (pointerRulerRect?.height ?? 16) / 2) },
   });
   await expect(playhead).toHaveAttribute("aria-valuenow", "66667");
   await expect(playhead).toHaveAttribute("aria-valuetext", "00:00:00:02");
