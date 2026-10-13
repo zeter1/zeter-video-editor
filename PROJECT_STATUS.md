@@ -1,3 +1,13 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003l FFMPEG OUTPUT-WINDOW / alpha.16 (PR ACCEPTANCE PENDING)
+
+- **PROBLEM / SCOPE:** WebView2 Preview for overlapping moving layers is not an exact FFmpeg export compositor. This slice introduces the shared FFmpeg half-open output-window command from an immutable RenderPlan, not the frontend cache/playback consumer.
+- **IMPLEMENTED (BRANCH, NOT MAIN):** `crates/media-engine/src/export.rs` exposes `build_preview_chunk_spec` with validated TimeUs window and output-side -ss/-t; it reuses the full export filtergraph for picture, text/subtitles and audio. Added pure CLI contract tests plus actual pinned-FFmpeg Windows integration tests for trimmed video/audio, two overlapping moving layers, 30000/1001, a black gap and independent red-layer pixel oracle. Does not write cache or invoke FFmpeg itself outside tests. No changes to editing/Undo/.vcut/source media. A preview chunk is not yet visible in UI.
+- **BASE / VERSION:** main `cad3dc74e1dbf24b53895a9dc0c4d9798c3f788e` (0.1.0-alpha.15), main Windows CI https://github.com/zeter1/zeter-video-editor/actions/runs/38366097976 COMPLETED SUCCESS. Branch `feat/preview-ffmpeg-output-window-alpha16-20261013`. Canonical `scripts/set-version.mjs 0.1.0-alpha.16` + `check-version.mjs` ran successfully in https://github.com/zeter1/zeter-video-editor/actions/runs/38372333407. No release/tag/signing/install. Temporary workflow removed from final PR.
+- **ACCEPTANCE / DELIVERY:** pending full exact-final-head Windows PR CI and diff review; native WebView2 UI parity does NOT apply to this backend-only slice. Tests prove export/chunk pictures and A/V on fixtures only when run with `ZETER_TEST_FFMPEG_DIR`. Do not claim cache safety, cancellation, interactive latency or rendered Preview UI.
+- **NEXT PRODUCT-CODE TASK AFTER THIS SLICE:** build project-scoped and revision/range/runtime/source-freshness keyed preview chunk cache with bounded cancellable render jobs, atomic safe publish, bounded FFprobe validation and opaque-safe Tauri transport; then React Preview switches into cached-composite only for complex regions while retaining direct fallback. Verify seek/edit invalidation, two moving layers, A/V and real native Windows WebView2 pixel parity. Avoid stacked draft PR merges.
+
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003k PREVIEW FRAME-GRID STEP / alpha.15 (PR ACCEPTANCE PENDING)
 
 - **USER SCENARIO:** Previous/next-frame controls in Preview must land on the same real sequence frame indices as the Timeline at fractional FPS (24000/1001, 30000/1001, 60000/1001). Previously adding rounded frame durations accumulated drift and repeated stepping diverged.
