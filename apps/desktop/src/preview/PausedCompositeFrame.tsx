@@ -17,6 +17,17 @@ interface Props {
   fps: number;
 }
 
+interface WindowRequest {
+  requestId: string;
+  scope: string;
+  chunk: Chunk | null;
+}
+
+const WINDOW_US = 4_000_000;
+// Only anticipate an adjacent window when the playhead is near its boundary.
+// Starting two full FFmpeg renders for every seek is wasteful on CPU-only PCs.
+const PREFETCH_LEAD_US = 1_500_000;
+
 export function compositeChunkUrl(token: string): string {
   // Opaque UUID only: no absolute path or query parameter reaches WebView2.
   if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(token)) {
@@ -26,66 +37,94 @@ export function compositeChunkUrl(token: string): string {
 }
 
 /**
- * Accurate FFmpeg-composited PAUSED frames for overlapping video tracks.
- * Live transport/audio remains on the existing decoder until A/V parity is
- * verified with native WebView2; no EditCommand or file path is sent to IPC.
+ * Exact FFmpeg PAUSED frames with one bounded, cancellable next-window prefetch.
+ * Switching windows reuses an already-issued token; each token stays tied to
+ * the current project/revision and has its own Rust cancellation handle.
+ * Live A/V transport remains the direct decoder until native parity is proved.
  */
 export function PausedCompositeFrame({
   projectId, revision, sequenceId, playheadTimeUs, fps,
 }: Props) {
-  const [chunk, setChunk] = useState<Chunk | null>(null);
-  const [presentedTimeUs, setPresentedTimeUs] = useState<number | null>(null);
+  const scope = `${projectId}:${revision}:${sequenceId}`;
+  const windowStart = Math.floor(playheadTimeUs / WINDOW_US) * WINDOW_US;
+  const nextWindow = playheadTimeUs >= windowStart + WINDOW_US - PREFETCH_LEAD_US
+    ? windowStart + WINDOW_US : null;
+  const requestsRef = useRef(new Map<number, WindowRequest>());
+  const [loaded, setLoaded] = useState<Array<{ scope: string; chunk: Chunk }>>([]);
+  const [presented, setPresented] = useState<{ token: string; timeUs: number } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
-  const windowStart = Math.floor(playheadTimeUs / 4_000_000) * 4_000_000;
 
   useEffect(() => {
     if (!isTauri()) return;
-    let active = true;
-    const requestId = crypto.randomUUID();
-    setChunk(null);
-    setPresentedTimeUs(null);
-    void invoke<Chunk>("request_preview_chunk", {
-      sequenceId, requestId, expectedRevision: revision, playheadUs: windowStart,
-    }).then((result) => {
-      if (active && result.start_us <= playheadTimeUs &&
-          playheadTimeUs < result.end_us) {
-        // Reject malformed opaque identifiers before they reach a URI.
-        compositeChunkUrl(result.token);
-        setChunk(result);
-      }
-    }).catch(() => {
-      if (active) setChunk(null); // Retain truthful native-decoder fallback.
-    });
-    return () => {
-      active = false;
-      // The server retires the old handle and cancels its bounded FFmpeg job.
-      void invoke("cancel_preview_chunk", { requestId }).catch(() => {});
-    };
-  }, [projectId, revision, sequenceId, windowStart]);
+    const requestedWindows = new Set(nextWindow === null
+      ? [windowStart] : [windowStart, nextWindow]);
 
-  const withinChunk = chunk && playheadTimeUs >= chunk.start_us &&
-    playheadTimeUs < chunk.end_us;
+    // Retire windows outside the adjacent budget, or belonging to an old
+    // project/sequence/revision. Cleanup can finish after the new request.
+    for (const [start, request] of requestsRef.current) {
+      if (!requestedWindows.has(start) || request.scope !== scope) {
+        requestsRef.current.delete(start);
+        void invoke("cancel_preview_chunk", { requestId: request.requestId }).catch(() => {});
+      }
+    }
+
+    for (const start of requestedWindows) {
+      if (requestsRef.current.has(start)) continue;
+      const requestId = crypto.randomUUID();
+      const request: WindowRequest = { requestId, scope, chunk: null };
+      requestsRef.current.set(start, request);
+      void invoke<Chunk>("request_preview_chunk", {
+        sequenceId, requestId, expectedRevision: revision, playheadUs: start,
+      }).then((result) => {
+        if (requestsRef.current.get(start) !== request) return;
+        // The request's range, rather than an arbitrary server-provided
+        // timestamp, identifies the cache slot. Never accept another window.
+        if (result.start_us !== start || result.end_us <= start ||
+            result.end_us > start + WINDOW_US) return;
+        compositeChunkUrl(result.token);
+        request.chunk = result;
+        setLoaded(Array.from(requestsRef.current.values())
+          .flatMap((entry) => entry.chunk ? [{ scope: entry.scope, chunk: entry.chunk }] : []));
+      }).catch(() => {
+        // Remain on the direct native decoder; a failed prefetch is optional.
+      });
+    }
+    setLoaded(Array.from(requestsRef.current.values())
+      .flatMap((entry) => entry.chunk ? [{ scope: entry.scope, chunk: entry.chunk }] : []));
+  }, [scope, sequenceId, revision, windowStart, nextWindow]);
+
+  useEffect(() => () => {
+    // Unmount revokes both independent handles, including an in-flight render.
+    for (const request of requestsRef.current.values()) {
+      void invoke("cancel_preview_chunk", { requestId: request.requestId }).catch(() => {});
+    }
+    requestsRef.current.clear();
+  }, []);
+
+  const chunk = loaded.find((entry) => entry.scope === scope &&
+    entry.chunk.start_us <= playheadTimeUs &&
+    playheadTimeUs < entry.chunk.end_us)?.chunk ?? null;
   const targetSeconds = chunk ? (playheadTimeUs - chunk.start_us) / 1_000_000 : 0;
 
   useEffect(() => {
     const node = video.current;
-    if (!node || !withinChunk) return;
+    if (!node || !chunk) return;
     if (Math.abs(node.currentTime - targetSeconds) > 0.0005) {
       node.currentTime = Math.max(0, targetSeconds);
     }
-  }, [chunk, targetSeconds, withinChunk]);
+  }, [chunk, targetSeconds]);
 
   const acceptDecodedFrame = () => {
     const node = video.current;
-    if (node && withinChunk && node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+    if (node && chunk && node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
         Math.abs(node.currentTime - targetSeconds) <= Math.max(0.002, 0.5 / fps)) {
-      setPresentedTimeUs(playheadTimeUs);
+      setPresented({ token: chunk.token, timeUs: playheadTimeUs });
     }
   };
 
   return (
     <>
-      {withinChunk ? (
+      {chunk ? (
         <video
           ref={video}
           key={chunk.token}
@@ -95,14 +134,18 @@ export function PausedCompositeFrame({
           playsInline
           preload="auto"
           aria-label="Точный FFmpeg кадр"
-          style={{ visibility: presentedTimeUs === playheadTimeUs ? "visible" : "hidden" }}
+          style={{ visibility: presented?.token === chunk.token &&
+            presented.timeUs === playheadTimeUs ? "visible" : "hidden" }}
           onLoadedMetadata={() => {
             if (video.current) video.current.currentTime = Math.max(0, targetSeconds);
           }}
           onLoadedData={acceptDecodedFrame}
           onSeeked={acceptDecodedFrame}
-          onSeeking={() => setPresentedTimeUs(null)}
-          onError={() => setChunk(null)}
+          onSeeking={() => setPresented(null)}
+          onError={() => {
+            // A corrupt decoder response must never obscure the direct fallback.
+            setLoaded((current) => current.filter((entry) => entry.chunk.token !== chunk.token));
+          }}
         />
       ) : null}
     </>
