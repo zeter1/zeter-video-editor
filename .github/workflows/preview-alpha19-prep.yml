@@ -1,0 +1,38 @@
+name: Temporary branch version preparation (alpha.19)
+
+on:
+  push:
+    branches: [feat/preview-adjacent-prefetch-alpha19-20261013]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: contains(github.event.head_commit.message, '[prepare-alpha19]')
+    runs-on: windows-latest
+    steps:
+      - name: Checkout branch with write credential
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+      - name: Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - name: Generate and verify alpha.19 with canonical scripts
+        shell: pwsh
+        run: |
+          node scripts/set-version.mjs 0.1.0-alpha.19 --note "Предзагрузка соседнего FFmpeg-окна при паузе сокращает ожидание покадрового предпросмотра"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-version.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/desktop/package.json apps/desktop/package-lock.json apps/desktop/src-tauri/tauri.conf.json apps/desktop/src-tauri/Cargo.toml Cargo.lock release/runtime-manifest.json README.md PROJECT_STATUS.md CHANGELOG.md
+          git diff --cached --exit-code
+          if ($LASTEXITCODE -eq 0) { throw "Expected canonical version update" }
+          git commit -m "chore: prepare alpha.19 source version"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git push origin HEAD:feat/preview-adjacent-prefetch-alpha19-20261013
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
