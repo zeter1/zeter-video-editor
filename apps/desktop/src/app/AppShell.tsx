@@ -504,6 +504,8 @@ export function AppShell({
         />
         <PreviewPanel
           sequence={activeSequence}
+          projectId={project?.id ?? null}
+          revision={projectState.revision}
           media={project?.media ?? []}
           selectedClip={selectedClip}
           selectedTrackId={selectedTrackId}

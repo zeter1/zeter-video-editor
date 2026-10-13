@@ -1071,6 +1071,13 @@ button {
 .preview-frame.preview-scale-100 {
   width: min(100%, 1920px);
 }
+.preview-ffmpeg-composite {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+}
 .preview-composite-notice {
   position: absolute;
   z-index: 2;
