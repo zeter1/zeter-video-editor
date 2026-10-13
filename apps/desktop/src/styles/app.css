@@ -1071,6 +1071,20 @@ button {
 .preview-frame.preview-scale-100 {
   width: min(100%, 1920px);
 }
+.preview-composite-notice {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  padding: 7px 9px;
+  border-radius: 4px;
+  background: rgba(18, 25, 36, 0.94);
+  color: #f0d8a0;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
 .preview-media-error {
   position: absolute;
   bottom: 12px;
