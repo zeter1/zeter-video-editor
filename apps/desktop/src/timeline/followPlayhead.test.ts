@@ -28,6 +28,19 @@ describe("anchoredZoomScrollLeft", () => {
     })).toBe(542);
   });
 
+  it("preserves manually scrolled content when the playhead is offscreen", () => {
+    expect(anchoredZoomScrollLeft({
+      playheadTimeUs: 0,
+      oldZoom: 1,
+      newZoom: 2,
+      pixelsPerSecond: 100,
+      scrollLeft: 1_000,
+      viewportWidth: 600,
+      scrollWidth: 7_000,
+      headerWidth: 132,
+    })).toBe(2_234);
+  });
+
   it("clamps to both scroll edges and ignores unmeasurable hidden panels", () => {
     const input = {
       playheadTimeUs: 8_000_000,
