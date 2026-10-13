@@ -1055,8 +1055,8 @@ button {
   height: 100%;
   object-fit: contain;
 }
-/* Stills and at most one native decoded video share FFmpeg's black canvas.
-   Positioned children paint in track order with per-clip alpha. */
+/* Stills and at most two directly decoded videos share the black canvas.
+   Track-order alpha is approximate; FFmpeg remains the export authority. */
 .preview-still-layers {
   position: relative;
   isolation: isolate;

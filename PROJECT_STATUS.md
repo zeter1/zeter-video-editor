@@ -1,4 +1,14 @@
-# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003i MULTI-VIDEO PREVIEW FALLBACK / alpha.13
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003j TWO MOVING PREVIEW LAYERS / alpha.14 (BRANCH, CI PENDING)
+
+- **USER SCENARIO:** When two videos overlap, show both moving decoded pictures in track order, including semi-transparent foreground and still overlays; preserve a single foreground video for the transport clock. Previously only the upper video moved.
+- **IMPLEMENTED:** Bounded lower HTMLVideoElement with forced mute, source-time seek / speed / pause synchronization and no EditCommand. Two topmost moving videos maximum; explicit warning that this is not an exact FFmpeg cached-composite, and lower video audio is not mixed. Single-video path unchanged. No Rust revision / Undo / .vcut / source files / export changes.
+- **BASE AND VERSION:** main `9dec4bb75163b7b5089b165c3c6b7e6cfa7b3d61` (alpha.13); branch `feat/preview-two-moving-layers-alpha14-20261013`. Canonical `node scripts/set-version.mjs` and `node scripts/check-version.mjs` executed in GitHub Actions https://github.com/zeter1/zeter-video-editor/actions/runs/38360993085 (SUCCESS): alpha.13 → alpha.14. This is source code, not a signed/tagged/public release.
+- **ACCEPTANCE / BLOCKER:** Unit and native WebView2 E2E regression assertions added. Full exact-HEAD Windows PR CI, diff review and manual screenshot/pixel parity are not yet verified at this checkpoint; do not merge while required checks are missing or red.
+- **NEXT PRODUCT-CODE TASK AFTER DELIVERY:** Replace approximate per-element WebView compositing with genuine immutable RenderSnapshot → media-engine FFmpeg rendered-frame/cache → revision/sequence keyed Tauri IPC → React Preview consumption; verify overlapping video after seek/edits against actual exported pixels, A/V clock and cancellation/resource bounds. No stacked draft PR merges.
+
+---
+
+# HISTORICAL PRODUCT WORK — 2026-10-13 — ZVE-003i MULTI-VIDEO PREVIEW FALLBACK / alpha.13
 
 - **BEFORE → AFTER:** In overlapped Video+Video+Image regions, `PreviewPlayer.tsx` previously returned zero picture layers and rendered a stationary image instead of a moving frame. Now it retains the foremost moving video plus all still overlays and displays a readable Russian status notice explaining that lower moving videos are not composited, so the preview may differ from export. The notice clears when a second video becomes inactive or hidden.
 - **BOUNDARY:** One bounded, approved hybrid-preview stabilization slice, NOT the actual cached FFmpeg composite. Playback source/clock still uses the same foreground native HTMLVideoElement; media paths stay behind UUID-only stream protocol. No Rust EditCommand, project revision/Undo, save/reopen format `.vcut v2`, original media, Rust planner, cache, jobs or export changes.
