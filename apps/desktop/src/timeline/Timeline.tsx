@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -19,7 +20,7 @@ import {
   type TransientStore,
   useTransientStore,
 } from "../state/transientStore";
-import { followPlayheadScrollLeft } from "./followPlayhead";
+import { anchoredZoomScrollLeft, followPlayheadScrollLeft } from "./followPlayhead";
 import { commitTimelineCommand } from "./interaction";
 import { seekByFrames } from "./frameSeek";
 import { MarkerLayer } from "./MarkerLayer";
@@ -100,6 +101,7 @@ export function Timeline({
   const transient = useTransientStore(transientStore);
   const scrollRef = useRef<HTMLDivElement>(null);
   const rulerPointerIdRef = useRef<number | null>(null);
+  const previousZoomRef = useRef({ sequenceId: sequence.id, zoom: transient.timelineZoom });
 
   // A pointer from a previous sequence must not continue scrubbing this one.
   useEffect(() => {
@@ -114,7 +116,9 @@ export function Timeline({
       return Boolean(element?.closest("input, textarea, select, [contenteditable], [role='textbox']"));
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.altKey || event.metaKey || event.isComposing || isInput(event.target)) return;
+      if (event.defaultPrevented || event.altKey || event.metaKey || event.isComposing ||
+          isInput(event.target) || transientStore.getState().drag ||
+          rulerPointerIdRef.current !== null) return;
       // Shift+M = next, Ctrl+Shift+M = previous, including the physical M
       // key on a Russian layout. Never seek while a modal or drag is active.
       if (event.shiftKey && (event.key.toLowerCase() === "m" || event.code === "KeyM")) {
@@ -148,7 +152,8 @@ export function Timeline({
     const element = scrollRef.current;
     if (!element) return;
     const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) return;
+      if (!event.ctrlKey || transientStore.getState().drag ||
+          rulerPointerIdRef.current !== null) return;
       event.preventDefault();
       const current = transientStore.getState().timelineZoom;
       transientStore.setTimelineZoom(current * (event.deltaY < 0 ? 1.25 : 0.8));
@@ -182,9 +187,31 @@ export function Timeline({
     );
   // Move only when the playhead leaves the visible timeline. Never change
   // authoritative project state or fight a user dragging clips.
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const previous = previousZoomRef.current;
+    const zoomChanged = previous.sequenceId === sequence.id && previous.zoom !== transient.timelineZoom;
+    previousZoomRef.current = { sequenceId: sequence.id, zoom: transient.timelineZoom };
     const element = scrollRef.current;
     if (!element || transient.drag) return;
+    // Zoom changes must preserve the playhead's visible x, rather than
+    // applying page-follow to its new scaled position and jumping the edit.
+    if (zoomChanged) {
+      const next = anchoredZoomScrollLeft({
+        playheadTimeUs: transient.playheadTimeUs,
+        oldZoom: previous.zoom,
+        newZoom: transient.timelineZoom,
+        pixelsPerSecond: TIMELINE_PIXELS_PER_SECOND,
+        scrollLeft: element.scrollLeft,
+        viewportWidth: element.clientWidth,
+        scrollWidth: Math.max(element.scrollWidth, contentWidth),
+        headerWidth: TIMELINE_TRACK_HEADER_WIDTH_PX,
+      });
+      if (next !== element.scrollLeft) {
+        element.scrollLeft = next;
+        transientStore.setTimelineScrollLeft(element.scrollLeft);
+      }
+      return;
+    }
     const next = followPlayheadScrollLeft({
       playheadPx: TIMELINE_TRACK_HEADER_WIDTH_PX + timeUsToPixel(
         transient.playheadTimeUs, TIMELINE_PIXELS_PER_SECOND, transient.timelineZoom, 0,
@@ -198,7 +225,7 @@ export function Timeline({
       element.scrollLeft = next;
       transientStore.setTimelineScrollLeft(element.scrollLeft);
     }
-  }, [contentWidth, transient.playheadTimeUs, transient.timelineZoom, transient.drag, transientStore]);
+  }, [contentWidth, sequence.id, transient.playheadTimeUs, transient.timelineZoom, transient.drag, transientStore]);
 
   const rulerTicks: number[] = [];
   for (let tick = 0; tick <= endUs; tick += RULER_STEP_US) {
@@ -349,9 +376,12 @@ export function Timeline({
             max="8"
             step="0.25"
             value={transient.timelineZoom}
-            onChange={(event) =>
-              transientStore.setTimelineZoom(Number(event.currentTarget.value))
-            }
+            disabled={Boolean(transient.drag)}
+            onChange={(event) => {
+              if (!transientStore.getState().drag && rulerPointerIdRef.current === null) {
+                transientStore.setTimelineZoom(Number(event.currentTarget.value));
+              }
+            }}
           />
         </label>
       </div>

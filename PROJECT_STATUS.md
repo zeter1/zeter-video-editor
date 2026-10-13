@@ -1,3 +1,13 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003h PLAYHEAD-ANCHORED TIMELINE ZOOM / alpha.12 (PR #71)
+
+- **USER / BEFORE → AFTER:** Zoom controls (slider, keyboard +/-/0, Ctrl+wheel) previously changed scale without preserving the playhead's on-screen x, disorienting precise editing. New `anchoredZoomScrollLeft` compensates horizontal scroll so the visible playhead stays fixed; if the user scrolled away from it, the current viewport center remains in place. Clamp at scroll bounds; hidden/narrow panels are handled safely.
+- **SAFETY:** Zoom and scroll are transient React-only values. Prevent zoom during clip drag / ruler pointer capture. No Rust EditCommand, authoritative revision/Undo, .vcut v2, original source media, AI, FFmpeg or export changes.
+- **DELIVERY:** Feature branch `feat/timeline-playhead-anchored-zoom-alpha12-20261013` from main `74f7caa48e9040b63c100b1627031be8e3632e75` (source alpha.11); draft PR https://github.com/zeter1/zeter-video-editor/pull/71. Source alpha.11 → alpha.12 via canonical `scripts/set-version.mjs` / `check-version.mjs` successfully executed in GitHub Actions https://github.com/zeter1/zeter-video-editor/actions/runs/38351801825. Temporary version workflow removed before PR. Not signed, published, tagged or installed.
+- **TESTS AND GATES:** `followPlayhead.test.ts` covers cursor anchoring, manual scroll, bounds and invalid layout. `Timeline.test.tsx` checks runtime zoom/unzoom and unchanged Rust revision. Real Windows Tauri/WebView2 `mvp-workflow.spec.ts` asserts screen x, unchanged playhead/revision and shortcut continuity. Final exact-HEAD Windows PR CI https://github.com/zeter1/zeter-video-editor/actions/runs/38351963546 initially running (status must be rechecked on latest PR HEAD). No local Windows QA or independent human review claimed.
+- **NEXT PRODUCT-CODE TASK:** First finish ZVE-003h: verify latest PR HEAD and terminal full Windows CI, review diff, fix failures if any, merge into main only after passing gates, verify squash SHA and new main CI. After that choose one approved end-to-end preview/editing gap from live production code rather than repeating timeline ruler navigation.
+
+---
+
 # VERIFIED MAIN CHECKPOINT — 2026-10-13 — ZVE-003g RULER DRAG SCRUB / alpha.11 (PR #70 MERGED)
 
 - **PRODUCT RESULT:** Primary-button pointer-drag on the timeline ruler continuously seeks nearest actual sequence frames, including fractional FPS 24000/1001, 30000/1001, and 60000/1001. Pointer capture tracks drag outside ruler, release/cancel/lostcapture stop scrub; other buttons/pointers and concurrent clip drag are ignored. Far-right positions use a stable authored-content limit rather than growing the ruler.
@@ -624,7 +634,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.11` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.12` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
