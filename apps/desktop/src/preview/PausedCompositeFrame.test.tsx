@@ -219,6 +219,28 @@ describe("opaque cached FFmpeg paused Preview", () => {
     await waitFor(() => expect(current.style.visibility).toBe("visible"));
   });
 
+  it("ignores a cancelled callback delivered after a new seek", async () => {
+    invoke.mockImplementation(async (command: string) => command === "request_preview_chunk"
+      ? { token: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        start_us: 4_000_000, end_us: 8_000_000 }
+      : null);
+    const { rerender } = render(<PausedCompositeFrame {...props} playheadTimeUs={4_200_000} />);
+    const current = await screen.findByLabelText("Точный FFmpeg кадр") as HTMLVideoElement;
+    Object.defineProperty(current, "readyState", { configurable: true, value: 2 });
+    fireEvent.loadedMetadata(current);
+    fireEvent.loadedData(current);
+    expect(frameRequests).toHaveLength(1);
+    rerender(<PausedCompositeFrame {...props} playheadTimeUs={4_500_000} />);
+    fireEvent.seeked(current);
+    expect(frameRequests).toHaveLength(2);
+    expect(frameRequests[0].done).toBe(true);
+    frameRequests[0].callback(0, { mediaTime: 0.2 } as VideoFrameCallbackMetadata);
+    fireEvent.seeked(current);
+    expect(frameRequests).toHaveLength(2); // no duplicate request after stale delivery
+    submitFrame(0.5);
+    await waitFor(() => expect(current.style.visibility).toBe("visible"));
+  });
+
   it("retries a failed speculative window when it becomes foreground", async () => {
     let adjacentAttempts = 0;
     invoke.mockImplementation((command: string, args?: { playheadUs?: number }) => {

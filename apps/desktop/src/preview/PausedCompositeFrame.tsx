@@ -148,7 +148,11 @@ export function PausedCompositeFrame({
     const token = chunk.token;
     const timeUs = playheadTimeUs;
     const id = node.requestVideoFrameCallback((_now, metadata) => {
-      if (pendingFrameRef.current?.node === node) pendingFrameRef.current = null;
+      // Even a callback queued just before cancellation must not clear a
+      // newer seek's pending frame request on this same <video>.
+      if (pendingFrameRef.current?.node !== node ||
+          pendingFrameRef.current.id !== id) return;
+      pendingFrameRef.current = null;
       if (video.current !== node || node.seeking ||
           node.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
           Math.abs(node.currentTime - targetSeconds) > tolerance) return;
