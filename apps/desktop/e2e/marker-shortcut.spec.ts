@@ -92,3 +92,48 @@ test("marker click seeks without deleting; explicit removal is undoable in nativ
       .some((item) => item.id === marker!.id),
   ).toBe(true);
 });
+
+test("adjacent-marker buttons and shortcuts seek transiently in native WebView2", async () => {
+  const { page, state } = await connectTauri();
+  await invokeTauri(page, "project_open", { path: state.importProjectPath });
+  await page.reload();
+  const ruler = page.getByRole("slider", { name: "Timeline playhead" });
+  await ruler.focus();
+  await page.keyboard.press("Home");
+
+  // Record zero, two frames and five frames as distinct marker times.
+  for (const step of [0, 2, 3]) {
+    for (let i = 0; i < step; i += 1) await page.keyboard.press("ArrowRight");
+    const before = await invokeTauri<Snapshot>(page, "project_snapshot");
+    await page.keyboard.press("m");
+    await expect.poll(async () =>
+      (await invokeTauri<Snapshot>(page, "project_snapshot")).revision,
+    ).toBe(before.revision + 1);
+  }
+  const created = await invokeTauri<Snapshot>(page, "project_snapshot");
+  const times = [...new Set(created.project.sequences[0].markers.map((marker) => marker.time))]
+    .sort((a, b) => a - b);
+  expect(times.length).toBeGreaterThanOrEqual(3);
+  expect(times).toContain(0);
+  const first = times.find((time) => time > 0)!;
+  const last = times[times.length - 1];
+
+  await ruler.focus();
+  await page.keyboard.press("Home");
+  const previous = page.getByRole("button", { name: /Предыдущий маркер/ });
+  const next = page.getByRole("button", { name: /Следующий маркер/ });
+  await expect(previous).toBeDisabled();
+  await next.click();
+  await expect(ruler).toHaveAttribute("aria-valuenow", String(first));
+
+  await page.keyboard.press("Shift+m");
+  await expect(ruler).toHaveAttribute("aria-valuenow", String(last));
+  await expect(next).toBeDisabled();
+  await page.keyboard.press("Control+Shift+m");
+  await expect(ruler).toHaveAttribute("aria-valuenow", String(first));
+  await previous.click();
+  await expect(ruler).toHaveAttribute("aria-valuenow", "0");
+  await expect(previous).toBeDisabled();
+  const after = await invokeTauri<Snapshot>(page, "project_snapshot");
+  expect(after).toEqual(created);
+});
