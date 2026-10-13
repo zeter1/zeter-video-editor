@@ -4,6 +4,7 @@ import {
   useRef,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 
 import type {
@@ -98,6 +99,12 @@ export function Timeline({
 }: TimelineProps) {
   const transient = useTransientStore(transientStore);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rulerPointerIdRef = useRef<number | null>(null);
+
+  // A pointer from a previous sequence must not continue scrubbing this one.
+  useEffect(() => {
+    rulerPointerIdRef.current = null;
+  }, [sequence.id]);
 
   // The timeline zoom shortcut is global while a sequence is mounted, but
   // never captures typing or native input controls.
@@ -207,12 +214,10 @@ export function Timeline({
       requestIdFactory,
     });
 
-  function seekFromPointer(event: ReactMouseEvent<HTMLDivElement>): void {
-    // A ruler click is a frame seek, not an arbitrary microsecond offset.
-    // Do not move the playhead during an active clip drag.
+  function seekFromClientX(clientX: number, ruler: HTMLDivElement): void {
+    // All pointer positions use the same integer frame grid as keyboard seeks.
     if (transientStore.getState().drag) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const contentPixel = event.clientX - rect.left;
+    const contentPixel = clientX - ruler.getBoundingClientRect().left;
     const pointerTimeUs = contentPixelToTimeUs(
       contentPixel,
       TIMELINE_TRACK_HEADER_WIDTH_PX,
@@ -220,6 +225,36 @@ export function Timeline({
       transient.timelineZoom,
     );
     transientStore.setPlayheadTime(seekByFrames(pointerTimeUs, sequence.fps, 0, endUs));
+  }
+
+  function seekFromPointer(event: ReactMouseEvent<HTMLDivElement>): void {
+    seekFromClientX(event.clientX, event.currentTarget);
+  }
+
+  function handleRulerPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0 || event.isPrimary === false ||
+        transientStore.getState().drag || rulerPointerIdRef.current !== null) return;
+    rulerPointerIdRef.current = event.pointerId;
+    // Keep receiving moves when the pointer leaves the visible ruler.
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    seekFromClientX(event.clientX, event.currentTarget);
+  }
+
+  function handleRulerPointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (rulerPointerIdRef.current !== event.pointerId) return;
+    if (transientStore.getState().drag || (event.buttons & 1) === 0) {
+      rulerPointerIdRef.current = null;
+      return;
+    }
+    seekFromClientX(event.clientX, event.currentTarget);
+  }
+
+  function endRulerPointer(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (rulerPointerIdRef.current !== event.pointerId) return;
+    rulerPointerIdRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   function handlePlayheadKeyDown(
@@ -335,6 +370,11 @@ export function Timeline({
             aria-valuenow={transient.playheadTimeUs}
             aria-valuetext={formatTimecode(transient.playheadTimeUs, sequence.fps)}
             onClick={seekFromPointer}
+            onPointerDown={handleRulerPointerDown}
+            onPointerMove={handleRulerPointerMove}
+            onPointerUp={endRulerPointer}
+            onPointerCancel={endRulerPointer}
+            onLostPointerCapture={endRulerPointer}
             onKeyDown={handlePlayheadKeyDown}
             role="slider"
             tabIndex={0}
