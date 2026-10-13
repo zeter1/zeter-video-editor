@@ -75,7 +75,12 @@ impl PreviewService {
 
     fn publish(&self, generation: u64, lease: Lease) -> Result<bool, AppError> {
         let mut inner = self.inner.lock().map_err(|_| AppError::StatePoisoned)?;
-        if inner.generation != generation || inner.cancel.as_ref().is_none_or(CancellationToken::is_cancelled) {
+        if inner.generation != generation
+            || inner
+                .cancel
+                .as_ref()
+                .is_none_or(CancellationToken::is_cancelled)
+        {
             return Ok(false);
         }
         inner.lease = Some(lease);
@@ -116,20 +121,22 @@ pub struct PreviewChunkDto {
 }
 
 fn window(playhead: TimeUs, duration_seconds: f64) -> Result<PreviewRange, AppError> {
-    if !duration_seconds.is_finite() || duration_seconds <= 0.0
+    if !duration_seconds.is_finite()
+        || duration_seconds <= 0.0
         || duration_seconds > (i64::MAX as f64 / 1_000_000.0)
     {
         return Err(AppError::InvalidMediaMetadata("invalid preview duration"));
     }
     let end = (duration_seconds * 1_000_000.0).ceil() as i64;
     if playhead.get() >= end {
-        return Err(AppError::InvalidMediaMetadata("playhead outside renderable sequence"));
+        return Err(AppError::InvalidMediaMetadata(
+            "playhead outside renderable sequence",
+        ));
     }
     let start = playhead.get() / WINDOW_US * WINDOW_US;
     Ok(PreviewRange {
         start: TimeUs::new(start).map_err(AppError::from)?,
-        end: TimeUs::new(start.saturating_add(WINDOW_US).min(end))
-            .map_err(AppError::from)?,
+        end: TimeUs::new(start.saturating_add(WINDOW_US).min(end)).map_err(AppError::from)?,
     })
 }
 
@@ -144,12 +151,18 @@ pub async fn request_preview_chunk(
 ) -> Result<PreviewChunkDto, AppErrorDto> {
     let state = app.state::<AppState>();
     let snapshot = {
-        let project = state.project.lock().map_err(|_| AppErrorDto::from(AppError::StatePoisoned))?;
-        project.render_snapshot(sequence_id).map_err(AppErrorDto::from)?
+        let project = state
+            .project
+            .lock()
+            .map_err(|_| AppErrorDto::from(AppError::StatePoisoned))?;
+        project
+            .render_snapshot(sequence_id)
+            .map_err(AppErrorDto::from)?
     };
     if snapshot.revision != expected_revision {
         return Err(AppErrorDto::from(AppError::StaleRevision {
-            expected: expected_revision, actual: snapshot.revision,
+            expected: expected_revision,
+            actual: snapshot.revision,
         }));
     }
     let settings = ExportSettings {
@@ -163,31 +176,44 @@ pub async fn request_preview_chunk(
         prefer_hardware: false,
     };
     let plan = RenderPlan::compile(&snapshot, settings)
-        .map_err(AppError::from).map_err(AppErrorDto::from)?;
-    let range = window(playhead_us, plan.duration_seconds().unwrap_or(0.0))
+        .map_err(AppError::from)
         .map_err(AppErrorDto::from)?;
+    let range =
+        window(playhead_us, plan.duration_seconds().unwrap_or(0.0)).map_err(AppErrorDto::from)?;
     let managed = app.state::<ValidatedRuntime>();
     let runtime = ManagedRuntime::new(
         managed.ffmpeg_path.clone(),
         managed.ffprobe_path.clone(),
         managed.manifest.ffmpeg.build_identity.clone(),
     );
-    let root = app.path().app_cache_dir()
-        .map_err(|_| AppErrorDto::from(AppError::InvalidMediaMetadata("preview cache unavailable")))?
+    let root = app
+        .path()
+        .app_cache_dir()
+        .map_err(|_| {
+            AppErrorDto::from(AppError::InvalidMediaMetadata("preview cache unavailable"))
+        })?
         .join("preview-chunks-v1");
-    let (generation, cancel, cache) = state.preview.begin(snapshot.project_id, root, runtime)
+    let (generation, cancel, cache) = state
+        .preview
+        .begin(snapshot.project_id, root, runtime)
         .map_err(AppErrorDto::from)?;
     let chunk = tauri::async_runtime::spawn_blocking(move || cache.render(&plan, range, &cancel))
         .await
         .map_err(|_| AppErrorDto::from(AppError::InvalidMediaMetadata("preview task interrupted")))?
-        .map_err(AppError::from).map_err(AppErrorDto::from)?;
+        .map_err(AppError::from)
+        .map_err(AppErrorDto::from)?;
     // A replaced project or an Undo/Redo/edit cannot authorize old media.
     let current = {
-        let project = state.project.lock().map_err(|_| AppErrorDto::from(AppError::StatePoisoned))?;
+        let project = state
+            .project
+            .lock()
+            .map_err(|_| AppErrorDto::from(AppError::StatePoisoned))?;
         project.snapshot().map_err(AppErrorDto::from)?
     };
     if current.project.id != snapshot.project_id || current.revision != snapshot.revision {
-        return Err(AppErrorDto::from(AppError::InvalidMediaMetadata("preview became stale")));
+        return Err(AppErrorDto::from(AppError::InvalidMediaMetadata(
+            "preview became stale",
+        )));
     }
     let token = JobId::new().get().to_string();
     let lease = Lease {
@@ -197,10 +223,20 @@ pub async fn request_preview_chunk(
         path: chunk.path,
         created: Instant::now(),
     };
-    if !state.preview.publish(generation, lease).map_err(AppErrorDto::from)? {
-        return Err(AppErrorDto::from(AppError::InvalidMediaMetadata("preview was cancelled")));
+    if !state
+        .preview
+        .publish(generation, lease)
+        .map_err(AppErrorDto::from)?
+    {
+        return Err(AppErrorDto::from(AppError::InvalidMediaMetadata(
+            "preview was cancelled",
+        )));
     }
-    Ok(PreviewChunkDto { token, start_us: chunk.start.get(), end_us: chunk.end.get() })
+    Ok(PreviewChunkDto {
+        token,
+        start_us: chunk.start.get(),
+        end_us: chunk.end.get(),
+    })
 }
 
 #[tauri::command]
@@ -227,7 +263,9 @@ mod tests {
         let other = ProjectId::new();
         let revision = ProjectRevision::new(7);
         let runtime = ManagedRuntime::from_dir("unused-runtime", "unit");
-        let (generation, _, _) = service.begin(project, PathBuf::from("unused-cache"), runtime).unwrap();
+        let (generation, _, _) = service
+            .begin(project, PathBuf::from("unused-cache"), runtime)
+            .unwrap();
         let lease = Lease {
             token: JobId::new().get().to_string(),
             project_id: project,
@@ -236,10 +274,19 @@ mod tests {
             created: Instant::now(),
         };
         assert!(service.publish(generation, lease.clone()).unwrap());
-        assert_eq!(service.resolve(&lease.token, project, revision), Some(lease.path.clone()));
+        assert_eq!(
+            service.resolve(&lease.token, project, revision),
+            Some(lease.path.clone())
+        );
         assert_eq!(service.resolve(&lease.token, other, revision), None);
-        assert_eq!(service.resolve(&lease.token, project, ProjectRevision::new(8)), None);
-        assert_eq!(service.resolve("not-an-issued-token", project, revision), None);
+        assert_eq!(
+            service.resolve(&lease.token, project, ProjectRevision::new(8)),
+            None
+        );
+        assert_eq!(
+            service.resolve("not-an-issued-token", project, revision),
+            None
+        );
         service.cancel().unwrap();
         assert!(service.resolve(&lease.token, project, revision).is_none());
         assert!(!service.publish(generation, lease).unwrap());
