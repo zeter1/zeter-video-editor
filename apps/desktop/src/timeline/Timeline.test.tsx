@@ -411,6 +411,38 @@ describe("Timeline", () => {
     expect(viewport.scrollLeft).toBe(0);
   });
 
+  it("anchors timeline zoom at the playhead without changing the project revision", () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const executeEditCommand = vi.fn();
+    const { container } = render(
+      <Timeline
+        sequence={sequence()}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={executeEditCommand}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    const viewport = container.querySelector(".timeline-scroll") as HTMLDivElement;
+    Object.defineProperty(viewport, "clientWidth", { configurable: true, value: 600 });
+    Object.defineProperty(viewport, "scrollWidth", { configurable: true, value: 5000 });
+    const revision = projectStore.getState().revision;
+
+    act(() => transientStore.setPlayheadTime(8_000_000));
+    expect(viewport.scrollLeft).toBe(542);
+    act(() => transientStore.setTimelineZoom(1.25));
+    expect(viewport.scrollLeft).toBe(742);
+    expect(transientStore.getState().timelineScrollLeftPx).toBe(742);
+
+    // Both directions preserve the same playhead screen coordinate.
+    act(() => transientStore.setTimelineZoom(1));
+    expect(viewport.scrollLeft).toBe(542);
+    expect(transientStore.getState().playheadTimeUs).toBe(8_000_000);
+    expect(projectStore.getState().revision).toBe(revision);
+    expect(executeEditCommand).not.toHaveBeenCalled();
+  });
+
   it("End seeks to the final clip boundary, not to successive ruler padding", () => {
     const projectStore = createProjectStore();
     const transientStore = createTransientStore();
