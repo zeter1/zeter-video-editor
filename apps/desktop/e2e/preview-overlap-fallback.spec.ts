@@ -82,15 +82,22 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   const before = await invokeTauri<unknown>(page, "project_snapshot");
 
   const scrub = async (seconds: number) => {
+    // Seek via the application's frame-accurate timecode control. Ruler pixel
+    // offsets are document coordinates while Playwright clicks are viewport-
+    // relative; automatic horizontal scrolling can otherwise land beyond the
+    // overlapping clips and silently invalidate the seam parity assertion.
+    const frameIndex = Math.round(seconds * sequence.fps);
+    const wholeSeconds = Math.floor(frameIndex / sequence.fps);
+    const frame = frameIndex % sequence.fps;
+    const timecode = `00:00:${String(wholeSeconds).padStart(2, "0")}:${String(frame).padStart(2, "0")}`;
+    const entry = page.getByRole("textbox", { name: "Таймкод" });
+    await entry.fill(timecode);
+    await entry.press("Enter");
     const ruler = page.getByRole("slider", { name: "Timeline playhead" });
-    const x = await ruler.evaluate((node, seekSeconds) => {
-      const ticks = node.querySelectorAll<HTMLElement>(".timeline-ruler-tick");
-      if (ticks.length < 2) throw new Error("Timeline ruler ticks are unavailable");
-      const start = Number.parseFloat(ticks[0].style.left);
-      const fifth = Number.parseFloat(ticks[1].style.left);
-      return start + (fifth - start) * seekSeconds / 5;
-    }, seconds);
-    await ruler.click({ position: { x, y: 10 } });
+    await expect(ruler).toHaveAttribute("aria-valuetext", timecode);
+    await expect(ruler).toHaveAttribute(
+      "aria-valuenow", String(Math.round(frameIndex * 1_000_000 / sequence.fps)),
+    );
   };
 
   await scrub(0.4);
