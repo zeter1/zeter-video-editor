@@ -53,6 +53,7 @@ export function PausedCompositeFrame({
   const [loaded, setLoaded] = useState<Array<{ scope: string; chunk: Chunk }>>([]);
   const [presented, setPresented] = useState<{ token: string; timeUs: number } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
+  const pendingFrameRef = useRef<{ node: HTMLVideoElement; id: number } | null>(null);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -112,20 +113,53 @@ export function PausedCompositeFrame({
     playheadTimeUs < entry.chunk.end_us)?.chunk ?? null;
   const targetSeconds = chunk ? (playheadTimeUs - chunk.start_us) / 1_000_000 : 0;
 
+  const clearPendingFrame = () => {
+    const pending = pendingFrameRef.current;
+    if (!pending) return;
+    pending.node.cancelVideoFrameCallback?.(pending.id);
+    pendingFrameRef.current = null;
+  };
+
   useEffect(() => {
+    // A WebView decoder can report the requested currentTime before its GPU
+    // surface has submitted that frame. Invalidate callbacks from the old
+    // time/window before issuing the next seek.
+    clearPendingFrame();
     const node = video.current;
     if (!node || !chunk) return;
     if (Math.abs(node.currentTime - targetSeconds) > 0.0005) {
       node.currentTime = Math.max(0, targetSeconds);
     }
-  }, [chunk, targetSeconds]);
+    return () => { clearPendingFrame(); };
+  }, [chunk?.token, targetSeconds]);
 
   const acceptDecodedFrame = () => {
     const node = video.current;
-    if (node && chunk && node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-        Math.abs(node.currentTime - targetSeconds) <= Math.max(0.002, 0.5 / fps)) {
-      setPresented({ token: chunk.token, timeUs: playheadTimeUs });
-    }
+    const tolerance = Math.max(0.002, 0.5 / fps);
+    if (!node || !chunk || node.seeking ||
+        node.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+        Math.abs(node.currentTime - targetSeconds) > tolerance ||
+        pendingFrameRef.current?.node === node) return;
+
+    // On WebView2 use the frame actually submitted to the compositor, not
+    // loadeddata/seeked: those events may still expose the previous texture.
+    // Without rVFC the direct decoder stays visible as a safe fallback.
+    if (typeof node.requestVideoFrameCallback !== "function") return;
+    const token = chunk.token;
+    const timeUs = playheadTimeUs;
+    const id = node.requestVideoFrameCallback((_now, metadata) => {
+      if (pendingFrameRef.current?.node === node) pendingFrameRef.current = null;
+      if (video.current !== node || node.seeking ||
+          node.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+          Math.abs(node.currentTime - targetSeconds) > tolerance) return;
+      if (Math.abs(metadata.mediaTime - targetSeconds) > tolerance) {
+        // The callback may be for the frame before the seek; do not flash it.
+        acceptDecodedFrame();
+        return;
+      }
+      setPresented({ token, timeUs });
+    });
+    pendingFrameRef.current = { node, id };
   };
 
   return (
@@ -147,8 +181,12 @@ export function PausedCompositeFrame({
           }}
           onLoadedData={acceptDecodedFrame}
           onSeeked={acceptDecodedFrame}
-          onSeeking={() => setPresented(null)}
+          onSeeking={() => {
+            clearPendingFrame();
+            setPresented(null);
+          }}
           onError={() => {
+            clearPendingFrame();
             // A corrupt decoder response must never obscure the direct fallback.
             const request = requestsRef.current.get(chunk.start_us);
             if (request?.chunk?.token === chunk.token) {
