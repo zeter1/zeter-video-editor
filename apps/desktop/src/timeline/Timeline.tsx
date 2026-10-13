@@ -20,8 +20,10 @@ import {
 } from "../state/transientStore";
 import { followPlayheadScrollLeft } from "./followPlayhead";
 import { commitTimelineCommand } from "./interaction";
+import { seekByFrames } from "./frameSeek";
 import { MarkerLayer } from "./MarkerLayer";
 import { TimecodeInput } from "./TimecodeInput";
+import { formatTimecode } from "./timecode";
 import { contentPixelToTimeUs, timeUsToPixel } from "./timeScale";
 import { TrackView } from "./TrackView";
 
@@ -221,13 +223,16 @@ export function Timeline({
   function handlePlayheadKeyDown(
     event: ReactKeyboardEvent<HTMLDivElement>,
   ): void {
-    const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
+    // Keep system shortcuts and clip dragging untouched.
+    if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing ||
+        transientStore.getState().drag) return;
+    const step = event.shiftKey ? 5 : 1;
     let nextTime: number | null = null;
 
     if (event.key === "ArrowRight") {
-      nextTime = Math.min(endUs, transient.playheadTimeUs + frameUs);
+      nextTime = seekByFrames(transient.playheadTimeUs, sequence.fps, step, endUs);
     } else if (event.key === "ArrowLeft") {
-      nextTime = Math.max(0, transient.playheadTimeUs - frameUs);
+      nextTime = seekByFrames(transient.playheadTimeUs, sequence.fps, -step, endUs);
     } else if (event.key === "Home") {
       nextTime = 0;
     } else if (event.key === "End") {
@@ -326,7 +331,7 @@ export function Timeline({
             aria-valuemax={endUs}
             aria-valuemin={0}
             aria-valuenow={transient.playheadTimeUs}
-            aria-valuetext={`${(transient.playheadTimeUs / 1_000_000).toFixed(2)} seconds`}
+            aria-valuetext={formatTimecode(transient.playheadTimeUs, sequence.fps)}
             onClick={seekFromPointer}
             onKeyDown={handlePlayheadKeyDown}
             role="slider"
