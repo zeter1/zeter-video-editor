@@ -148,4 +148,30 @@ describe("opaque cached FFmpeg paused Preview", () => {
     expect(invoke.mock.calls.filter(([command]) => command === "cancel_preview_chunk")).toHaveLength(3);
   });
 
+  it("retries a failed speculative window when it becomes foreground", async () => {
+    let adjacentAttempts = 0;
+    invoke.mockImplementation((command: string, args?: { playheadUs?: number }) => {
+      if (command !== "request_preview_chunk") return Promise.resolve(null);
+      const start = args?.playheadUs ?? 0;
+      if (start === 4_000_000 && adjacentAttempts++ === 0) {
+        return Promise.reject(new Error("prefetch unavailable"));
+      }
+      return Promise.resolve({
+        token: start === 0
+          ? "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+          : "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        start_us: start, end_us: start + 4_000_000,
+      });
+    });
+    const { rerender } = render(<PausedCompositeFrame {...props} playheadTimeUs={3_000_000} />);
+    await screen.findByLabelText("Точный FFmpeg кадр");
+    await waitFor(() => expect(adjacentAttempts).toBe(1));
+    rerender(<PausedCompositeFrame {...props} playheadTimeUs={4_200_000} />);
+    await waitFor(() => expect(adjacentAttempts).toBe(2));
+    await waitFor(() => expect((screen.getByLabelText("Точный FFmpeg кадр") as HTMLVideoElement).src)
+      .toContain("dddddddd-dddd-4ddd-8ddd-dddddddddddd"));
+    expect((screen.getByLabelText("Точный FFmpeg кадр") as HTMLVideoElement).style.visibility)
+      .toBe("hidden");
+  });
+
 });
