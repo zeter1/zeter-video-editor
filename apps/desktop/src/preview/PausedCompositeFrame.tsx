@@ -144,6 +144,11 @@ export function PausedCompositeFrame({
           onSeeking={() => setPresented(null)}
           onError={() => {
             // A corrupt decoder response must never obscure the direct fallback.
+            const request = requestsRef.current.get(chunk.start_us);
+            if (request?.chunk?.token === chunk.token) {
+              requestsRef.current.delete(chunk.start_us);
+              void invoke("cancel_preview_chunk", { requestId: request.requestId }).catch(() => {});
+            }
             setLoaded((current) => current.filter((entry) => entry.chunk.token !== chunk.token));
           }}
         />
