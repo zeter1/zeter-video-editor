@@ -572,9 +572,11 @@ describe("Timeline", () => {
     fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 10, buttons: 1 });
     expect(transientStore.getState().playheadTimeUs).toBe(0);
     fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 35_000, buttons: 1 });
-    expect(transientStore.getState().playheadTimeUs).toBe(
-      Math.round(Math.floor(35 * fixture.fps) / fixture.fps * 1_000_000),
-    );
+    const boundedEnd = Math.round(Math.floor(35 * fixture.fps) / fixture.fps * 1_000_000);
+    expect(transientStore.getState().playheadTimeUs).toBe(boundedEnd);
+    // Repeated out-of-range moves must not extend the ruler by another 5s.
+    fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 35_000, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).toBe(boundedEnd);
     fireEvent.pointerCancel(ruler, { pointerId: 7 });
     fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 232, buttons: 1 });
     expect(transientStore.getState().playheadTimeUs).not.toBe(1_001_000);
