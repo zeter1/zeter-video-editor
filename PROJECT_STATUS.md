@@ -1,3 +1,12 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003o NATIVE SEAM PIXEL ORACLE / alpha.19 (PR #78 DRAFT)
+
+- **EXACT CI EVIDENCE:** [CI #38460432598](https://github.com/zeter1/zeter-video-editor/actions/runs/38460432598) on `c4e4016604a731d8d37bf9696bd9c96fbf2031a2` COMPLETED FAILURE at 4.2s native center RGB only; 171 Vitest, Rust+FFmpeg, TS build and 20 previous native E2E passed. Two native seeks became one, disproving duplicated-seek as the RGB root cause. DEBUG NSIS and remaining E2E skipped due stopped test shell. Do NOT merge.
+- **ROOT OBSERVATION:** The independent export 2x2 center has adjacent RGB [233,230,18] (yellow) and [17,18,234] (blue). Their average [125,124,126] matches WebView2 native screenshot, video screenshot AND Canvas [125,125,127]. This is bilinear CSS scaling at the fixture's sharp two-color center boundary, not demonstrated video frame corruption. The old strict test compared this antialiased pixel to the unscaled left yellow pixel; rVFC mediaTime=0.2 was accurate but insufficient for arbitrary sampling.
+- **CURRENT WORK:** Same PR/alpha.19 native E2E retains per-channel RGB tolerance ≤35 but samples BOTH pixel interiors at x=1/4 and 3/4 from separately FFmpeg-decoded full export as well as WebView2; and retains the center with a two-color 50/50 resampled-edge reference. Other tests, source files, FFmpeg cache contract and export are unchanged. Verify these **all** on exact final SHA in full Windows CI, including native WebView2 and DEBUG NSIS, self-review then squash merge/main CI only on SUCCESS. No tag/release/signing/installation.
+- **PR / VERSION:** [#78](https://github.com/zeter1/zeter-video-editor/pull/78) OPEN DRAFT; main `edf2fc59e8ca970d03b7b93750ea71820f717866` alpha.18, branch alpha.19; same original bounded adjacent preview task. Next product-code task after finishing is continuous live FFmpeg A/V clock with bounded prebuffer and RGB/RMS parity.
+
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003o NATIVE PAUSED SEAM / alpha.19 (DRAFT, NOT MERGED)
 
 - **CURRENT PR / BASE:** [#78](https://github.com/zeter1/zeter-video-editor/pull/78) is OPEN DRAFT on `feat/preview-adjacent-prefetch-alpha19-20261013` (desktop source 0.1.0-alpha.19); main `edf2fc59e8ca970d03b7b93750ea71820f717866` remains 0.1.0-alpha.18. No release, signing or owner-PC installation.

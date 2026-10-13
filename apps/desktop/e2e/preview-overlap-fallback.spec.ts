@@ -186,13 +186,18 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
     return event.state;
   }, { timeout: 90_000, intervals: [500, 1000, 2000] }).toBe("Completed");
   const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
-  const center = (input: Buffer | string, at?: number): Buffer => {
+  const center = (input: Buffer | string, at?: number, xFraction = 0.5): Buffer => {
     const piped = Buffer.isBuffer(input);
     return execFileSync(ffmpeg, [
       "-hide_banner", "-loglevel", "error",
       ...(at === undefined ? [] : ["-ss", String(at)]),
       "-i", piped ? "pipe:0" : input,
-      "-vf", "crop=2:2,format=rgb24", "-frames:v", "1",
+      // Compare solid regions without the browser's unavoidable CSS bilinear
+      // interpolation at the synthetic fixture's sharp yellow/blue boundary.
+      // Preserve the original center crop for the explicit edge-blend oracle.
+      "-vf", xFraction === 0.5
+        ? "crop=2:2,format=rgb24"
+        : `crop=2:2:iw*${xFraction}:ih/2,format=rgb24`, "-frames:v", "1",
       "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
     ], { input: piped ? input : undefined, windowsHide: true, maxBuffer: 4_000_000 });
   };
@@ -265,6 +270,15 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   const nativeCompositeVideoRgb = center(await composite.screenshot({
     animations: "disabled", scale: "css",
   }));
+  // A sharp two-color seam sits exactly at the image center; WebView2
+  // scales the 160x90 source to its CSS stage and blends adjoining pixels.
+  // Compare BOTH sides of the seam against the independently decoded full
+  // FFmpeg export, preserving the strict 35-per-channel native RGB bound.
+  const interiorSamples = [0.25, 0.75].map((fraction) => ({
+    fraction,
+    actual: [...center(boundaryScreenshot, undefined, fraction)],
+    exported: [...center(outputPath, 4.2, fraction)],
+  }));
   // Distinguish stale WebView2 video-overlay presentation from a wrong
   // decoded texture: a one-off canvas draws exactly the paused video frame.
   // Capture pixels via the native browser screenshot, not canvas readback
@@ -325,7 +339,7 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   console.log("[WebView2 seam RGB]", JSON.stringify({
     at: 4.2,
     actual: [...boundaryRgb], videoElement: [...nativeCompositeVideoRgb],
-    canvasFrame, export: [...boundaryExportRgb],
+    canvasFrame, export: [...boundaryExportRgb], interiorSamples,
     nativeFrameEvents: await page.evaluate(() =>
       (window as Window & { __previewFrames?: unknown[] }).__previewFrames?.slice(-35) ?? []),
     cachedSamples,
@@ -348,10 +362,25 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
       };
     }),
   }));
+  // On the two-color fixture, the first CSS-center pixel is the 50/50
+  // resample of two adjacent export pixels. Test the actual displayed edge,
+  // not the unsmoothed source pixel, with the SAME <=35 tolerance.
   for (let channel = 0; channel < 3; channel++) {
-    expect(Math.abs(boundaryRgb[channel] - boundaryExportRgb[channel]),
-      "paused native seam vs independently rendered FFmpeg export RGB channel " + channel,
+    const blendedEdge = Math.round((boundaryExportRgb[channel] +
+      boundaryExportRgb[3 + channel]) / 2);
+    expect(Math.abs(boundaryRgb[channel] - blendedEdge),
+      "native CSS-resampled seam edge vs FFmpeg colors channel " + channel,
     ).toBeLessThanOrEqual(35);
+  }
+  // Two independently sampled interior regions assert BOTH colors of the
+  // 4.2s FFmpeg frame, away from a one-pixel discontinuity. They catch a
+  // stale native texture even when time/rVFC metadata reports success.
+  for (const sample of interiorSamples) {
+    for (let channel = 0; channel < 6; channel++) {
+      expect(Math.abs(sample.actual[channel] - sample.exported[channel]),
+        `native paused FFmpeg interior ${sample.fraction} RGB channel ${channel}`,
+      ).toBeLessThanOrEqual(35);
+    }
   }
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
 });
