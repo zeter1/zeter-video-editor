@@ -40,34 +40,31 @@ function findVisibleClip(sequence: Sequence, timeUs: number): { clip: Clip; trac
   return null;
 }
 
-// The direct WebView2 path can decode only one moving video. Preserve the
-// foreground video AND every still overlay instead of dropping the layer stack
-// whenever two moving videos overlap. The missing moving layers are disclosed
-// until the approved FFmpeg cached-composite path is connected.
+// Decode two moving layers while keeping one foreground transport/audio clock.
+// This direct WebView2 approximation is not the approved FFmpeg composite path.
 function findVisiblePictureLayers(sequence: Sequence, timeUs: number): {
   layers: Array<{ clip: Clip; track: Track }>;
   multipleVideos: boolean;
 } {
   const layers: Array<{ clip: Clip; track: Track }> = [];
-  let movingVideos = 0;
-  let foregroundVideoId: string | null = null;
+  const movingVideoIds: string[] = [];
   for (const track of sequence.tracks) {
     if (track.hidden || (track.kind !== "Video" && track.kind !== "Overlay")) continue;
     for (const clip of track.clips) {
       if (clip.timeline_start > timeUs || timeUs >= clip.timeline_end) continue;
       if (clip.kind !== "Video" && clip.kind !== "Image") continue;
-      if (clip.kind === "Video") {
-        movingVideos += 1;
-        foregroundVideoId = clip.id;
-      }
+      if (clip.kind === "Video") movingVideoIds.push(clip.id);
       layers.push({ clip, track });
     }
   }
   return {
-    layers: movingVideos > 1
-      ? layers.filter(({ clip }) => clip.kind === "Image" || clip.id === foregroundVideoId)
+    // Keep at most two native video decoders active, plus all still overlays.
+    // The FFmpeg render-snapshot path will own unbounded accurate composition.
+    layers: movingVideoIds.length > 2
+      ? layers.filter(({ clip }) =>
+          clip.kind === "Image" || movingVideoIds.slice(-2).includes(clip.id))
       : layers,
-    multipleVideos: movingVideos > 1,
+    multipleVideos: movingVideoIds.length > 1,
   };
 }
 
@@ -100,6 +97,70 @@ function mediaUrl(mediaId: string): string {
 function supportsPresentedFrames(node: HTMLVideoElement | null): node is HTMLVideoElement {
   return Boolean(node && typeof node.requestVideoFrameCallback === "function" &&
     typeof node.cancelVideoFrameCallback === "function");
+}
+
+/** Muted follower decoder; only the foreground video advances timeline and audio. */
+function SecondaryVideoLayer({
+  clip, src, playheadTimeUs, playing,
+}: {
+  clip: Clip; src: string; playheadTimeUs: number; playing: boolean;
+}) {
+  const node = useRef<HTMLVideoElement>(null);
+  const [failed, setFailed] = useState(false);
+  const targetSeconds = sourceTime(clip, playheadTimeUs);
+
+  useEffect(() => {
+    const current = node.current;
+    if (!current) return;
+    const speed = clip.speed > 0 ? clip.speed : 1;
+    current.playbackRate = speed;
+    // Playback tolerance is in timeline seconds, converted to source seconds.
+    // Paused frame steps seek independently; the follower cannot move the clock.
+    const tolerance = (playing ? 0.12 : 0.001) * speed;
+    if (Number.isFinite(targetSeconds) &&
+        Math.abs(current.currentTime - targetSeconds) > tolerance) {
+      current.currentTime = Math.max(0, targetSeconds);
+    }
+  }, [clip.source_in, clip.timeline_start, clip.speed, targetSeconds, playing]);
+
+  useEffect(() => {
+    const current = node.current;
+    if (!current) return;
+    let cancelled = false;
+    if (playing) {
+      void current.play().catch((reason: unknown) => {
+        if (!cancelled && !isBenignMediaPlayRejection(reason)) setFailed(true);
+      });
+    } else {
+      current.pause();
+    }
+    return () => {
+      cancelled = true;
+      current.pause();
+    };
+  }, [playing, src]);
+
+  return (
+    <>
+      <video
+        ref={node}
+        className="preview-media"
+        src={src}
+        style={pictureStyle(clip)}
+        playsInline
+        muted
+        preload="auto"
+        aria-label="Нижний видеослой"
+        onLoadedMetadata={() => {
+          if (!node.current) return;
+          node.current.playbackRate = clip.speed > 0 ? clip.speed : 1;
+          node.current.currentTime = Math.max(0, sourceTime(clip, playheadTimeUs));
+        }}
+        onError={() => setFailed(true)}
+      />
+      {failed ? <span role="alert">Не удалось декодировать нижний видеослой.</span> : null}
+    </>
+  );
 }
 
 export function PreviewPlayer({
@@ -199,7 +260,7 @@ export function PreviewPlayer({
   );
   // A still over a video must not replace the foreground transport decoder.
   // Readiness, embedded sound and rVFC continue to follow that same video.
-  const movingLayer = pictureLayers.find(({ clip }) => clip.kind === "Video");
+  const movingLayer = pictureLayers.filter(({ clip }) => clip.kind === "Video").at(-1);
   const active = movingLayer?.clip ?? visible?.clip ?? null;
   const activeTrack = movingLayer?.track ?? visible?.track ?? null;
   const stillLayers = pictureLayers.filter(({ clip }) => clip.kind === "Image");
@@ -505,6 +566,14 @@ export function PreviewPlayer({
               }}
               aria-label="Предпросмотр видео"
             />
+                ) : clip.kind === "Video" ? (
+                  <SecondaryVideoLayer
+                    key={clip.id}
+                    clip={clip}
+                    src={layerSrc}
+                    playheadTimeUs={playheadTimeUs}
+                    playing={audioTransportPlaying}
+                  />
                 ) : clip.kind === "Image" ? (
                   <img
                     key={clip.id}
@@ -534,8 +603,8 @@ export function PreviewPlayer({
           ) : null}
           {pictureSelection.multipleVideos ? (
             <span className="preview-composite-notice" role="status">
-              В этой области несколько видеодорожек. Предпросмотр показывает только верхнее видео;
-              итоговый экспорт может отличаться.
+              В этой области несколько видеодорожек. Отдельные декодеры показывают два верхних
+              движущихся слоя, но их точное наложение и звук могут отличаться от экспорта.
             </span>
           ) : null}
           {mediaError ? <span className="preview-media-error" role="alert">{mediaError}</span> : null}
