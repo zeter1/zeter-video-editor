@@ -1,3 +1,14 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003c ADJACENT MARKER NAVIGATION (PR #66 DRAFT)
+
+- **USER-VISIBLE RESULT:** Timeline toolbar offers «Предыдущий маркер» and «Следующий маркер» with Shift+M / Ctrl+Shift+M (physical KeyM on Russian layouts). Jumps to nearest strictly earlier/later distinct marker timestamp regardless of marker array order; zero-time and endpoints are safe. Buttons disable without a destination. Focus, text input, dialogs, IME, repeats, modifiers, and dragging are guarded.
+- **STATE SAFETY:** Only `TransientStore.setPlayheadTime`; no Rust EditCommand, Undo/Redo, project revision, .vcut schema or media mutation; no changes to Preview/FFmpeg/AI/export.
+- **DELIVERY:** PR https://github.com/zeter1/zeter-video-editor/pull/66, branch `feat/timeline-adjacent-marker-navigation-alpha7-20261013`, base main `7f98ff9270cca7760f120f2f8e4546c669bacae2`. DRAFT, NOT in main until accepted by exact-head Windows CI.
+- **VERSION:** `0.1.0-alpha.6` → `0.1.0-alpha.7` via real `node scripts/set-version.mjs` and `node scripts/check-version.mjs` in GitHub Actions https://github.com/zeter1/zeter-video-editor/actions/runs/38339799697 (SUCCESS). This changes only desktop source prerelease, not signed/published binaries.
+- **ACCEPTANCE:** React Vitest regression in `Timeline.test.tsx` (unsorted, duplicates, endpoint/zero, native guards/no project command); native Windows WebView2 `e2e/marker-shortcut.spec.ts` (M adds actual markers, shortcut/buttons move transiently, project_snapshot unchanged). Test-only RED PR workflow was cancelled after new code commits; do not claim verified RED. Exact-HEAD full Windows CI and manual owner-PC QA remain to be verified.
+- **NEXT FIRST ACTION:** Confirm branch-only version workflow removed; check final PR HEAD Windows CI, review exact diff and any failure, then merge only if all gates pass. Check latest main push CI separately.
+
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003b SAFE TIMELINE MARKERS (PR #65 DRAFT)
 
 - **PRODUCT RESULT:** Clicking a marker pin/label no longer deletes it. The click seeks only the transient playhead to the marker's exact microsecond time without a Rust edit or revision; a separate keyboard-accessible Russian «Удалить маркер …» control issues the original revisioned `RemoveMarker`, undoable via Rust Undo/Redo.
