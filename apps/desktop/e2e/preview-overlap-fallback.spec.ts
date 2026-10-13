@@ -199,11 +199,20 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   });
   const boundaryRgb = center(boundaryScreenshot);
   const boundaryExportRgb = center(outputPath, 4.2);
+  const nativeCompositeVideoRgb = center(await composite.screenshot({
+    animations: "disabled", scale: "css",
+  }));
   // Diagnostics remain attached to the strict RGB oracle: distinguish a
   // decoded-but-not-presented frame from an FFmpeg window parity regression.
   console.log("[WebView2 seam RGB]", JSON.stringify({
     at: 4.2,
-    actual: [...boundaryRgb], export: [...boundaryExportRgb],
+    actual: [...boundaryRgb], videoElement: [...nativeCompositeVideoRgb],
+    export: [...boundaryExportRgb],
+    centerElement: await page.locator(".preview-frame").evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      const element = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return element?.className ?? null;
+    }),
     exportAt4s: [...center(outputPath, 4.0)],
     exportAt4_4s: [...center(outputPath, 4.4)],
     composite: await composite.evaluate((node) => {
