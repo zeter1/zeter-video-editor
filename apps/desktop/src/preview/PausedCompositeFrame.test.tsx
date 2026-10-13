@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PausedCompositeFrame, compositeChunkUrl } from "./PausedCompositeFrame";
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -15,7 +15,10 @@ const props = {
   fps: 30,
 };
 
-afterEach(() => invoke.mockReset());
+beforeEach(() => {
+  invoke.mockReset();
+  invoke.mockResolvedValue(null);
+});
 
 describe("opaque cached FFmpeg paused Preview", () => {
   it("never constructs a WebView filesystem URL", () => {
