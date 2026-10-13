@@ -29,7 +29,7 @@ describe("TimecodeInput", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onSeek).not.toHaveBeenCalled();
     expect(input.getAttribute("aria-invalid")).toBe("true");
-    expect(screen.getByRole("alert").textContent).toContain("Формат");
+    expect(screen.getByRole("alert").textContent).toContain("ЧЧ:ММ:СС:КК");
     fireEvent.change(input, { target: { value: "00:00:00:15" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onSeek).toHaveBeenCalledWith(500_000);
