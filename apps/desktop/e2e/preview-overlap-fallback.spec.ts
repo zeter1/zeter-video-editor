@@ -265,6 +265,38 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   const nativeCompositeVideoRgb = center(await composite.screenshot({
     animations: "disabled", scale: "css",
   }));
+  // Distinguish stale WebView2 video-overlay presentation from a wrong
+  // decoded texture: a one-off canvas draws exactly the paused video frame.
+  // Capture pixels via the native browser screenshot, not canvas readback
+  // (which is origin-tainted for an opaque zeter-media stream).
+  const canvasFrame = await (async () => {
+    const attached = await page.evaluate(() => {
+      const video = document.querySelector("video.preview-ffmpeg-composite") as HTMLVideoElement | null;
+      const stage = document.querySelector(".preview-frame");
+      if (!video || !stage || !video.videoWidth || !video.videoHeight) return false;
+      const canvas = document.createElement("canvas");
+      canvas.className = "preview-native-frame-diagnostic";
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:99;pointer-events:none";
+      const context = canvas.getContext("2d");
+      if (!context) return false;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      stage.appendChild(canvas);
+      return true;
+    });
+    if (!attached) return { error: "no decoded video surface for canvas" };
+    try {
+      return { rgb: [...center(await page.locator(".preview-native-frame-diagnostic").screenshot({
+        animations: "disabled", scale: "css",
+      }))] };
+    } catch (error) {
+      return { error: String(error) };
+    } finally {
+      await page.locator(".preview-native-frame-diagnostic").evaluate((canvas) => canvas.remove())
+        .catch(() => {});
+    }
+  })();
   // Diagnostic oracle: decode the actual cache MP4 with the managed FFmpeg.
   // This is Node-only CI fixture access, never a filesystem path sent to WebView2.
   const cacheDir = path.join(process.env.LOCALAPPDATA ?? "",
@@ -280,7 +312,12 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
           "-v", "error", "-show_entries", "format=duration",
           "-of", "default=noprint_wrappers=1:nokey=1", file,
         ], { windowsHide: true }).toString().trim());
-        return { duration, centerAt_0_2: [...center(file, 0.2)] };
+        return {
+          duration,
+          centerAt_0: [...center(file, 0)],
+          centerAt_0_2: [...center(file, 0.2)],
+          centerAt_0_5: [...center(file, 0.5)],
+        };
       })
     : [];
   // Diagnostics remain attached to the strict RGB oracle: distinguish a
@@ -288,7 +325,9 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   console.log("[WebView2 seam RGB]", JSON.stringify({
     at: 4.2,
     actual: [...boundaryRgb], videoElement: [...nativeCompositeVideoRgb],
-    export: [...boundaryExportRgb],
+    canvasFrame, export: [...boundaryExportRgb],
+    nativeFrameEvents: await page.evaluate(() =>
+      (window as Window & { __previewFrames?: unknown[] }).__previewFrames?.slice(-35) ?? []),
     cachedSamples,
     centerElement: await page.locator(".preview-frame").evaluate((node) => {
       const rect = node.getBoundingClientRect();
