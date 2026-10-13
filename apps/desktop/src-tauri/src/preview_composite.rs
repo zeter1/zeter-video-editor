@@ -76,6 +76,7 @@ struct Lease {
 #[derive(Default)]
 struct Inner {
     generation: u64,
+    request_id: Option<JobId>,
     cancel: Option<CancellationToken>,
     lease: Option<Lease>,
     cache: Option<(ProjectId, PreviewChunkCache)>,
@@ -92,6 +93,7 @@ impl PreviewService {
     fn begin(
         &self,
         project_id: ProjectId,
+        request_id: JobId,
         root: PathBuf,
         runtime: ManagedRuntime,
     ) -> Result<(u64, CancellationToken, PreviewChunkCache), AppError> {
@@ -101,6 +103,7 @@ impl PreviewService {
         }
         inner.generation = inner.generation.wrapping_add(1);
         inner.lease = None;
+        inner.request_id = Some(request_id);
         if inner.cache.as_ref().is_none_or(|(id, _)| *id != project_id) {
             inner.cache = Some((project_id, PreviewChunkCache::new(root, runtime)));
         }
@@ -129,12 +132,27 @@ impl PreviewService {
 
     pub fn cancel(&self) -> Result<(), AppError> {
         let mut inner = self.inner.lock().map_err(|_| AppError::StatePoisoned)?;
+        Self::retire(&mut inner);
+        Ok(())
+    }
+
+    /// Discard a caller only if it still owns the latest rendering generation:
+    /// a delayed component cleanup must never cancel a newer seek/preview.
+    pub fn cancel_request(&self, request_id: JobId) -> Result<(), AppError> {
+        let mut inner = self.inner.lock().map_err(|_| AppError::StatePoisoned)?;
+        if inner.request_id == Some(request_id) {
+            Self::retire(&mut inner);
+        }
+        Ok(())
+    }
+
+    fn retire(inner: &mut Inner) {
         inner.generation = inner.generation.wrapping_add(1);
         if let Some(cancel) = inner.cancel.take() {
             cancel.cancel();
         }
         inner.lease = None;
-        Ok(())
+        inner.request_id = None;
     }
 
     pub fn resolve(
@@ -187,6 +205,7 @@ fn window(playhead: TimeUs, duration_seconds: f64) -> Result<PreviewRange, AppEr
 pub async fn request_preview_chunk(
     app: tauri::AppHandle,
     sequence_id: SequenceId,
+    request_id: JobId,
     expected_revision: ProjectRevision,
     playhead_us: TimeUs,
 ) -> Result<PreviewChunkDto, AppErrorDto> {
@@ -245,7 +264,7 @@ pub async fn request_preview_chunk(
         .join("preview-chunks-v1");
     let (generation, cancel, cache) = state
         .preview
-        .begin(snapshot.project_id, root, runtime)
+        .begin(snapshot.project_id, request_id, root, runtime)
         .map_err(AppErrorDto::from)?;
     let chunk = tauri::async_runtime::spawn_blocking(move || cache.render(&plan, range, &cancel))
         .await
@@ -291,8 +310,11 @@ pub async fn request_preview_chunk(
 }
 
 #[tauri::command]
-pub fn cancel_preview_chunk(state: State<'_, AppState>) -> Result<(), AppErrorDto> {
-    state.preview.cancel().map_err(AppErrorDto::from)
+pub fn cancel_preview_chunk(
+    state: State<'_, AppState>,
+    request_id: JobId,
+) -> Result<(), AppErrorDto> {
+    state.preview.cancel_request(request_id).map_err(AppErrorDto::from)
 }
 
 #[cfg(test)]
@@ -315,7 +337,7 @@ mod tests {
         let revision = ProjectRevision::new(7);
         let runtime = ManagedRuntime::from_dir("unused-runtime", "unit");
         let (generation, _, _) = service
-            .begin(project, PathBuf::from("unused-cache"), runtime)
+            .begin(project, JobId::new(), PathBuf::from("unused-cache"), runtime)
             .unwrap();
         let lease = Lease {
             token: JobId::new().get().to_string(),
@@ -339,8 +361,27 @@ mod tests {
             service.resolve("not-an-issued-token", project, revision),
             None
         );
-        service.cancel().unwrap();
+        let old_request = service.inner.lock().unwrap().request_id.unwrap();
+        service.cancel_request(JobId::new()).unwrap();
+        assert!(service.resolve(&lease.token, project, revision).is_some());
+        service.cancel_request(old_request).unwrap();
         assert!(service.resolve(&lease.token, project, revision).is_none());
         assert!(!service.publish(generation, lease).unwrap());
+    }
+
+    #[test]
+    fn delayed_cancellation_cannot_tear_down_the_newest_request() {
+        let service = PreviewService::default();
+        let project = ProjectId::new();
+        let first = JobId::new();
+        let second = JobId::new();
+        let runtime = ManagedRuntime::from_dir("unused-runtime", "unit");
+        let (_, old_cancel, _) = service.begin(project, first, PathBuf::from("unused-cache"), runtime.clone()).unwrap();
+        let (_, new_cancel, _) = service.begin(project, second, PathBuf::from("unused-cache"), runtime).unwrap();
+        assert!(old_cancel.is_cancelled());
+        service.cancel_request(first).unwrap();
+        assert!(!new_cancel.is_cancelled());
+        service.cancel_request(second).unwrap();
+        assert!(new_cancel.is_cancelled());
     }
 }

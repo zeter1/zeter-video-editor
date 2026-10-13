@@ -41,10 +41,11 @@ export function PausedCompositeFrame({
   useEffect(() => {
     if (!isTauri()) return;
     let active = true;
+    const requestId = crypto.randomUUID();
     setChunk(null);
     setPresentedTimeUs(null);
     void invoke<Chunk>("request_preview_chunk", {
-      sequenceId, expectedRevision: revision, playheadUs: windowStart,
+      sequenceId, requestId, expectedRevision: revision, playheadUs: windowStart,
     }).then((result) => {
       if (active && result.start_us <= playheadTimeUs &&
           playheadTimeUs < result.end_us) {
@@ -58,7 +59,7 @@ export function PausedCompositeFrame({
     return () => {
       active = false;
       // The server retires the old handle and cancels its bounded FFmpeg job.
-      void invoke("cancel_preview_chunk").catch(() => {});
+      void invoke("cancel_preview_chunk", { requestId }).catch(() => {});
     };
   }, [projectId, revision, sequenceId, windowStart]);
 

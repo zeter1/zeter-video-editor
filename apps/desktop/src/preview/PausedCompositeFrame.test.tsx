@@ -37,7 +37,7 @@ describe("opaque cached FFmpeg paused Preview", () => {
     const video = await screen.findByLabelText("Точный FFmpeg кадр") as HTMLVideoElement;
     expect(video.style.visibility).toBe("hidden");
     expect(invoke).toHaveBeenCalledWith("request_preview_chunk", {
-      sequenceId: props.sequenceId, expectedRevision: 8, playheadUs: 0,
+      sequenceId: props.sequenceId, requestId: expect.any(String), expectedRevision: 8, playheadUs: 0,
     });
     Object.defineProperty(video, "readyState", { configurable: true, value: 2 });
     fireEvent.loadedMetadata(video);
@@ -46,7 +46,9 @@ describe("opaque cached FFmpeg paused Preview", () => {
     rerender(<PausedCompositeFrame {...props} playheadTimeUs={1_500_000} />);
     expect(video.style.visibility).toBe("hidden");
     unmount();
-    expect(invoke).toHaveBeenCalledWith("cancel_preview_chunk");
+    expect(invoke).toHaveBeenCalledWith("cancel_preview_chunk", {
+      requestId: expect.any(String),
+    });
   });
 
   it("discards a late response after project revision changes", async () => {
