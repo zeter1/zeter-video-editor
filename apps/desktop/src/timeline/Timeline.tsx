@@ -224,7 +224,9 @@ export function Timeline({
       TIMELINE_PIXELS_PER_SECOND,
       transient.timelineZoom,
     );
-    transientStore.setPlayheadTime(seekByFrames(pointerTimeUs, sequence.fps, 0, endUs));
+    // The seek boundary comes from authored content, not from the playhead
+    // itself: otherwise repeated off-ruler drags grow the DOM ruler forever.
+    transientStore.setPlayheadTime(seekByFrames(pointerTimeUs, sequence.fps, 0, seekLimitUs));
   }
 
   function seekFromPointer(event: ReactMouseEvent<HTMLDivElement>): void {
