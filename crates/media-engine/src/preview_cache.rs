@@ -117,7 +117,7 @@ fn bounded_probe(runtime: &ManagedRuntime, path: &Path) -> Result<MediaProbe, Me
             Err(source) => break Err(source),
         }
     };
-    if !matches!(outcome, Ok(Some(_))) {
+    if !matches!(&outcome, Ok(Some(_))) {
         let _ = child.kill();
         let _ = child.wait();
     }
