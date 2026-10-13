@@ -125,7 +125,10 @@ pub fn project_new(
     let snapshot = project
         .create_new(&name)
         .map_err(|error| diagnostic_error(error, None, None))?;
-    state.preview.cancel().map_err(|error| diagnostic_error(error, None, None))?;
+    state
+        .preview
+        .cancel()
+        .map_err(|error| diagnostic_error(error, None, None))?;
     Ok(snapshot)
 }
 
@@ -146,7 +149,10 @@ pub fn project_open(
             probe_media(&media_runtime, candidate).map_err(AppError::from)
         })
         .map_err(|error| diagnostic_error(error, None, None))?;
-    state.preview.cancel().map_err(|error| diagnostic_error(error, None, None))?;
+    state
+        .preview
+        .cancel()
+        .map_err(|error| diagnostic_error(error, None, None))?;
     Ok(snapshot)
 }
 
@@ -170,7 +176,10 @@ pub fn project_open_with_relink(
             |candidate| probe_media(&media_runtime, candidate).map_err(AppError::from),
         )
         .map_err(|error| diagnostic_error(error, None, None))?;
-    state.preview.cancel().map_err(|error| diagnostic_error(error, None, None))?;
+    state
+        .preview
+        .cancel()
+        .map_err(|error| diagnostic_error(error, None, None))?;
     Ok(snapshot)
 }
 
@@ -217,7 +226,10 @@ pub fn project_open_recovery(
             &PathBuf::from(recovery_path),
         )
         .map_err(|error| diagnostic_error(error, None, None))?;
-    state.preview.cancel().map_err(|error| diagnostic_error(error, None, None))?;
+    state
+        .preview
+        .cancel()
+        .map_err(|error| diagnostic_error(error, None, None))?;
     Ok(snapshot)
 }
 

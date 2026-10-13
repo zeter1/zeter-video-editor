@@ -43,17 +43,23 @@ impl SourceStamp {
             canonical: std::fs::canonicalize(&path)
                 .map_err(|_| AppError::InvalidMediaMetadata("preview source inaccessible"))?,
             size: metadata.len(),
-            modified: metadata.modified()
-                .map_err(|_| AppError::InvalidMediaMetadata("preview source timestamp unavailable"))?,
+            modified: metadata.modified().map_err(|_| {
+                AppError::InvalidMediaMetadata("preview source timestamp unavailable")
+            })?,
             path,
         })
     }
 
     fn still_fresh(&self) -> bool {
-        let Ok(metadata) = std::fs::metadata(&self.path) else { return false; };
-        metadata.is_file() && metadata.len() == self.size &&
-            metadata.modified().is_ok_and(|modified| modified == self.modified) &&
-            std::fs::canonicalize(&self.path).is_ok_and(|path| path == self.canonical)
+        let Ok(metadata) = std::fs::metadata(&self.path) else {
+            return false;
+        };
+        metadata.is_file()
+            && metadata.len() == self.size
+            && metadata
+                .modified()
+                .is_ok_and(|modified| modified == self.modified)
+            && std::fs::canonicalize(&self.path).is_ok_and(|path| path == self.canonical)
     }
 }
 
@@ -144,7 +150,7 @@ impl PreviewService {
             && lease.revision == revision
             && lease.created.elapsed() <= LEASE_TTL
             && lease.sources.iter().all(SourceStamp::still_fresh))
-            .then(|| lease.path.clone())
+        .then(|| lease.path.clone())
     }
 }
 
@@ -203,9 +209,12 @@ pub async fn request_preview_chunk(
     // Fingerprint actual source identity both before and after rendering.
     // A token must not keep serving an old composite after external relink
     // or same-size source replacement with a different timestamp.
-    let stamps = snapshot.media.iter().map(|media| {
-        SourceStamp::capture(PathBuf::from(&media.absolute_path), media.file_size)
-    }).collect::<Result<Vec<_>, _>>().map_err(AppErrorDto::from)?;
+    let stamps = snapshot
+        .media
+        .iter()
+        .map(|media| SourceStamp::capture(PathBuf::from(&media.absolute_path), media.file_size))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(AppErrorDto::from)?;
     let settings = ExportSettings {
         container: ExportContainer::Mp4,
         codec: VideoCodec::H264,
