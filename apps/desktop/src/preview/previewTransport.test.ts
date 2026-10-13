@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Clip, Sequence } from "../generated/ipc";
-import { advanceGapTimeUs, mediaClockMatchesTimeline, mediaTimeToTimelineUs, presentedFrameToTimelineUs, sequencePlayableEndUs, shouldHonorNativeVideoEnded } from "./previewTransport";
+import { advanceGapTimeUs, mediaClockMatchesTimeline, mediaTimeToTimelineUs, presentedFrameToTimelineUs, sequencePlayableEndUs, shouldHonorNativeVideoEnded, stepPreviewFrame } from "./previewTransport";
 
 const clip = {
   id: "clip-1",
@@ -97,6 +97,34 @@ describe("preview transport timeline mapping", () => {
     expect(shouldHonorNativeVideoEnded(clip, 6, 7_000_000, false)).toBe(false);
     expect(shouldHonorNativeVideoEnded(clip, Infinity, 7_000_000, true)).toBe(false);
     expect(shouldHonorNativeVideoEnded(clip, 6, Number.NaN, true)).toBe(false);
+  });
+
+  it("steps Preview at integer frame indices for 23.976/29.97/59.94 fps without accumulated drift", () => {
+    for (const fps of [24_000 / 1_001, 30_000 / 1_001, 60_000 / 1_001]) {
+      const endUs = 1_000_000_000;
+      let cursor = 0;
+      for (let frame = 1; frame <= 10_000; frame++) {
+        cursor = stepPreviewFrame(cursor, fps, 1, endUs);
+        expect(cursor).toBe(Math.round(frame / fps * 1_000_000));
+      }
+      for (let frame = 9_999; frame >= 0; frame--) {
+        cursor = stepPreviewFrame(cursor, fps, -1, endUs);
+        expect(cursor).toBe(Math.round(frame / fps * 1_000_000));
+      }
+      expect(cursor).toBe(0);
+    }
+  });
+
+  it("handles a partial last video frame without stepping backwards on Next", () => {
+    const fps = 30_000 / 1_001;
+    const lastFullFrameUs = Math.round(29 / fps * 1_000_000);
+    expect(stepPreviewFrame(lastFullFrameUs, fps, 1, 1_000_000)).toBe(1_000_000);
+    expect(stepPreviewFrame(990_000, fps, 1, 1_000_000)).toBe(1_000_000);
+    expect(stepPreviewFrame(1_000_000, fps, -1, 1_000_000)).toBe(lastFullFrameUs);
+    expect(stepPreviewFrame(1_005_000, fps, -1, 1_005_000))
+      .toBe(Math.round(30 / fps * 1_000_000));
+    expect(stepPreviewFrame(0, fps, -1, 1_000_000)).toBe(0);
+    expect(stepPreviewFrame(0, fps, 1, 10_000)).toBe(10_000);
   });
 
   it("advances through stills and gaps but clamps at edit end and large callback delays", () => {

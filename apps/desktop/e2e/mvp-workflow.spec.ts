@@ -186,6 +186,16 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
     (el as HTMLVideoElement).readyState), { timeout: 15_000 }).toBeGreaterThan(0);
   await expect(liveVideo).toHaveAttribute("src", new RegExp(video.id));
 
+  // Preview transport buttons must follow the same frame grid as the timeline
+  // without creating a Rust project edit; fractional FPS is covered by Vitest.
+  const previewPlayhead = page.getByRole("slider", { name: "Timeline playhead" });
+  await expect(previewPlayhead).toHaveAttribute("aria-valuenow", "0");
+  await page.getByRole("button", { name: "Следующий кадр" }).click();
+  await expect(previewPlayhead).toHaveAttribute("aria-valuenow", "33333");
+  await page.getByRole("button", { name: "Предыдущий кадр" }).click();
+  await expect(previewPlayhead).toHaveAttribute("aria-valuenow", "0");
+  await expectRevision(page, revision);
+
   // Keyboard zoom is timeline-only. The playhead must not move.
   const zoomInput = page.getByRole("slider", { name: "Масштаб таймлайна" });
   await expect(zoomInput).toHaveValue("1");

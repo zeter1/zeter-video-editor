@@ -13,6 +13,7 @@ import {
   presentedFrameToTimelineUs,
   sequencePlayableEndUs,
   shouldHonorNativeVideoEnded,
+  stepPreviewFrame,
 } from "./previewTransport";
 
 type PreviewQuality = "Full" | "1/2" | "1/4";
@@ -202,7 +203,6 @@ export function PreviewPlayer({
   // A same-ID clip may be retimed without remounting the native video.
   // Remember its source↔timeline mapping, not merely its media identity.
   const frameTimingKeyRef = useRef<string | null>(null);
-  const frameUs = Math.max(1, Math.round(1_000_000 / sequence.fps));
   const playableEndUs = useMemo(() => sequencePlayableEndUs(sequence), [sequence]);
   const editBoundariesUs = useMemo(() => collectEditBoundariesUs(sequence), [sequence.tracks]);
   const previousEditUs = adjacentEditBoundaryUs(editBoundariesUs, playheadTimeUs, -1);
@@ -230,7 +230,7 @@ export function PreviewPlayer({
   const stepFrame = (direction: -1 | 1): void => {
     // A frame step must stop live clocks before seeking, or playback can overwrite it.
     setPlaying(false);
-    const targetUs = Math.min(playableEndUs, Math.max(0, playheadTimeUs + direction * frameUs));
+    const targetUs = stepPreviewFrame(playheadTimeUs, sequence.fps, direction, playableEndUs);
     clockPositionRef.current = targetUs;
     onSeekRef.current(targetUs);
   };
