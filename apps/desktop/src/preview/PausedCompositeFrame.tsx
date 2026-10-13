@@ -86,7 +86,13 @@ export function PausedCompositeFrame({
         setLoaded(Array.from(requestsRef.current.values())
           .flatMap((entry) => entry.chunk ? [{ scope: entry.scope, chunk: entry.chunk }] : []));
       }).catch(() => {
-        // Remain on the direct native decoder; a failed prefetch is optional.
+        // A failed speculative render must not poison the foreground slot.
+        // Retire it now so entering its window can issue a fresh request.
+        if (requestsRef.current.get(start) !== request) return;
+        requestsRef.current.delete(start);
+        void invoke("cancel_preview_chunk", { requestId }).catch(() => {});
+        setLoaded(Array.from(requestsRef.current.values())
+          .flatMap((entry) => entry.chunk ? [{ scope: entry.scope, chunk: entry.chunk }] : []));
       });
     }
     setLoaded(Array.from(requestsRef.current.values())
