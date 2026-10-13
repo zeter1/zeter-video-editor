@@ -336,7 +336,24 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
     rulerBox.x + 132 + 200,
     rulerBox.y + rulerBox.height / 2,
   );
-  await expect(page.getByText("Курсор 2.00 с", { exact: true })).toBeVisible();
+  await expect(playhead).toHaveAttribute("aria-valuenow", "2000000");
+  const timecode = page.getByRole("textbox", { name: "Таймкод" });
+  await expect(timecode).toHaveValue("00:00:02:00");
+  // A transient frame seek must not change the Rust project revision.
+  await timecode.fill("00:00:03:15");
+  await timecode.press("Enter");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "3500000");
+  await expectRevision(page, 20);
+  await timecode.fill("12:00:00:00");
+  await timecode.press("Enter");
+  await expect(timecode).toHaveAttribute("aria-invalid", "true");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "3500000");
+  await timecode.press("Escape");
+  await expect(timecode).toHaveValue("00:00:03:15");
+  await timecode.fill("00:00:02:00");
+  await timecode.press("Enter");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "2000000");
+  await expectRevision(page, 20);
 
   await clip.hover();
   await page.getByRole("button", { name: `Split ${VIDEO_CLIP}` }).click();

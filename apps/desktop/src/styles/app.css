@@ -366,8 +366,46 @@ button {
   font-size: 10px;
 }
 
-.timeline-inline-toolbar > span {
+.timeline-timecode-entry {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+  min-width: 0;
+}
+
+.timeline-inline-toolbar .timeline-timecode-entry label {
+  margin-left: 0;
+}
+
+.timeline-timecode-entry input {
+  box-sizing: border-box;
+  width: 103px;
+  padding: 4px 5px;
+  border: 1px solid #394759;
+  border-radius: 4px;
+  background: #141d29;
+  color: #e1e8f2;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.timeline-timecode-entry input[aria-invalid="true"] {
+  border-color: #f19999;
+}
+
+.timeline-timecode-error {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  padding: 6px 8px;
+  width: 220px;
+  border: 1px solid #8d4444;
+  border-radius: 4px;
+  background: #241319;
+  color: #ffd0d0;
+  font-size: 11px;
 }
 
 .timeline-inline-toolbar button,
