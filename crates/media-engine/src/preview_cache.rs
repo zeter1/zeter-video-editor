@@ -6,13 +6,14 @@ use std::{
     fs::{self, File},
     io::{self, Read},
     path::{Path, PathBuf},
+    process::{Command, Stdio},
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
         mpsc,
     },
     thread,
-    time::{Duration, UNIX_EPOCH},
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
 use editor_core::TimeUs;
@@ -24,7 +25,8 @@ use crate::{
     cache_key::{PreviewQuality, PreviewRange, preview_cache_key},
     encoder::EncoderKind,
     export::{ExportRunner, ManagedExportRunner, build_preview_chunk_spec},
-    probe::probe_media,
+    probe::{build_probe_spec, parse_ffprobe_json},
+    process::status_error,
     render_plan::RenderPlan,
 };
 
@@ -34,6 +36,8 @@ const MAX_FPS: f64 = 60.0;
 const MAX_CHUNK_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_PROJECT_BYTES: u64 = 256 * 1024 * 1024;
 const RENDER_TIMEOUT: Duration = Duration::from_secs(90);
+const PROBE_TIMEOUT: Duration = Duration::from_secs(10);
+const MAX_PROBE_JSON_BYTES: u64 = 1024 * 1024;
 static TEMP_NONCE: AtomicU64 = AtomicU64::new(0);
 
 pub fn lookup_preview_cache(path: &Path) -> Result<Option<PathBuf>, MediaError> {
@@ -74,8 +78,87 @@ pub struct ManagedChunkProbe;
 
 impl ChunkProbe for ManagedChunkProbe {
     fn inspect(&self, runtime: &ManagedRuntime, path: &Path) -> Result<MediaProbe, MediaError> {
-        probe_media(runtime, path)
+        bounded_probe(runtime, path)
     }
+}
+
+/// FFprobe reads only a bounded amount of JSON and can never wait forever on
+/// a malformed cache entry. Reader pipes are drained independently so stderr
+/// and stdout cannot deadlock the supervisor.
+fn bounded_probe(runtime: &ManagedRuntime, path: &Path) -> Result<MediaProbe, MediaError> {
+    let spec = build_probe_spec(runtime, path);
+    let mut child = Command::new(&spec.program)
+        .args(&spec.args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|source| MediaError::ProcessSpawn {
+            program: spec.program.clone(),
+            source,
+        })?;
+    let stdout = child.stdout.take().expect("piped ffprobe stdout");
+    let stderr = child.stderr.take().expect("piped ffprobe stderr");
+    let out_reader = thread::spawn(move || {
+        let mut bytes = Vec::new();
+        stdout.take(MAX_PROBE_JSON_BYTES + 1).read_to_end(&mut bytes).map(|_| bytes)
+    });
+    let err_reader = thread::spawn(move || {
+        let mut bytes = Vec::new();
+        stderr.take(4_097).read_to_end(&mut bytes).map(|_| bytes)
+    });
+    let started = Instant::now();
+    let outcome = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(Some(status)),
+            Ok(None) if started.elapsed() < PROBE_TIMEOUT => {
+                thread::sleep(Duration::from_millis(25));
+            }
+            Ok(None) => break Ok(None),
+            Err(source) => break Err(source),
+        }
+    };
+    if !matches!(outcome, Ok(Some(_))) {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    let stdout = out_reader.join().map_err(|_| MediaError::InvalidCacheArtifact {
+        artifact: "ffprobe stdout",
+        path: path.to_path_buf(),
+    })?.map_err(|source| MediaError::ProcessIo {
+        program: spec.program.clone(), operation: "read bounded ffprobe stdout", source,
+    })?;
+    let stderr = err_reader.join().map_err(|_| MediaError::InvalidCacheArtifact {
+        artifact: "ffprobe stderr",
+        path: path.to_path_buf(),
+    })?.map_err(|source| MediaError::ProcessIo {
+        program: spec.program.clone(), operation: "read bounded ffprobe stderr", source,
+    })?;
+    let status = match outcome {
+        Ok(Some(status)) => status,
+        Ok(None) => return Err(MediaError::InvalidCacheArtifact {
+            artifact: "ffprobe timed out",
+            path: path.to_path_buf(),
+        }),
+        Err(source) => return Err(MediaError::ProcessIo {
+            program: spec.program,
+            operation: "wait for bounded ffprobe",
+            source,
+        }),
+    };
+    if !status.success() {
+        return Err(status_error(
+            &spec.program,
+            status.code(),
+            &String::from_utf8_lossy(&stderr),
+        ));
+    }
+    if stdout.len() as u64 > MAX_PROBE_JSON_BYTES {
+        return Err(MediaError::InvalidCacheArtifact {
+            artifact: "oversized ffprobe JSON",
+            path: path.to_path_buf(),
+        });
+    }
+    parse_ffprobe_json(&String::from_utf8_lossy(&stdout))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
