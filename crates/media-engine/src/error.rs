@@ -43,6 +43,9 @@ pub enum MediaError {
     #[error("invalid export settings: {reason}")]
     InvalidExportSettings { reason: &'static str },
 
+    #[error("invalid preview chunk window: {reason}")]
+    InvalidPreviewChunk { reason: &'static str },
+
     #[error("invalid transcription audio request: {reason}")]
     InvalidTranscriptionAudio { reason: &'static str },
 
