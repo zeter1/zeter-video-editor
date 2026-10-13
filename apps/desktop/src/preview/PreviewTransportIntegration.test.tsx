@@ -441,6 +441,23 @@ describe("PreviewPlayer continuous transport", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it("uses the timeline frame grid for Preview buttons at fractional FPS without editing", () => {
+    const fps = 30_000 / 1_001;
+    const sequence = { ...withImageClip(0, 600_000_000), fps };
+    const onSeek = vi.fn(), onCommit = vi.fn();
+    const props = { sequence, media: [], selectedClip: null, selectedTrackId: null, onSeek, onCommit };
+    const frameIndex = 10_000;
+    const playhead = Math.round(frameIndex / fps * 1_000_000);
+    const { rerender } = render(<PreviewPlayer {...props} playheadTimeUs={playhead} />);
+    fireEvent.click(screen.getByRole("button", { name: "Следующий кадр" }));
+    const next = Math.round((frameIndex + 1) / fps * 1_000_000);
+    expect(onSeek).toHaveBeenLastCalledWith(next);
+    rerender(<PreviewPlayer {...props} playheadTimeUs={next} />);
+    fireEvent.click(screen.getByRole("button", { name: "Предыдущий кадр" }));
+    expect(onSeek).toHaveBeenLastCalledWith(playhead);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("pauses native video and standalone audio decoders when stepping a frame", () => {
     const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     const nativePause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
