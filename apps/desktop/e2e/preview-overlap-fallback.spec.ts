@@ -208,7 +208,7 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   const cacheDir = path.join(process.env.LOCALAPPDATA ?? "",
     "com.zeter.videoeditor", "preview-chunks-v1", project.project.id);
   const cachedSamples = existsSync(cacheDir)
-    ? readdirSync(cacheDir).filter((filename) => /^[a-f0-9]{64}\\.mp4$/i.test(filename))
+    ? readdirSync(cacheDir).filter((filename) => /^[a-f0-9]{64}\.mp4$/i.test(filename))
       .map((filename) => ({
         filename, modified: statSync(path.join(cacheDir, filename)).mtimeMs,
       })).sort((a, b) => b.modified - a.modified).slice(0, 5)
