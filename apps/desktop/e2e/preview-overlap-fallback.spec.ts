@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 
@@ -25,6 +25,7 @@ type FixtureTrack = {
 type FixtureProject = {
   revision: number;
   project: {
+    id: string;
     name: string;
     sequences: Array<{ id: string; width: number; height: number; fps: number; tracks: FixtureTrack[]; subtitle_segments: unknown[] }>;
   };
@@ -202,12 +203,31 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   const nativeCompositeVideoRgb = center(await composite.screenshot({
     animations: "disabled", scale: "css",
   }));
+  // Diagnostic oracle: decode the actual cache MP4 with the managed FFmpeg.
+  // This is Node-only CI fixture access, never a filesystem path sent to WebView2.
+  const cacheDir = path.join(process.env.LOCALAPPDATA ?? "",
+    "com.zeter.videoeditor", "preview-chunks-v1", project.project.id);
+  const cachedSamples = existsSync(cacheDir)
+    ? readdirSync(cacheDir).filter((filename) => /^[a-f0-9]{64}\\.mp4$/i.test(filename))
+      .map((filename) => ({
+        filename, modified: statSync(path.join(cacheDir, filename)).mtimeMs,
+      })).sort((a, b) => b.modified - a.modified).slice(0, 5)
+      .map(({ filename }) => {
+        const file = path.join(cacheDir, filename);
+        const duration = Number(execFileSync(path.join(state.runtimeDir, "ffprobe.exe"), [
+          "-v", "error", "-show_entries", "format=duration",
+          "-of", "default=noprint_wrappers=1:nokey=1", file,
+        ], { windowsHide: true }).toString().trim());
+        return { duration, centerAt_0_2: [...center(file, 0.2)] };
+      })
+    : [];
   // Diagnostics remain attached to the strict RGB oracle: distinguish a
   // decoded-but-not-presented frame from an FFmpeg window parity regression.
   console.log("[WebView2 seam RGB]", JSON.stringify({
     at: 4.2,
     actual: [...boundaryRgb], videoElement: [...nativeCompositeVideoRgb],
     export: [...boundaryExportRgb],
+    cachedSamples,
     centerElement: await page.locator(".preview-frame").evaluate((node) => {
       const rect = node.getBoundingClientRect();
       const element = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
