@@ -208,16 +208,18 @@ export function Timeline({
     });
 
   function seekFromPointer(event: ReactMouseEvent<HTMLDivElement>): void {
+    // A ruler click is a frame seek, not an arbitrary microsecond offset.
+    // Do not move the playhead during an active clip drag.
+    if (transientStore.getState().drag) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const contentPixel = event.clientX - rect.left;
-    transientStore.setPlayheadTime(
-      contentPixelToTimeUs(
-        contentPixel,
-        TIMELINE_TRACK_HEADER_WIDTH_PX,
-        TIMELINE_PIXELS_PER_SECOND,
-        transient.timelineZoom,
-      ),
+    const pointerTimeUs = contentPixelToTimeUs(
+      contentPixel,
+      TIMELINE_TRACK_HEADER_WIDTH_PX,
+      TIMELINE_PIXELS_PER_SECOND,
+      transient.timelineZoom,
     );
+    transientStore.setPlayheadTime(seekByFrames(pointerTimeUs, sequence.fps, 0, endUs));
   }
 
   function handlePlayheadKeyDown(

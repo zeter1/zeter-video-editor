@@ -1,3 +1,13 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003f FRAME-ACCURATE RULER CLICK (PR PENDING)
+
+- **USER/VALUE:** A mouse click on the timeline ruler previously stored a potentially between-frame microsecond position. It now rounds once to the nearest real frame at the current sequence FPS (including 24000/1001, 30000/1001, 60000/1001), clamps to the visible ruler range and ignores pointer clicks while a clip drag is active. Keyboard frame navigation remains unchanged.
+- **SAFETY:** TransientStore.playheadTimeUs only, no Rust EditCommand, undo/revision, .vcut v2, original media, FFmpeg export, AI, or new preview compositor. UI tests verify that revision and command calls are unchanged.
+- **BASE/BRANCH:** base main `d483df8ab7ac4c0e3a3c5f6e9a6d6a70c2990b77` (alpha.9); branch `feat/timeline-pointer-frame-snap-alpha10-20261013`, source alpha.10. The canonical `node scripts/set-version.mjs 0.1.0-alpha.10 --note "..."` and `node scripts/check-version.mjs` executed successfully in isolated GitHub Actions run https://github.com/zeter1/zeter-video-editor/actions/runs/38347499428 (on alpha.9 checkout). Temporary branch-only workflow removed; synchronized version changes committed to branch. No public release or installer publication.
+- **ACCEPTANCE:** `frameSeek.test.ts` covers zero-step snapping at fractional FPS and bounds; `Timeline.test.tsx` covers ruler click, timecode, clamp, drag and transient Rust safety; `e2e/mvp-workflow.spec.ts` exercises real WebView2 mouse click, timecode and unchanged revision. Full TypeScript/Vitest/Rust/Windows WebView2/NSIS exact final PR HEAD CI and review remain mandatory before merge. Manual user-PC testing is not available here.
+- **NEXT FIRST ACTION:** Check this branch's exact final PR CI, review changed files, merge only on success, record main squash SHA and independent main CI. If red, diagnose. After task completion, choose exactly one new approved product-code gap, not a documentation-only repeat.
+
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003e FRACTIONAL-FPS FRAME NUDGE (PR #68)
 
 - **TASK/BEFORE/AFTER:** Previously ruler arrows added rounded frame microseconds, accumulating drift at fractional FPS. Focused ruler now navigates by frame indices: ←/→ one frame, Shift+←/→ five frames; stable over 10,000 steps, non-grid clicks snap to frame indices, timecode is exposed as HH:MM:SS:FF.
@@ -603,7 +613,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.9` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.10` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

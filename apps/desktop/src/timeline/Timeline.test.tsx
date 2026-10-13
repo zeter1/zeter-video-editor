@@ -480,4 +480,53 @@ describe("Timeline", () => {
     expect(executeEditCommand).not.toHaveBeenCalled();
   });
 
+
+  it("snaps ruler clicks to real fractional-FPS frames, clamps ends, and ignores drags", () => {
+    const fixture = sequence();
+    fixture.fps = 30_000 / 1_001;
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const executeEditCommand = vi.fn();
+    projectStore.applySnapshot({
+      revision: 12,
+      project: {
+        id: "project-1", name: "Fixture",
+        settings: {
+          default_sequence_width: 1920,
+          default_sequence_height: 1080,
+          default_sequence_fps: 30,
+        },
+        media: [], sequences: [fixture],
+      },
+    });
+    render(
+      <Timeline
+        sequence={fixture}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={executeEditCommand}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    const ruler = screen.getByRole("slider", { name: "Timeline playhead" });
+    // Default scale: header=132px, 100px/second. X=139 -> 70ms.
+    fireEvent.click(ruler, { clientX: 139 });
+    expect(transientStore.getState().playheadTimeUs).toBe(66_733);
+    expect(ruler.getAttribute("aria-valuetext")).toBe("00:00:00:02");
+    fireEvent.click(ruler, { clientX: 10 });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    // A synthetic far-right click must not move beyond the 35s ruler.
+    fireEvent.click(ruler, { clientX: 35_000 });
+    expect(transientStore.getState().playheadTimeUs).toBe(
+      Math.round(Math.floor(35 * fixture.fps) / fixture.fps * 1_000_000),
+    );
+    act(() => transientStore.setPlayheadTime(0));
+    act(() => transientStore.beginClipDrag("clip-1", 0));
+    fireEvent.click(ruler, { clientX: 139 });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    act(() => transientStore.endClipDrag());
+    expect(projectStore.getState().revision).toBe(12);
+    expect(executeEditCommand).not.toHaveBeenCalled();
+  });
+
 });

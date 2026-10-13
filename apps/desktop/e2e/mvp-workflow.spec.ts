@@ -367,6 +367,20 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   await expect(playhead).toHaveAttribute("aria-valuenow", "2000000");
   await expectRevision(page, 20);
 
+  // Real WebView2 pointer click: x=132px header + 7px -> 70ms,
+  // which must land on frame 2 (66,667us) rather than 70,000us.
+  const pointerRulerRect = await playhead.boundingBox();
+  expect(pointerRulerRect).not.toBeNull();
+  await playhead.click({
+    position: { x: 139, y: Math.min(8, (pointerRulerRect?.height ?? 16) / 2) },
+  });
+  await expect(playhead).toHaveAttribute("aria-valuenow", "66667");
+  await expect(playhead).toHaveAttribute("aria-valuetext", "00:00:00:02");
+  await expectRevision(page, 20);
+  await timecode.fill("00:00:02:00");
+  await timecode.press("Enter");
+  await expect(playhead).toHaveAttribute("aria-valuenow", "2000000");
+
   await clip.hover();
   await page.getByRole("button", { name: `Split ${VIDEO_CLIP}` }).click();
   await expectRevision(page, 21);
