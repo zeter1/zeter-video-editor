@@ -25,6 +25,17 @@ describe("frame-accurate keyboard playhead seeking", () => {
     },
   );
 
+  it.each([24_000 / 1_001, 30_000 / 1_001, 60_000 / 1_001])(
+    "snaps pointer times to the nearest real frame without moving past the ruler at %s fps",
+    (fps) => {
+      expect(seekByFrames(70_000, fps, 0, 35_000_000))
+        .toBe(Math.round(Math.round(0.07 * fps) / fps * 1_000_000));
+      expect(seekByFrames(0, fps, 0, 35_000_000)).toBe(0);
+      expect(seekByFrames(99_000_000, fps, 0, 35_000_000))
+        .toBe(Math.round(Math.floor(35 * fps) / fps * 1_000_000));
+    },
+  );
+
   it("does not move past a boundary, including a boundary between frames", () => {
     expect(seekByFrames(35_000_000, 30, 1, 35_000_000)).toBe(35_000_000);
     expect(seekByFrames(33_333, 30, 5, 45_000)).toBe(33_333);
