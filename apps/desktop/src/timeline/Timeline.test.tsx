@@ -614,6 +614,8 @@ describe("Timeline", () => {
     expect(transientStore.getState().playheadTimeUs).not.toBe(1_001_000);
     fireEvent.pointerDown(ruler, { pointerId: 9, clientX: 139, button: 0, isPrimary: true });
     fireEvent.pointerUp(ruler, { pointerId: 9 });
+    // Ending ruler capture must not leave the zoom slider disabled.
+    expect((screen.getByRole("slider", { name: "Масштаб таймлайна" }) as HTMLInputElement).disabled).toBe(false);
     fireEvent.pointerMove(ruler, { pointerId: 9, clientX: 232, buttons: 1 });
     expect(transientStore.getState().playheadTimeUs).toBe(66_733);
     act(() => transientStore.beginClipDrag("clip-1", 0));
