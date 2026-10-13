@@ -432,4 +432,52 @@ describe("Timeline", () => {
     expect(transientStore.getState().playheadTimeUs).toBe(0);
   });
 
+  it("navigates frame indices at 30000/1001 fps without Rust edits or shortcut capture", () => {
+    const fixture = sequence();
+    fixture.fps = 30_000 / 1_001;
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const executeEditCommand = vi.fn();
+    projectStore.applySnapshot({
+      revision: 12,
+      project: {
+        id: "project-1", name: "Fixture",
+        settings: {
+          default_sequence_width: 1920,
+          default_sequence_height: 1080,
+          default_sequence_fps: 30,
+        },
+        media: [], sequences: [fixture],
+      },
+    });
+    render(
+      <Timeline
+        sequence={fixture}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={executeEditCommand}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    const playhead = screen.getByRole("slider", { name: "Timeline playhead" });
+    fireEvent.keyDown(playhead, { key: "ArrowRight", ctrlKey: true });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    fireEvent.keyDown(playhead, { key: "ArrowRight" });
+    expect(transientStore.getState().playheadTimeUs).toBe(33_367);
+    expect(playhead.getAttribute("aria-valuetext")).toBe("00:00:00:01");
+    fireEvent.keyDown(playhead, { key: "ArrowRight", shiftKey: true });
+    expect(transientStore.getState().playheadTimeUs).toBe(200_200);
+    fireEvent.keyDown(playhead, { key: "ArrowLeft", shiftKey: true });
+    expect(transientStore.getState().playheadTimeUs).toBe(33_367);
+    transientStore.beginClipDrag("clip-1", 0);
+    fireEvent.keyDown(playhead, { key: "ArrowRight" });
+    expect(transientStore.getState().playheadTimeUs).toBe(33_367);
+    transientStore.endClipDrag();
+    fireEvent.keyDown(playhead, { key: "ArrowLeft" });
+    fireEvent.keyDown(playhead, { key: "ArrowLeft" });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    expect(projectStore.getState().revision).toBe(12);
+    expect(executeEditCommand).not.toHaveBeenCalled();
+  });
+
 });

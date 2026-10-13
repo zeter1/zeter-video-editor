@@ -1,3 +1,14 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003e FRACTIONAL-FPS FRAME NUDGE (PR #68)
+
+- **TASK/BEFORE/AFTER:** Previously ruler arrows added rounded frame microseconds, accumulating drift at fractional FPS. Focused ruler now navigates by frame indices: ←/→ one frame, Shift+←/→ five frames; stable over 10,000 steps, non-grid clicks snap to frame indices, timecode is exposed as HH:MM:SS:FF.
+- **SAFETY:** Respects Ctrl/Alt/Meta shortcuts, ignores frame arrows during clip drag, clamps to the current ruler bounds. Only transient playhead changes; no Rust project edit/revision, Undo/Redo, schema, media or export change.
+- **BASE/VERSION:** main ef55bdc1eea0e5cdf4f805c155ec85503c95a6e1 (0.1.0-alpha.8). Work branch `feat/timeline-frame-grid-nudge-alpha9-20261013` (0.1.0-alpha.9); actual `scripts/set-version.mjs` and `scripts/check-version.mjs` executed successfully in GitHub Actions run #38343811076. Temporary branch-only workflow was removed before PR review and merge. Old draft #38 only informed approach; its stack was not merged.
+- **FILES/TESTS:** `src/timeline/frameSeek.ts`, `Timeline.tsx`, `frameSeek.test.ts`, `Timeline.test.tsx`, `e2e/mvp-workflow.spec.ts`; version/changelog files. Node arithmetic sanity locally passed for 10,000 forward/back steps at 24000/1001, 30000/1001 and 60000/1001 FPS. Vitest, TypeScript, native Windows WebView2 and NSIS on final head are NOT YET VERIFIED.
+- **DELIVERY:** PR https://github.com/zeter1/zeter-video-editor/pull/68; early Windows CI https://github.com/zeter1/zeter-video-editor/actions/runs/38343938378 queued for a prior PR head. Final exact-HEAD CI must be checked independently. Temporary workflow removed and absent from PR.
+- **NEXT FIRST ACTION:** Check latest exact-HEAD PR CI; if green review diff and merge to main, then check independent main CI. If red, diagnose and keep PR open; update Google task journal. No manual user-PC QA, signed installer, tag or public release.
+
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003d FRAME-TIMECODE SEEK (PR #67, DRAFT)
 
 - **USER-VISIBLE RESULT:** Timeline toolbar adds a Russian-labeled HH:MM:SS:FF timecode input with exact non-drop frame seek on Enter. Focused drafts do not jump with playback, invalid/out-of-range input announces an error, Escape/blur cancel. FPS nominal labels round against real FPS including fractional rates. Seek limit: maximum of authored sequence end and default 30 s, plus 5 s ruler tail; prevents excessive ruler ticks.
@@ -592,7 +603,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.8` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.9` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
