@@ -314,7 +314,10 @@ pub fn cancel_preview_chunk(
     state: State<'_, AppState>,
     request_id: JobId,
 ) -> Result<(), AppErrorDto> {
-    state.preview.cancel_request(request_id).map_err(AppErrorDto::from)
+    state
+        .preview
+        .cancel_request(request_id)
+        .map_err(AppErrorDto::from)
 }
 
 #[cfg(test)]
@@ -337,7 +340,12 @@ mod tests {
         let revision = ProjectRevision::new(7);
         let runtime = ManagedRuntime::from_dir("unused-runtime", "unit");
         let (generation, _, _) = service
-            .begin(project, JobId::new(), PathBuf::from("unused-cache"), runtime)
+            .begin(
+                project,
+                JobId::new(),
+                PathBuf::from("unused-cache"),
+                runtime,
+            )
             .unwrap();
         let lease = Lease {
             token: JobId::new().get().to_string(),
@@ -376,8 +384,17 @@ mod tests {
         let first = JobId::new();
         let second = JobId::new();
         let runtime = ManagedRuntime::from_dir("unused-runtime", "unit");
-        let (_, old_cancel, _) = service.begin(project, first, PathBuf::from("unused-cache"), runtime.clone()).unwrap();
-        let (_, new_cancel, _) = service.begin(project, second, PathBuf::from("unused-cache"), runtime).unwrap();
+        let (_, old_cancel, _) = service
+            .begin(
+                project,
+                first,
+                PathBuf::from("unused-cache"),
+                runtime.clone(),
+            )
+            .unwrap();
+        let (_, new_cancel, _) = service
+            .begin(project, second, PathBuf::from("unused-cache"), runtime)
+            .unwrap();
         assert!(old_cancel.is_cancelled());
         service.cancel_request(first).unwrap();
         assert!(!new_cancel.is_cancelled());
