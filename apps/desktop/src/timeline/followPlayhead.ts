@@ -31,8 +31,15 @@ export function anchoredZoomScrollLeft({
   }
 
   const oldPlayheadPx = headerWidth + playheadTimeUs / 1_000_000 * pixelsPerSecond * oldZoom;
-  const newPlayheadPx = headerWidth + playheadTimeUs / 1_000_000 * pixelsPerSecond * newZoom;
-  const target = scrollLeft + newPlayheadPx - oldPlayheadPx;
+  // A user may have manually scrolled away from the playhead. In that case
+  // preserve the center of their current viewport, not an offscreen cursor.
+  const visibleLeft = scrollLeft + headerWidth;
+  const visibleRight = scrollLeft + viewportWidth;
+  const anchorPx = oldPlayheadPx >= visibleLeft && oldPlayheadPx <= visibleRight
+    ? oldPlayheadPx
+    : visibleLeft + (viewportWidth - headerWidth) / 2;
+  const anchorTimeSec = Math.max(0, anchorPx - headerWidth) / (pixelsPerSecond * oldZoom);
+  const target = scrollLeft + anchorTimeSec * pixelsPerSecond * (newZoom - oldZoom);
   if (!Number.isFinite(target)) return scrollLeft;
   const maximum = Math.max(0, scrollWidth - viewportWidth);
   return Math.min(maximum, Math.max(0, Math.round(target)));
