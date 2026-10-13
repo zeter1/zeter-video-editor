@@ -40,6 +40,7 @@ describe("opaque cached FFmpeg paused Preview", () => {
       sequenceId: props.sequenceId, expectedRevision: 8, playheadUs: 0,
     });
     Object.defineProperty(video, "readyState", { configurable: true, value: 2 });
+    fireEvent.loadedMetadata(video);
     fireEvent.loadedData(video);
     await waitFor(() => expect(video.style.visibility).toBe("visible"));
     rerender(<PausedCompositeFrame {...props} playheadTimeUs={1_500_000} />);

@@ -3,7 +3,7 @@
 use std::{
     path::PathBuf,
     sync::Mutex,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 use editor_core::{JobId, ProjectId, ProjectRevision, SequenceId, TimeUs};
@@ -25,12 +25,46 @@ const WINDOW_US: i64 = 4_000_000;
 const LEASE_TTL: Duration = Duration::from_secs(120);
 
 #[derive(Clone)]
+struct SourceStamp {
+    path: PathBuf,
+    canonical: PathBuf,
+    size: u64,
+    modified: SystemTime,
+}
+
+impl SourceStamp {
+    fn capture(path: PathBuf, expected_size: u64) -> Result<Self, AppError> {
+        let metadata = std::fs::metadata(&path)
+            .map_err(|_| AppError::InvalidMediaMetadata("preview source missing"))?;
+        if !metadata.is_file() || metadata.len() != expected_size {
+            return Err(AppError::InvalidMediaMetadata("preview source changed"));
+        }
+        Ok(Self {
+            canonical: std::fs::canonicalize(&path)
+                .map_err(|_| AppError::InvalidMediaMetadata("preview source inaccessible"))?,
+            size: metadata.len(),
+            modified: metadata.modified()
+                .map_err(|_| AppError::InvalidMediaMetadata("preview source timestamp unavailable"))?,
+            path,
+        })
+    }
+
+    fn still_fresh(&self) -> bool {
+        let Ok(metadata) = std::fs::metadata(&self.path) else { return false; };
+        metadata.is_file() && metadata.len() == self.size &&
+            metadata.modified().is_ok_and(|modified| modified == self.modified) &&
+            std::fs::canonicalize(&self.path).is_ok_and(|path| path == self.canonical)
+    }
+}
+
+#[derive(Clone)]
 struct Lease {
     token: String,
     project_id: ProjectId,
     revision: ProjectRevision,
     path: PathBuf,
     created: Instant,
+    sources: Vec<SourceStamp>,
 }
 
 #[derive(Default)]
@@ -108,7 +142,8 @@ impl PreviewService {
         (lease.token == token
             && lease.project_id == project_id
             && lease.revision == revision
-            && lease.created.elapsed() <= LEASE_TTL)
+            && lease.created.elapsed() <= LEASE_TTL
+            && lease.sources.iter().all(SourceStamp::still_fresh))
             .then(|| lease.path.clone())
     }
 }
@@ -165,6 +200,12 @@ pub async fn request_preview_chunk(
             actual: snapshot.revision,
         }));
     }
+    // Fingerprint actual source identity both before and after rendering.
+    // A token must not keep serving an old composite after external relink
+    // or same-size source replacement with a different timestamp.
+    let stamps = snapshot.media.iter().map(|media| {
+        SourceStamp::capture(PathBuf::from(&media.absolute_path), media.file_size)
+    }).collect::<Result<Vec<_>, _>>().map_err(AppErrorDto::from)?;
     let settings = ExportSettings {
         container: ExportContainer::Mp4,
         codec: VideoCodec::H264,
@@ -222,6 +263,7 @@ pub async fn request_preview_chunk(
         revision: snapshot.revision,
         path: chunk.path,
         created: Instant::now(),
+        sources: stamps,
     };
     if !state
         .preview
@@ -272,6 +314,7 @@ mod tests {
             revision,
             path: PathBuf::from("not-a-webview-path.mp4"),
             created: Instant::now(),
+            sources: Vec::new(),
         };
         assert!(service.publish(generation, lease.clone()).unwrap());
         assert_eq!(

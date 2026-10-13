@@ -122,9 +122,11 @@ pub fn project_new(
     name: String,
 ) -> Result<ProjectSnapshotDto, AppErrorDto> {
     let mut project = state.project.lock().map_err(|_| state_error(None, None))?;
-    project
+    let snapshot = project
         .create_new(&name)
-        .map_err(|error| diagnostic_error(error, None, None))
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    state.preview.cancel().map_err(|error| diagnostic_error(error, None, None))?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -139,11 +141,13 @@ pub fn project_open(
         runtime.manifest.ffmpeg.build_identity.clone(),
     );
     let mut project = state.project.lock().map_err(|_| state_error(None, None))?;
-    project
+    let snapshot = project
         .open_validated(&PathBuf::from(path), |candidate| {
             probe_media(&media_runtime, candidate).map_err(AppError::from)
         })
-        .map_err(|error| diagnostic_error(error, None, None))
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    state.preview.cancel().map_err(|error| diagnostic_error(error, None, None))?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -159,13 +163,15 @@ pub fn project_open_with_relink(
         runtime.manifest.ffmpeg.build_identity.clone(),
     );
     let mut project = state.project.lock().map_err(|_| state_error(None, None))?;
-    project
+    let snapshot = project
         .open_with_relink(
             &PathBuf::from(path),
             &PathBuf::from(replacement_path),
             |candidate| probe_media(&media_runtime, candidate).map_err(AppError::from),
         )
-        .map_err(|error| diagnostic_error(error, None, None))
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    state.preview.cancel().map_err(|error| diagnostic_error(error, None, None))?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -205,12 +211,14 @@ pub fn project_open_recovery(
     recovery_path: String,
 ) -> Result<ProjectSnapshotDto, AppErrorDto> {
     let mut project = state.project.lock().map_err(|_| state_error(None, None))?;
-    project
+    let snapshot = project
         .open_recovery(
             &PathBuf::from(canonical_path),
             &PathBuf::from(recovery_path),
         )
-        .map_err(|error| diagnostic_error(error, None, None))
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    state.preview.cancel().map_err(|error| diagnostic_error(error, None, None))?;
+    Ok(snapshot)
 }
 
 #[tauri::command]

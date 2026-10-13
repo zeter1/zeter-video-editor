@@ -104,11 +104,6 @@ export function PausedCompositeFrame({
           onError={() => setChunk(null)}
         />
       ) : null}
-      {presentedTimeUs === playheadTimeUs && withinChunk ? (
-        <span role="status" className="preview-composite-notice">
-          Точный FFmpeg кадр на паузе. Во время воспроизведения пока используется приближённый предпросмотр.
-        </span>
-      ) : null}
     </>
   );
 }

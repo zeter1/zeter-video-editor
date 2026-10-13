@@ -618,8 +618,9 @@ export function PreviewPlayer({
           ) : null}
           {pictureSelection.multipleVideos ? (
             <span className="preview-composite-notice" role="status">
-              В этой области несколько видеодорожек. Отдельные декодеры показывают два верхних
-              движущихся слоя, но их точное наложение и звук могут отличаться от экспорта.
+              В этой области несколько видеодорожек. Во время воспроизведения отдельные декодеры
+              показывают два верхних движущихся слоя, и результат может отличаться от экспорта.
+              На паузе после подготовки используется точный FFmpeg-кадр.
             </span>
           ) : null}
           {mediaError ? <span className="preview-media-error" role="alert">{mediaError}</span> : null}

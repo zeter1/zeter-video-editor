@@ -16,10 +16,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Run mandatory canonical version script
-        run: |
-          node scripts/set-version.mjs 0.1.0-alpha.18 --note "Точный FFmpeg-кадр для паузы на пересечении видеодорожек с безопасным временным IPC-токеном"
-          node scripts/check-version.mjs
+      - name: Check canonical version result
+        run: node scripts/check-version.mjs
       - name: Rust formatting
         run: |
           rustup toolchain install 1.99.0 --profile minimal --component rustfmt
