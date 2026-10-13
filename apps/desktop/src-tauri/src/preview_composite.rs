@@ -141,7 +141,11 @@ impl PreviewService {
         if inner.project_id != Some(lease.project_id) {
             return Ok(false);
         }
-        let Some(request) = inner.requests.iter_mut().find(|req| req.generation == generation) else {
+        let Some(request) = inner
+            .requests
+            .iter_mut()
+            .find(|req| req.generation == generation)
+        else {
             return Ok(false);
         };
         if request.cancel.is_cancelled() {
@@ -184,7 +188,10 @@ impl PreviewService {
         if inner.project_id != Some(project_id) {
             return None;
         }
-        let lease = inner.requests.iter().filter_map(|req| req.lease.as_ref())
+        let lease = inner
+            .requests
+            .iter()
+            .filter_map(|req| req.lease.as_ref())
             .find(|lease| lease.token == token)?;
         (lease.project_id == project_id
             && lease.revision == revision
@@ -429,13 +436,27 @@ mod tests {
             ..first_lease.clone()
         };
         assert!(service.publish(second_gen, second_lease.clone()).unwrap());
-        assert_eq!(service.resolve(&first_lease.token, project, revision), Some(first_lease.path.clone()));
-        assert_eq!(service.resolve(&second_lease.token, project, revision), Some(second_lease.path.clone()));
+        assert_eq!(
+            service.resolve(&first_lease.token, project, revision),
+            Some(first_lease.path.clone())
+        );
+        assert_eq!(
+            service.resolve(&second_lease.token, project, revision),
+            Some(second_lease.path.clone())
+        );
         service.cancel_request(first).unwrap();
         assert!(first_cancel.is_cancelled());
         assert!(!second_cancel.is_cancelled());
-        assert!(service.resolve(&first_lease.token, project, revision).is_none());
-        assert!(service.resolve(&second_lease.token, project, revision).is_some());
+        assert!(
+            service
+                .resolve(&first_lease.token, project, revision)
+                .is_none()
+        );
+        assert!(
+            service
+                .resolve(&second_lease.token, project, revision)
+                .is_some()
+        );
 
         let (third_gen, third_cancel, _) = service
             .begin(project, JobId::new(), root.clone(), runtime.clone())
@@ -443,10 +464,17 @@ mod tests {
         service.begin(project, JobId::new(), root, runtime).unwrap();
         assert!(second_cancel.is_cancelled());
         assert!(!third_cancel.is_cancelled());
-        assert!(service.resolve(&second_lease.token, project, revision).is_none());
+        assert!(
+            service
+                .resolve(&second_lease.token, project, revision)
+                .is_none()
+        );
         assert!(!service.publish(second_gen, second_lease).unwrap());
         assert_ne!(third_gen, first_gen);
-        assert_eq!(service.inner.lock().unwrap().requests.len(), MAX_WINDOW_REQUESTS);
+        assert_eq!(
+            service.inner.lock().unwrap().requests.len(),
+            MAX_WINDOW_REQUESTS
+        );
     }
 
     #[test]
@@ -456,10 +484,14 @@ mod tests {
         let runtime = ManagedRuntime::from_dir("unused-runtime", "unit");
         let root = PathBuf::from("unused-cache");
         let (_, first_cancel, _) = service
-            .begin(project, JobId::new(), root.clone(), runtime.clone()).unwrap();
+            .begin(project, JobId::new(), root.clone(), runtime.clone())
+            .unwrap();
         let (_, second_cancel, _) = service
-            .begin(project, JobId::new(), root.clone(), runtime.clone()).unwrap();
-        service.begin(ProjectId::new(), JobId::new(), root, runtime).unwrap();
+            .begin(project, JobId::new(), root.clone(), runtime.clone())
+            .unwrap();
+        service
+            .begin(ProjectId::new(), JobId::new(), root, runtime)
+            .unwrap();
         assert!(first_cancel.is_cancelled());
         assert!(second_cancel.is_cancelled());
         assert_eq!(service.inner.lock().unwrap().requests.len(), 1);
