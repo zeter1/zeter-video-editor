@@ -29,7 +29,7 @@ type FixtureProject = {
   };
 };
 
-test("real WebView2 keeps upper moving video and still overlay with honest multi-video warning", async () => {
+test("real WebView2 has two moving video layers with an honest compositor warning", async () => {
   const { page, state } = await connectTauri();
   const project = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as FixtureProject;
   const sequence = project.project.sequences[0];
@@ -88,14 +88,16 @@ test("real WebView2 keeps upper moving video and still overlay with honest multi
   const notice = page.locator(".preview-frame .preview-composite-notice");
   await expect(notice).toHaveAttribute("role", "status");
   await expect(notice).toContainText("экспорт");
-  await expect(page.locator(".preview-still-layers > video.preview-media")).toHaveCount(1);
+  await expect(page.locator(".preview-still-layers > video.preview-media")).toHaveCount(2);
+  await expect(page.getByLabel("Нижний видеослой")).toHaveJSProperty("muted", true);
   await expect(page.locator(".preview-still-layers > img.preview-media")).toHaveCount(1);
-  await expect(page.locator("video.preview-media")).toHaveCount(1);
+  await expect(page.locator("video.preview-media")).toHaveCount(2);
   await expect(page.locator("img.preview-media")).toHaveAttribute("src", new RegExp(still.media_id));
 
   await scrub(1.6);
   await expect(notice).toHaveCount(0);
   await expect(page.locator("video.preview-media")).toHaveCount(1);
+  await expect(page.getByLabel("Нижний видеослой")).toHaveCount(0);
   await expect(page.locator("img.preview-media")).toHaveCount(1);
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
 });

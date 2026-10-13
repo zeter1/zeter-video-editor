@@ -71,14 +71,19 @@ describe("Preview multi-video fallback", () => {
       playheadTimeUs={1_000_000} onSeek={vi.fn()} onCommit={onCommit}
     />);
     const layers = Array.from(container.querySelectorAll(".preview-still-layers > .preview-media"));
-    expect(layers.map((node) => node.tagName)).toEqual(["VIDEO", "IMG"]);
+    expect(layers.map((node) => node.tagName)).toEqual(["VIDEO", "VIDEO", "IMG"]);
     expect((layers[0] as HTMLVideoElement).src)
+      .toBe("http://zeter-media.localhost/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect((layers[0] as HTMLVideoElement).muted).toBe(true);
+    expect((layers[1] as HTMLVideoElement).src)
       .toBe("http://zeter-media.localhost/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
-    expect((layers[1] as HTMLImageElement).src)
+    expect(layers[1].getAttribute("aria-label")).toBe("Предпросмотр видео");
+    expect((layers[2] as HTMLImageElement).src)
       .toBe("http://zeter-media.localhost/cccccccc-cccc-4ccc-8ccc-cccccccccccc");
-    expect((layers[1] as HTMLImageElement).style.opacity).toBe("0.5");
-    expect(container.querySelectorAll("video")).toHaveLength(1);
-    expect(screen.getByRole("status").textContent).toMatch(/экспорт/);
+    expect((layers[2] as HTMLImageElement).style.opacity).toBe("0.5");
+    expect(container.querySelectorAll("video")).toHaveLength(2);
+    expect(screen.getByRole("status").textContent).toMatch(/два верхних/);
+    expect(screen.getByRole("status").textContent).toMatch(/экспорта/);
     expect(onCommit).not.toHaveBeenCalled();
   });
 
