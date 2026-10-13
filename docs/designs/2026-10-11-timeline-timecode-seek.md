@@ -14,7 +14,7 @@ Add a keyboard-friendly, accessible timecode entry in the timeline toolbar, port
 - Unit tests cover integer/fractional FPS, overflow, malformed timecodes and exact frame boundary.
 - DOM tests cover Enter, invalid correction, Escape and external time updates while focused.
 - Require terminal-success **exact head** GitHub Windows CI (Rust/TypeScript/Vitest/real WebView2 E2E/unsigned DEBUG NSIS) plus independent review before merge. No local Node/Rust dependency install or Windows GUI acceptance is claimed.
-- This draft is stacked on PR #17, which remains unmerged. It does not merge or modify main. The seek target is limited to the current authored content (or the default 30-second ruler) plus the 5-second tail to prevent unbounded DOM ruler creation; DF support requires an explicit separate design and tests.
+- This PR is based directly on current main, independent of unmerged stacked PRs #17/#36/#38. The seek target is limited to the current authored content (or the default 30-second ruler) plus the 5-second tail to prevent unbounded DOM ruler creation; DF support requires an explicit separate design and tests.
 
 ## References
 - https://helpx.adobe.com/premiere/desktop/organize-media/apply-labeling/enter-timecode.html
