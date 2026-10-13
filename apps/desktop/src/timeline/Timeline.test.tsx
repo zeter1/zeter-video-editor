@@ -529,4 +529,68 @@ describe("Timeline", () => {
     expect(executeEditCommand).not.toHaveBeenCalled();
   });
 
+
+  it("scrubs while the primary pointer is held, ignores other pointers and stops safely", () => {
+    const fixture = sequence();
+    fixture.fps = 30_000 / 1_001;
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const executeEditCommand = vi.fn();
+    projectStore.applySnapshot({
+      revision: 12,
+      project: {
+        id: "project-1", name: "Fixture",
+        settings: {
+          default_sequence_width: 1920,
+          default_sequence_height: 1080,
+          default_sequence_fps: 30,
+        },
+        media: [], sequences: [fixture],
+      },
+    });
+    render(
+      <Timeline
+        sequence={fixture}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={executeEditCommand}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    const ruler = screen.getByRole("slider", { name: "Timeline playhead" });
+    fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 232, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    fireEvent.pointerDown(ruler, { pointerId: 7, clientX: 139, button: 2, isPrimary: true });
+    fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 232, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    fireEvent.pointerDown(ruler, { pointerId: 7, clientX: 139, button: 0, isPrimary: true });
+    expect(transientStore.getState().playheadTimeUs).toBe(66_733);
+    fireEvent.pointerMove(ruler, { pointerId: 8, clientX: 332, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).toBe(66_733);
+    fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 232, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).toBe(1_001_000);
+    fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 10, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 35_000, buttons: 1 });
+    const boundedEnd = Math.round(Math.floor(35 * fixture.fps) / fixture.fps * 1_000_000);
+    expect(transientStore.getState().playheadTimeUs).toBe(boundedEnd);
+    // Repeated out-of-range moves must not extend the ruler by another 5s.
+    fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 35_000, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).toBe(boundedEnd);
+    fireEvent.pointerCancel(ruler, { pointerId: 7 });
+    fireEvent.pointerMove(ruler, { pointerId: 7, clientX: 232, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).not.toBe(1_001_000);
+    fireEvent.pointerDown(ruler, { pointerId: 9, clientX: 139, button: 0, isPrimary: true });
+    fireEvent.pointerUp(ruler, { pointerId: 9 });
+    fireEvent.pointerMove(ruler, { pointerId: 9, clientX: 232, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).toBe(66_733);
+    act(() => transientStore.beginClipDrag("clip-1", 0));
+    fireEvent.pointerDown(ruler, { pointerId: 10, clientX: 232, button: 0, isPrimary: true });
+    fireEvent.pointerMove(ruler, { pointerId: 10, clientX: 332, buttons: 1 });
+    expect(transientStore.getState().playheadTimeUs).toBe(66_733);
+    act(() => transientStore.endClipDrag());
+    expect(projectStore.getState().revision).toBe(12);
+    expect(executeEditCommand).not.toHaveBeenCalled();
+  });
+
 });

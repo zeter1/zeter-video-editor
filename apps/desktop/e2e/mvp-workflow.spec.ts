@@ -377,6 +377,23 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   await expect(playhead).toHaveAttribute("aria-valuenow", "66667");
   await expect(playhead).toHaveAttribute("aria-valuetext", "00:00:00:02");
   await expectRevision(page, 20);
+
+  // Native WebView2 drag scrubbing keeps pointer capture and snaps each move
+  // to a real 30 fps frame. Releasing stops seeking without any Rust edit.
+  const scrubRect = await playhead.boundingBox();
+  if (!scrubRect) throw new Error("timeline ruler is missing during scrub");
+  const scrubY = scrubRect.y + Math.min(8, scrubRect.height / 2);
+  await page.mouse.move(scrubRect.x + 139, scrubY);
+  await page.mouse.down();
+  await page.mouse.move(scrubRect.x + 232, scrubY, { steps: 4 });
+  await expect(playhead).toHaveAttribute("aria-valuenow", "1000000");
+  await page.mouse.move(scrubRect.x + 10, scrubY);
+  await expect(playhead).toHaveAttribute("aria-valuenow", "0");
+  await page.mouse.up();
+  await page.mouse.move(scrubRect.x + 232, scrubY);
+  await expect(playhead).toHaveAttribute("aria-valuenow", "0");
+  await expectRevision(page, 20);
+
   await timecode.fill("00:00:02:00");
   await timecode.press("Enter");
   await expect(playhead).toHaveAttribute("aria-valuenow", "2000000");

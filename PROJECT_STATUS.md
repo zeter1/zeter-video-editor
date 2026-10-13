@@ -1,3 +1,13 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003g POINTER-DRAG RULER SCRUB (PR #70)
+
+- **USER/VALUE:** A clicked ruler already snapped to frames; primary-button pointer drag now scrubs continuously frame-by-frame, including fractional FPS. Capture keeps motion available off-ruler; non-primary buttons, unrelated pointers, clip drags, pointer cancel/up/lost capture are guarded. Clicking and keyboard arrows continue working.
+- **SAFETY:** Only transient playhead position changes; no Rust project revision, edits, Undo/Redo, .vcut v2, originals, FFmpeg, AI or export behavior changes. Tests assert no command and unchanged revision.
+- **BASE/VERSION:** main 728046329a7c1dd70b0627a87228a7da72181d1a (0.1.0-alpha.10); branch feat/timeline-pointer-drag-scrub-alpha11-20261013, PR https://github.com/zeter1/zeter-video-editor/pull/70; alpha.11 canonical version bump + check ran in GitHub Actions https://github.com/zeter1/zeter-video-editor/actions/runs/38349800232 (SUCCESS). Temporary workflow must be deleted from PR before merge; source prerelease is NOT a published/signed installer.
+- **VERIFICATION:** Vitest Timeline pointer move/control and native Tauri/WebView2 E2E plus full Windows version/rustfmt/Rust/TS/Vitest/NSIS still require exact FINAL PR HEAD terminal success. Test-only RED Windows CI was cancelled on subsequent branch updates; do not claim observed RED. Windows manual QA/independent human review not performed.
+- **NEXT FIRST ACTION:** Inspect exact final PR HEAD and Windows CI, review the diff, fix any fail without weakening tests; merge only after mandatory gates pass, then verify main SHA and independent main CI. After closure next session choose ONE product gap, not this task again.
+
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003f FRAME-ACCURATE RULER CLICK (PR PENDING)
 
 - **USER/VALUE:** A mouse click on the timeline ruler previously stored a potentially between-frame microsecond position. It now rounds once to the nearest real frame at the current sequence FPS (including 24000/1001, 30000/1001, 60000/1001), clamps to the visible ruler range and ignores pointer clicks while a clip drag is active. Keyboard frame navigation remains unchanged.
@@ -613,7 +623,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.10` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.11` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
