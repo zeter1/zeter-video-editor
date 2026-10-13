@@ -40,22 +40,35 @@ function findVisibleClip(sequence: Sequence, timeUs: number): { clip: Clip; trac
   return null;
 }
 
-// Render overlapping stills and at most one moving video in the exact
-// timeline order used by export. Multiple videos still use the original
-// foreground decoder until the cached-composite preview path is available.
-function findVisiblePictureLayers(sequence: Sequence, timeUs: number): Array<{ clip: Clip; track: Track }> {
+// The direct WebView2 path can decode only one moving video. Preserve the
+// foreground video AND every still overlay instead of dropping the layer stack
+// whenever two moving videos overlap. The missing moving layers are disclosed
+// until the approved FFmpeg cached-composite path is connected.
+function findVisiblePictureLayers(sequence: Sequence, timeUs: number): {
+  layers: Array<{ clip: Clip; track: Track }>;
+  multipleVideos: boolean;
+} {
   const layers: Array<{ clip: Clip; track: Track }> = [];
   let movingVideos = 0;
+  let foregroundVideoId: string | null = null;
   for (const track of sequence.tracks) {
     if (track.hidden || (track.kind !== "Video" && track.kind !== "Overlay")) continue;
     for (const clip of track.clips) {
       if (clip.timeline_start > timeUs || timeUs >= clip.timeline_end) continue;
       if (clip.kind !== "Video" && clip.kind !== "Image") continue;
-      if (clip.kind === "Video") movingVideos += 1;
+      if (clip.kind === "Video") {
+        movingVideos += 1;
+        foregroundVideoId = clip.id;
+      }
       layers.push({ clip, track });
     }
   }
-  return movingVideos > 1 ? [] : layers;
+  return {
+    layers: movingVideos > 1
+      ? layers.filter(({ clip }) => clip.kind === "Image" || clip.id === foregroundVideoId)
+      : layers,
+    multipleVideos: movingVideos > 1,
+  };
 }
 
 function sourceTime(clip: Clip, timelineUs: number): number {
@@ -173,12 +186,16 @@ export function PreviewPlayer({
     () => findVisibleClip(sequence, playheadTimeUs),
     [sequence, playheadTimeUs],
   );
+  const pictureSelection = useMemo(
+    () => findVisiblePictureLayers(sequence, playheadTimeUs),
+    [sequence, playheadTimeUs],
+  );
   const pictureLayers = useMemo(
-    () => findVisiblePictureLayers(sequence, playheadTimeUs).flatMap(({ clip, track }) => {
+    () => pictureSelection.layers.flatMap(({ clip, track }) => {
       const source = media.find((item) => item.id === clip.media_id);
       return source ? [{ clip, track, src: mediaUrl(source.id) }] : [];
     }),
-    [sequence, playheadTimeUs, media],
+    [pictureSelection, media],
   );
   // A still over a video must not replace the foreground transport decoder.
   // Readiness, embedded sound and rVFC continue to follow that same video.
@@ -514,6 +531,12 @@ export function PreviewPlayer({
             <img className="preview-media" src={src} alt="Кадр изображения" style={active ? pictureStyle(active) : undefined} />
           ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
+          ) : null}
+          {pictureSelection.multipleVideos ? (
+            <span className="preview-composite-notice" role="status">
+              В этой области несколько видеодорожек. Предпросмотр показывает только верхнее видео;
+              итоговый экспорт может отличаться.
+            </span>
           ) : null}
           {mediaError ? <span className="preview-media-error" role="alert">{mediaError}</span> : null}
           {selectedClip && selectedTrackId && selectedClip.id === visible?.clip.id ? (
