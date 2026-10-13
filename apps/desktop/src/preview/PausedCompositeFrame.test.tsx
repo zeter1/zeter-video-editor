@@ -74,4 +74,78 @@ describe("opaque cached FFmpeg paused Preview", () => {
       .toContain("dddddddd-dddd-4ddd-8ddd-dddddddddddd"));
     expect(screen.queryByText(/eeeeeeee-eeee/)).toBeNull();
   });
+  it("prefetches only near a window boundary and reuses the adjacent token on seek", async () => {
+    const requested: number[] = [];
+    invoke.mockImplementation(async (command: string, args?: { playheadUs?: number }) => {
+      if (command === "request_preview_chunk") {
+        const start = args!.playheadUs!;
+        requested.push(start);
+        return {
+          token: start === 0
+            ? "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+            : "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          start_us: start, end_us: start + 4_000_000,
+        };
+      }
+      return null;
+    });
+    const { rerender, unmount } = render(
+      <PausedCompositeFrame {...props} playheadTimeUs={2_000_000} />,
+    );
+    await screen.findByLabelText("Точный FFmpeg кадр");
+    expect(requested).toEqual([0]);
+
+    rerender(<PausedCompositeFrame {...props} playheadTimeUs={2_600_000} />);
+    await waitFor(() => expect(requested).toEqual([0, 4_000_000]));
+    // The next window remains hidden until selected, even if its MP4 is cached.
+    expect((screen.getByLabelText("Точный FFmpeg кадр") as HTMLVideoElement).src)
+      .toContain("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+
+    rerender(<PausedCompositeFrame {...props} playheadTimeUs={4_200_000} />);
+    await waitFor(() => expect((screen.getByLabelText("Точный FFmpeg кадр") as HTMLVideoElement).src)
+      .toContain("dddddddd-dddd-4ddd-8ddd-dddddddddddd"));
+    expect(requested).toEqual([0, 4_000_000]); // no new FFmpeg request at the seam
+    const current = screen.getByLabelText("Точный FFmpeg кадр") as HTMLVideoElement;
+    expect(current.style.visibility).toBe("hidden");
+    Object.defineProperty(current, "readyState", { configurable: true, value: 2 });
+    fireEvent.loadedMetadata(current);
+    fireEvent.loadedData(current);
+    await waitFor(() => expect(current.style.visibility).toBe("visible"));
+    expect(invoke).toHaveBeenCalledWith("cancel_preview_chunk", {
+      requestId: expect.any(String),
+    });
+    unmount();
+    expect(invoke.mock.calls.filter(([command]) => command === "cancel_preview_chunk")).toHaveLength(2);
+  });
+
+  it("revokes both old requests and ignores delayed prefetched data after a revision change", async () => {
+    const oldResults: Array<(chunk: unknown) => void> = [];
+    invoke.mockImplementation((command: string, args?: { expectedRevision?: number; playheadUs?: number }) => {
+      if (command !== "request_preview_chunk") return Promise.resolve(null);
+      if (args?.expectedRevision === 8) {
+        return new Promise((resolve) => { oldResults.push(resolve); });
+      }
+      return Promise.resolve({
+        token: args?.playheadUs === 0
+          ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          : "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        start_us: args?.playheadUs,
+        end_us: (args?.playheadUs ?? 0) + 4_000_000,
+      });
+    });
+    const { rerender } = render(
+      <PausedCompositeFrame {...props} playheadTimeUs={3_000_000} />,
+    );
+    expect(oldResults).toHaveLength(2);
+    rerender(<PausedCompositeFrame {...props} revision={9} playheadTimeUs={3_000_000} />);
+    oldResults[0]({ token: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", start_us: 0, end_us: 4_000_000 });
+    oldResults[1]({ token: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", start_us: 4_000_000, end_us: 8_000_000 });
+    await waitFor(() => expect((screen.getByLabelText("Точный FFmpeg кадр") as HTMLVideoElement).src)
+      .toContain("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"));
+    rerender(<PausedCompositeFrame {...props} revision={9} playheadTimeUs={4_100_000} />);
+    await waitFor(() => expect((screen.getByLabelText("Точный FFmpeg кадр") as HTMLVideoElement).src)
+      .toContain("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"));
+    expect(invoke.mock.calls.filter(([command]) => command === "cancel_preview_chunk")).toHaveLength(3);
+  });
+
 });
