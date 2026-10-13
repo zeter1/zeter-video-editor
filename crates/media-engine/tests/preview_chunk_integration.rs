@@ -9,8 +9,12 @@ use editor_core::{
     ProjectRevision, ProjectSettings, RenderSnapshot, Sequence, SequenceId, SubtitleStyle, TimeUs,
     Track, TrackId, TrackKind, Transform,
 };
+use tokio_util::sync::CancellationToken;
+
 use media_engine::{
     ManagedRuntime,
+    cache_key::PreviewRange,
+    preview_cache::PreviewChunkCache,
     encoder::EncoderKind,
     export::{build_export_spec, build_preview_chunk_spec},
     probe::probe_media,
@@ -223,6 +227,32 @@ fn managed_ffmpeg_preview_chunk_matches_export_picture_and_audio_baseline() {
 
     let full_probe = probe_media(&runtime, &full).expect("probe full export");
     let chunk_probe = probe_media(&runtime, &chunk).expect("probe preview chunk");
+    // The production cache service must publish only a verified MP4 and reuse
+    // it without touching the original source or re-encoding on a cache hit.
+    let cache = PreviewChunkCache::new(temp.path().join("preview-cache"), runtime.clone());
+    let interval = PreviewRange { start: t(500_000), end: t(1_500_000) };
+    let cached = cache.render(&plan, interval, &CancellationToken::new())
+        .expect("render and FFprobe-validate cache entry");
+    assert!(!cached.reused);
+    assert!(cached.path.is_file());
+    let hit = cache.render(&plan, interval, &CancellationToken::new())
+        .expect("return validated cached MP4");
+    assert!(hit.reused);
+    assert_eq!(hit.path, cached.path);
+    let cached_probe = probe_media(&runtime, &cached.path).expect("probe cached artifact");
+    assert_eq!(cached_probe.video.as_ref().unwrap().width, 320);
+    assert_eq!(cached_probe.audio_streams.len(), 1);
+    let a = sampled_frame(&runtime, &chunk, "0.300");
+    let b = sampled_frame(&runtime, &cached.path, "0.300");
+    let mae: f64 = a.iter().zip(&b)
+        .map(|(left, right)| (f64::from(*left) - f64::from(*right)).abs())
+        .sum::<f64>() / a.len() as f64;
+    assert!(mae < 10.0, "cached MP4 picture diverges from direct FFmpeg chunk: MAE={mae:.2}");
+    let cached_rms = audio_rms(&runtime, &cached.path, "0.250");
+    let direct_rms = audio_rms(&runtime, &chunk, "0.250");
+    assert!((cached_rms - direct_rms).abs() / direct_rms < 0.15,
+        "cached MP4 audio diverges from direct chunk");
+
     assert!(full_probe.video.is_some() && chunk_probe.video.is_some());
     assert_eq!(full_probe.audio_streams.len(), 1);
     assert_eq!(chunk_probe.audio_streams.len(), 1);
