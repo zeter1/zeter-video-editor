@@ -96,6 +96,22 @@ describe("opaque cached FFmpeg paused Preview", () => {
     });
   });
 
+  it("subscribes before loadeddata so an initial paused seek cannot lose its frame", async () => {
+    invoke.mockImplementation(async (command: string) => command === "request_preview_chunk"
+      ? { token: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        start_us: 0, end_us: 4_000_000 }
+      : null);
+    const { unmount } = render(<PausedCompositeFrame {...props} playheadTimeUs={400_000} />);
+    const current = await screen.findByLabelText("Точный FFmpeg кадр") as HTMLVideoElement;
+    await waitFor(() => expect(frameRequests).toHaveLength(1));
+    Object.defineProperty(current, "readyState", { configurable: true, value: 2 });
+    fireEvent.seeking(current);
+    expect(frameRequests).toHaveLength(1);
+    submitFrame(0.4);
+    await waitFor(() => expect(current.style.visibility).toBe("visible"));
+    unmount();
+  });
+
   it("discards a late response after project revision changes", async () => {
     let resolveOld!: (result: unknown) => void;
     invoke.mockImplementation((command: string, args?: { expectedRevision?: number }) => {

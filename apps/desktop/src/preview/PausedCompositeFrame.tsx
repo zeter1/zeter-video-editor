@@ -120,51 +120,43 @@ export function PausedCompositeFrame({
     pendingFrameRef.current = null;
   };
 
+  const watchPresentedFrame = () => {
+    const node = video.current;
+    if (!node || !chunk || typeof node.requestVideoFrameCallback !== "function" ||
+        pendingFrameRef.current?.node === node) return;
+
+    const token = chunk.token;
+    const timeUs = playheadTimeUs;
+    const tolerance = Math.max(0.002, 0.5 / fps);
+    const id = node.requestVideoFrameCallback((_now, metadata) => {
+      if (pendingFrameRef.current?.node !== node ||
+          pendingFrameRef.current.id !== id) return;
+      pendingFrameRef.current = null;
+      if (video.current !== node) return;
+      if (!node.seeking && node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+          Math.abs(node.currentTime - targetSeconds) <= tolerance &&
+          Math.abs(metadata.mediaTime - targetSeconds) <= tolerance) {
+        setPresented({ token, timeUs });
+      } else {
+        // A callback for the old GPU frame is not evidence of this seek.
+        watchPresentedFrame();
+      }
+    });
+    pendingFrameRef.current = { node, id };
+  };
+
   useEffect(() => {
-    // A WebView decoder can report the requested currentTime before its GPU
-    // surface has submitted that frame. Invalidate callbacks from the old
-    // time/window before issuing the next seek.
     clearPendingFrame();
     const node = video.current;
     if (!node || !chunk) return;
+    // Native paused playback may submit its sole frame before loadeddata
+    // or seeked; subscribe before starting the seek so it cannot be missed.
+    watchPresentedFrame();
     if (Math.abs(node.currentTime - targetSeconds) > 0.0005) {
       node.currentTime = Math.max(0, targetSeconds);
     }
     return () => { clearPendingFrame(); };
   }, [chunk?.token, targetSeconds]);
-
-  const acceptDecodedFrame = () => {
-    const node = video.current;
-    const tolerance = Math.max(0.002, 0.5 / fps);
-    if (!node || !chunk || node.seeking ||
-        node.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
-        Math.abs(node.currentTime - targetSeconds) > tolerance ||
-        pendingFrameRef.current?.node === node) return;
-
-    // On WebView2 use the frame actually submitted to the compositor, not
-    // loadeddata/seeked: those events may still expose the previous texture.
-    // Without rVFC the direct decoder stays visible as a safe fallback.
-    if (typeof node.requestVideoFrameCallback !== "function") return;
-    const token = chunk.token;
-    const timeUs = playheadTimeUs;
-    const id = node.requestVideoFrameCallback((_now, metadata) => {
-      // Even a callback queued just before cancellation must not clear a
-      // newer seek's pending frame request on this same <video>.
-      if (pendingFrameRef.current?.node !== node ||
-          pendingFrameRef.current.id !== id) return;
-      pendingFrameRef.current = null;
-      if (video.current !== node || node.seeking ||
-          node.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
-          Math.abs(node.currentTime - targetSeconds) > tolerance) return;
-      if (Math.abs(metadata.mediaTime - targetSeconds) > tolerance) {
-        // The callback may be for the frame before the seek; do not flash it.
-        acceptDecodedFrame();
-        return;
-      }
-      setPresented({ token, timeUs });
-    });
-    pendingFrameRef.current = { node, id };
-  };
 
   return (
     <>
@@ -181,13 +173,15 @@ export function PausedCompositeFrame({
           style={{ visibility: presented?.token === chunk.token &&
             presented.timeUs === playheadTimeUs ? "visible" : "hidden" }}
           onLoadedMetadata={() => {
+            watchPresentedFrame();
             if (video.current) video.current.currentTime = Math.max(0, targetSeconds);
           }}
-          onLoadedData={acceptDecodedFrame}
-          onSeeked={acceptDecodedFrame}
+          onLoadedData={watchPresentedFrame}
+          onSeeked={watchPresentedFrame}
           onSeeking={() => {
-            clearPendingFrame();
+            // Preserve the early callback while the corresponding seek runs.
             setPresented(null);
+            watchPresentedFrame();
           }}
           onError={() => {
             clearPendingFrame();

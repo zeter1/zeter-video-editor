@@ -113,7 +113,21 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   await expect(page.locator("video.preview-media:not(.preview-ffmpeg-composite)")).toHaveCount(2);
   await expect(page.locator("img.preview-media")).toHaveAttribute("src", new RegExp(still.media_id));
   const composite = page.getByLabel("Точный FFmpeg кадр");
-  await expect(composite).toBeVisible({ timeout: 90_000 });
+  try {
+    await expect(composite).toBeVisible({ timeout: 90_000 });
+  } catch (error) {
+    console.log("[WebView2 initial paused frame diagnostics]", await composite.evaluate((element) => {
+      const v = element as HTMLVideoElement;
+      return {
+        currentTime: v.currentTime, duration: v.duration, seeking: v.seeking,
+        readyState: v.readyState, decodedFrames: v.getVideoPlaybackQuality?.().totalVideoFrames,
+        requestFrameCallbackSupported: typeof v.requestVideoFrameCallback === "function",
+        width: v.videoWidth, height: v.videoHeight,
+        visibility: v.style.visibility,
+      };
+    }).catch(() => ({ videoUnavailable: true })));
+    throw error;
+  }
   await expect(composite).toHaveAttribute(
     "src", /^http:\/\/zeter-media\.localhost\/_preview\/[0-9a-f-]{36}$/i,
   );
