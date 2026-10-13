@@ -1,4 +1,4 @@
-name: Temporary branch version preparation (alpha.19)
+name: Temporary branch Rust formatting (alpha.19)
 
 on:
   push:
@@ -8,31 +8,33 @@ permissions:
   contents: write
 
 jobs:
-  prepare:
-    if: contains(github.event.head_commit.message, '[prepare-alpha19]')
+  format:
+    if: contains(github.event.head_commit.message, '[format-alpha19]')
     runs-on: windows-latest
     steps:
       - name: Checkout branch with write credential
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: true
-      - name: Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24"
-      - name: Generate and verify alpha.19 with canonical scripts
+      - name: Pinned Rust formatting toolchain
         shell: pwsh
         run: |
-          node scripts/set-version.mjs 0.1.0-alpha.19 --note "Предзагрузка соседнего FFmpeg-окна при паузе сокращает ожидание покадрового предпросмотра"
+          rustup toolchain install 1.99.0 --profile minimal
+          rustup component add --toolchain 1.99.0 rustfmt
+          rustup override set 1.99.0
+          cargo fmt --all
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node scripts/check-version.mjs
+          cargo fmt --all -- --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/desktop/package.json apps/desktop/package-lock.json apps/desktop/src-tauri/tauri.conf.json apps/desktop/src-tauri/Cargo.toml Cargo.lock release/runtime-manifest.json README.md PROJECT_STATUS.md CHANGELOG.md
-          git diff --cached --exit-code
-          if ($LASTEXITCODE -eq 0) { throw "Expected canonical version update" }
-          git commit -m "chore: prepare alpha.19 source version"
+          git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git push origin HEAD:feat/preview-adjacent-prefetch-alpha19-20261013
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git add apps/desktop/src-tauri/src/preview_composite.rs
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "style: canonical Rust formatting for bounded prefetch"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            git push origin HEAD:feat/preview-adjacent-prefetch-alpha19-20261013
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
