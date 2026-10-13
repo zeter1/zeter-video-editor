@@ -58,6 +58,26 @@ function timelineEndUs(sequence: Sequence, playheadTimeUs: number): number {
   return Math.max(MIN_TIMELINE_DURATION_US, sequenceContentEndUs(sequence), playheadTimeUs) + RULER_STEP_US;
 }
 
+// Markers can be unsorted and can share a timestamp. Navigate strictly across
+// distinct times rather than array positions; never wrap at the endpoints.
+function adjacentMarkerTime(
+  markers: readonly Sequence["markers"][number][],
+  playheadTimeUs: number,
+  direction: -1 | 1,
+): number | null {
+  let best: number | null = null;
+  for (const marker of markers) {
+    const time = marker.time;
+    if (!Number.isFinite(time) || time < 0) continue;
+    if (direction === 1 && time > playheadTimeUs && (best === null || time < best)) {
+      best = time;
+    } else if (direction === -1 && time < playheadTimeUs && (best === null || time > best)) {
+      best = time;
+    }
+  }
+  return best;
+}
+
 function formatRulerTime(timeUs: number): string {
   const totalSeconds = Math.floor(timeUs / 1_000_000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -84,7 +104,21 @@ export function Timeline({
       return Boolean(element?.closest("input, textarea, select, [contenteditable], [role='textbox']"));
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || isInput(event.target)) return;
+      if (event.defaultPrevented || event.altKey || event.metaKey || event.isComposing || isInput(event.target)) return;
+      // Shift+M = next, Ctrl+Shift+M = previous, including the physical M
+      // key on a Russian layout. Never seek while a modal or drag is active.
+      if (event.shiftKey && (event.key.toLowerCase() === "m" || event.code === "KeyM")) {
+        if (event.repeat || document.querySelector("[role='dialog'], [aria-modal='true']") ||
+            transientStore.getState().drag) return;
+        event.preventDefault();
+        const target = adjacentMarkerTime(
+          sequence.markers, transientStore.getState().playheadTimeUs,
+          event.ctrlKey ? -1 : 1,
+        );
+        if (target !== null) transientStore.setPlayheadTime(target);
+        return;
+      }
+      if (event.ctrlKey) return;
       const key = event.key;
       const delta = key === "+" || key === "=" || event.code === "NumpadAdd"
         ? 1
@@ -98,7 +132,7 @@ export function Timeline({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [transientStore]);
+  }, [sequence.markers, transientStore]);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -124,6 +158,8 @@ export function Timeline({
     () => sequence.markers.map((marker) => marker.time),
     [sequence.markers],
   );
+  const previousMarkerTimeUs = adjacentMarkerTime(sequence.markers, transient.playheadTimeUs, -1);
+  const nextMarkerTimeUs = adjacentMarkerTime(sequence.markers, transient.playheadTimeUs, 1);
   const endUs = timelineEndUs(sequence, transient.playheadTimeUs);
   const contentWidth =
     TIMELINE_TRACK_HEADER_WIDTH_PX +
@@ -201,6 +237,14 @@ export function Timeline({
     }
   }
 
+  function seekAdjacentMarker(direction: -1 | 1): void {
+    if (transientStore.getState().drag) return;
+    const target = adjacentMarkerTime(
+      sequence.markers, transientStore.getState().playheadTimeUs, direction,
+    );
+    if (target !== null) transientStore.setPlayheadTime(target);
+  }
+
   function addMarker(): void {
     void commitCommand({
       AddMarker: {
@@ -217,6 +261,24 @@ export function Timeline({
   return (
     <div className="timeline-editor">
       <div className="timeline-inline-toolbar">
+        <button
+          type="button"
+          title="Ctrl+Shift+M"
+          aria-label="Предыдущий маркер (Ctrl+Shift+M)"
+          disabled={previousMarkerTimeUs === null || Boolean(transient.drag)}
+          onClick={() => seekAdjacentMarker(-1)}
+        >
+          ← Предыдущий маркер
+        </button>
+        <button
+          type="button"
+          title="Shift+M"
+          aria-label="Следующий маркер (Shift+M)"
+          disabled={nextMarkerTimeUs === null || Boolean(transient.drag)}
+          onClick={() => seekAdjacentMarker(1)}
+        >
+          Следующий маркер →
+        </button>
         <button type="button" onClick={addMarker}>
           + Маркер
         </button>
