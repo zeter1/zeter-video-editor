@@ -2,7 +2,7 @@
   "$schema": "./runtime-manifest.schema.json",
   "manifest_version": 1,
   "app": {
-    "version": "0.1.0-alpha.13",
+    "version": "0.1.0-alpha.14",
     "build": "development",
     "project_schema_min": 1,
     "project_schema_max": 2
