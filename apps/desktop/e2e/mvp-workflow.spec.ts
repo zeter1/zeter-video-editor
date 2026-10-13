@@ -209,6 +209,11 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   await expectRevision(page, revision);
   await zoomInput.press("ArrowLeft");
   await expect(zoomInput).toHaveValue("1");
+  // Restore original transport and focus so the existing shortcut checks
+  // still exercise global + / - rather than an active range or text input.
+  await zoomTimecode.fill("00:00:00:00");
+  await zoomTimecode.press("Enter");
+  await zoomTimecode.evaluate((element) => (element as HTMLInputElement).blur());
   await page.keyboard.press("Shift+=");
   await expect(zoomInput).toHaveValue("1.25");
   await page.keyboard.press("-");
