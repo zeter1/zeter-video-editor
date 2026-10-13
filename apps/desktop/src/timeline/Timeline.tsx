@@ -224,7 +224,7 @@ export function Timeline({
     event: ReactKeyboardEvent<HTMLDivElement>,
   ): void {
     // Keep system shortcuts and clip dragging untouched.
-    if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing ||
+    if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing ||
         transientStore.getState().drag) return;
     const step = event.shiftKey ? 5 : 1;
     let nextTime: number | null = null;
