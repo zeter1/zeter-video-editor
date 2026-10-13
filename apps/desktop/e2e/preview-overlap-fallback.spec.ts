@@ -83,14 +83,18 @@ test("real WebView2 keeps upper moving video and still overlay with honest multi
   };
 
   await scrub(0.4);
-  await expect(page.getByRole("status")).toContainText("экспорт");
+  // The application also exposes the independent Background jobs status.
+  // Scope to Preview's notice, not every accessibility status in the app.
+  const notice = page.locator(".preview-frame .preview-composite-notice");
+  await expect(notice).toHaveAttribute("role", "status");
+  await expect(notice).toContainText("экспорт");
   await expect(page.locator(".preview-still-layers > video.preview-media")).toHaveCount(1);
   await expect(page.locator(".preview-still-layers > img.preview-media")).toHaveCount(1);
   await expect(page.locator("video.preview-media")).toHaveCount(1);
   await expect(page.locator("img.preview-media")).toHaveAttribute("src", new RegExp(still.media_id));
 
   await scrub(1.6);
-  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(notice).toHaveCount(0);
   await expect(page.locator("video.preview-media")).toHaveCount(1);
   await expect(page.locator("img.preview-media")).toHaveCount(1);
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
