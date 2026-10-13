@@ -91,6 +91,103 @@ function success(revision: number): CommandResultDto {
 }
 
 describe("Timeline", () => {
+  it("navigates sorted distinct marker times without mutating the project, including keyboard edges", () => {
+    const fixture = sequence();
+    // Deliberately unsorted; duplicate and zero-time markers must be safe.
+    fixture.markers = [
+      { id: "late", time: 1_500_000, label: "Поздний" },
+      { id: "early-2", time: 750_000, label: "Дубль" },
+      { id: "zero", time: 0, label: "Старт" },
+      { id: "early-1", time: 750_000, label: "Ранний" },
+    ];
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    projectStore.applySnapshot({
+      revision: 12,
+      project: {
+        id: "project-1", name: "Fixture",
+        settings: {
+          default_sequence_width: 1920,
+          default_sequence_height: 1080,
+          default_sequence_fps: 30,
+        },
+        media: [], sequences: [fixture],
+      },
+    });
+    const executeEditCommand = vi.fn();
+    render(
+      <Timeline
+        sequence={fixture}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={executeEditCommand}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    const previous = screen.getByRole("button", { name: /Предыдущий маркер/ });
+    const next = screen.getByRole("button", { name: /Следующий маркер/ });
+    expect((previous as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(next);
+    expect(transientStore.getState().playheadTimeUs).toBe(750_000);
+    // Shift+physical M advances even on a Russian keyboard.
+    fireEvent.keyDown(window, { key: "Ь", code: "KeyM", shiftKey: true });
+    expect(transientStore.getState().playheadTimeUs).toBe(1_500_000);
+    expect((next as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.keyDown(window, { key: "m", code: "KeyM", shiftKey: true, ctrlKey: true });
+    expect(transientStore.getState().playheadTimeUs).toBe(750_000);
+    fireEvent.click(previous);
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    expect((previous as HTMLButtonElement).disabled).toBe(true);
+    expect(projectStore.getState().revision).toBe(12);
+    expect(executeEditCommand).not.toHaveBeenCalled();
+  });
+
+  it("does not steal marker shortcuts during typing, dialogs, repeat, dragging or without markers", () => {
+    const fixture = sequence();
+    fixture.markers = [{ id: "one", time: 1_500_000, label: "Один" }];
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const executeEditCommand = vi.fn();
+    const { rerender } = render(
+      <Timeline
+        sequence={fixture}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={executeEditCommand}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    const input = screen.getByRole("slider", { name: "Масштаб таймлайна" });
+    fireEvent.keyDown(input, { key: "M", shiftKey: true, code: "KeyM" });
+    fireEvent.keyDown(window, { key: "M", shiftKey: true, code: "KeyM", repeat: true });
+    fireEvent.keyDown(window, { key: "M", shiftKey: true, code: "KeyM", altKey: true });
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    document.body.appendChild(dialog);
+    fireEvent.keyDown(window, { key: "M", shiftKey: true, code: "KeyM" });
+    dialog.remove();
+    transientStore.beginClipDrag("clip-1", 0);
+    fireEvent.keyDown(window, { key: "M", shiftKey: true, code: "KeyM" });
+    transientStore.endClipDrag();
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+
+    rerender(
+      <Timeline
+        sequence={{ ...fixture, markers: [] }}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={executeEditCommand}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    expect((screen.getByRole("button", { name: /Следующий маркер/ }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(window, { key: "M", shiftKey: true, code: "KeyM" });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    expect(executeEditCommand).not.toHaveBeenCalled();
+  });
+
   it("renders marker and track controls and commits track mute through the command gateway", async () => {
     const projectStore = createProjectStore();
     const transientStore = createTransientStore();
