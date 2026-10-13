@@ -1,4 +1,14 @@
-# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003j TWO MOVING PREVIEW LAYERS / alpha.14 (BRANCH, CI PENDING)
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003k PREVIEW FRAME-GRID STEP / alpha.15 (PR ACCEPTANCE PENDING)
+
+- **USER SCENARIO:** Previous/next-frame controls in Preview must land on the same real sequence frame indices as the Timeline at fractional FPS (24000/1001, 30000/1001, 60000/1001). Previously adding rounded frame durations accumulated drift and repeated stepping diverged.
+- **IMPLEMENTED (BRANCH, NOT MAIN):** `PreviewPlayer.tsx` calls `stepPreviewFrame` in `previewTransport.ts`, reusing Timeline `seekByFrames` for index-based stepping. Exact non-grid clip end remains reachable and a backwards step from the end selects its final full frame. Existing audio/transport pause and transient `onSeek` semantics remain. Unit regression covers 10,000 forward/back steps at three fractional FPS and end bounds; React integration verifies UI buttons and no EditCommand.
+- **BASE / VERSION:** main `86f4928c66ac543c29f6fae5960725a838a4b0b2` (alpha.14), last main Windows CI https://github.com/zeter1/zeter-video-editor/actions/runs/38362563213 COMPLETED SUCCESS. Branch `fix/preview-fractional-frame-step-alpha15-20261013`; canonical scripts/set-version.mjs and check-version.mjs succeeded in branch-only GitHub Actions https://github.com/zeter1/zeter-video-editor/actions/runs/38364511405 (SUCCESS); alpha.14 → alpha.15. Temporary workflow removed before PR; no tag/signing/release/installation.
+- **ACCEPTANCE / DELIVERY:** Arithmetic sanity executed and passed, but exact final-head Windows CI, real Tauri/WebView2 E2E, DEBUG NSIS and independent human review must be confirmed separately before merge. `CHANGELOG.md` updated with scope. No changes to .vcut v2, Rust project revision, Undo/Redo, original media, FFmpeg or export. A successful build alone does not establish FFmpeg pixel parity.
+- **NEXT PRODUCT-CODE TASK AFTER DELIVERY:** Implement an approved, bounded immutable RenderSnapshot → media-engine FFmpeg cached-composite → revision/sequence/range/runtime keyed safe IPC → React Preview slice. Acceptance: overlapping moving videos have render/export-pixel parity before and after seek/edit, correctly invalidated caches, A/V clock and background cancel/resource safety, tested with real FFmpeg and native Windows WebView2. Do not merge stacked drafts. 
+
+---
+
+# HISTORICAL PRODUCT WORK — 2026-10-13 — ZVE-003j TWO MOVING PREVIEW LAYERS / alpha.14 (MERGED PR #73)
 
 - **USER SCENARIO:** When two videos overlap, show both moving decoded pictures in track order, including semi-transparent foreground and still overlays; preserve a single foreground video for the transport clock. Previously only the upper video moved.
 - **IMPLEMENTED:** Bounded lower HTMLVideoElement with forced mute, source-time seek / speed / pause synchronization and no EditCommand. Two topmost moving videos maximum; explicit warning that this is not an exact FFmpeg cached-composite, and lower video audio is not mixed. Single-video path unchanged. No Rust revision / Undo / .vcut / source files / export changes.
