@@ -1,3 +1,19 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003o ADJACENT PAUSED COMPOSITE PREFETCH / alpha.19 (BRANCH; EXACT-HEAD WINDOWS CI PENDING)
+
+- **USER PATH / BEFORE → AFTER:** Stepping or scrubbing from a paused overlapping-video region across the 4-second FFmpeg boundary previously discarded the existing opaque lease and waited for a fresh render. Within the last 1.5 s of a window, the UI now pre-renders the next bounded chunk, preserves its independent opaque lease across that seek, and displays it only after the native decoder acknowledges the frame. If prefetch is slow/invalid or near the end, retain the direct native fallback; no full live playback claim.
+- **IMPLEMENTATION / INVARIANTS:** `apps/desktop/src-tauri/src/preview_composite.rs` holds at most two independent project-scoped request slots, with oldest-first cancellation/eviction, generation-scoped publish, source/revision/TTL validation and full revocation on project changes. `apps/desktop/src/preview/PausedCompositeFrame.tsx` starts an adjacent request only within 1.5 s of the forward boundary, retains and reuses its response across the seam, retires stale scope/seek/unmount tokens, and never exposes a filesystem path. Regression tests in Rust and Vitest cover independent cancellation, bounded slots, project switch, 4-second handoff and stale revision. Live FFmpeg A/V mixing and seamless playback are intentionally NOT enabled.
+- **BASE / VERSION / CHECKS:** main `edf2fc59e8ca970d03b7b93750ea71820f717866`, `0.1.0-alpha.18`, post-merge Windows CI #38394435396 COMPLETED SUCCESS. Branch `feat/preview-adjacent-prefetch-alpha19-20261013`; `0.1.0-alpha.19` prepared by `scripts/set-version.mjs` + `scripts/check-version.mjs` in branch-only GitHub Action #38406807549 COMPLETED SUCCESS. Rustfmt, exact-final-head Windows Rust/FFmpeg, frontend build/Vitest, native Windows Tauri/WebView2 E2E and DEBUG NSIS **PENDING** at the time of this checkpoint; do not merge unless passed. No release, tag, signing, installation or owner-PC QA.
+- **ACCEPTANCE:** In paused overlap at 2.0 s request only 0–4 s; at 2.6 s prefetch 4–8 s, crossing 4 s uses that token without a second render. No more than two jobs/leases; delayed cancellation cannot tear down the surviving window; edit/project switch discards stale tokens. Native WebView2 continues the existing pixel oracle, version/toolchain gates, packed DEBUG NSIS. Source projects and media remain byte-identical.
+- **NEXT PRODUCT-CODE TASK AFTER MERGE:** Real **live** FFmpeg composite across adjacent windows, one A/V clock, prebuffered audio and native WebView2 RGB+RMS parity, with graceful stalls/rebuffering and cancellation, using the new two-lease service; extend `PreviewPlayer.tsx` and `PreviewAudioTracks.tsx`. Do not enable live mode before verified audio/pixel parity.
+
+---
+
+# VERIFIED MAIN CHECKPOINT — 2026-10-13 — ZVE-003n alpha.18 MERGED
+
+- PR #77 merged as main SHA `edf2fc59e8ca970d03b7b93750ea71820f717866`; exact PR HEAD `1c09affb1c4b570cecb9091006362788cfbaa4c0` SUCCESS CI #38393061246; post-merge main CI #38394435396 COMPLETED SUCCESS. Paused FFmpeg-composite and opaque per-request streaming in main. This corrects the historical branch-state checkpoint below; no signed release or user-PC QA.
+ 
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003n PAUSED FFMPEG COMPOSITE WITH OPAQUE IPC / alpha.18 (BRANCH / PR GATES PENDING)
 
 - **USER BEHAVIOR (ONE BOUNDED SLICE):** When two moving videos overlap and the playhead is paused, request a bounded, export-filtergraph FFmpeg output window from the authoritative Rust revision and display its WebView2-decoded frame only after that requested time is ready. Previously all overlapping videos were WebView2-decoded and composited approximately. Live playback/audio deliberately retains the existing decoder/transport path; continuous FFmpeg A/V playback and pixel-parity over live playback are NOT claimed.
