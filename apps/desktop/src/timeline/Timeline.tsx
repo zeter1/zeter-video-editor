@@ -376,7 +376,7 @@ export function Timeline({
             max="8"
             step="0.25"
             value={transient.timelineZoom}
-            disabled={Boolean(transient.drag) || rulerPointerIdRef.current !== null}
+            disabled={Boolean(transient.drag)}
             onChange={(event) => {
               if (!transientStore.getState().drag && rulerPointerIdRef.current === null) {
                 transientStore.setTimelineZoom(Number(event.currentTarget.value));
