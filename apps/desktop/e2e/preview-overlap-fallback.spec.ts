@@ -214,7 +214,7 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
         videoWidth: video.videoWidth, videoHeight: video.videoHeight,
         visibility: video.style.visibility,
         decodedFrames: video.getVideoPlaybackQuality?.().totalVideoFrames ?? null,
-        src: video.currentSrc.replace(/_preview\\/[^/]+$/, "_preview/[token]"),
+        src: video.currentSrc.split("/_preview/")[0] + "/_preview/[token]",
       };
     }),
   }));
