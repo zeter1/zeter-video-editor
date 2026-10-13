@@ -91,6 +91,38 @@ function success(revision: number): CommandResultDto {
 }
 
 describe("Timeline", () => {
+  it("enters exact timecodes without editing Rust and rejects invalid/out-of-range time", () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const executeEditCommand = vi.fn();
+    render(
+      <Timeline
+        sequence={sequence()}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={executeEditCommand}
+        reconcileCommandResult={vi.fn()}
+      />,
+    );
+    const input = screen.getByRole("textbox", { name: "Таймкод" }) as HTMLInputElement;
+    expect(input.value).toBe("00:00:00:00");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "00:00:05:15" } });
+    expect(transientStore.getState().playheadTimeUs).toBe(0);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(transientStore.getState().playheadTimeUs).toBe(5_500_000);
+    expect(input.value).toBe("00:00:05:15");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "12:00:00:00" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(transientStore.getState().playheadTimeUs).toBe(5_500_000);
+    expect(executeEditCommand).not.toHaveBeenCalled();
+    expect(projectStore.getState().revision).toBe(0);
+  });
+
+
   it("navigates sorted distinct marker times without mutating the project, including keyboard edges", () => {
     const fixture = sequence();
     // Deliberately unsorted; duplicate and zero-time markers must be safe.
