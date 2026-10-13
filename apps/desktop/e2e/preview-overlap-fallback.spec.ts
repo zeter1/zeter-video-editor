@@ -31,7 +31,7 @@ type FixtureProject = {
 };
 
 test("native paused composite matches FFmpeg export and retires after seek", async () => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   const { page, state } = await connectTauri();
   const project = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as FixtureProject;
   const sequence = project.project.sequences[0];
@@ -53,6 +53,9 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   lowerTrack.clips = [{
     ...lowerClip, id: randomUUID(), source_in: 0, source_out: 3_000_000,
     timeline_start: 0, timeline_end: 3_000_000,
+  }, {
+    ...lowerClip, id: randomUUID(), source_in: 0, source_out: 3_000_000,
+    timeline_start: 3_000_000, timeline_end: 6_000_000,
   }];
   overlayTrack.clips = [{
     ...still, id: randomUUID(), source_in: 0, source_out: 3_000_000,
@@ -60,7 +63,10 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   }];
   sequence.tracks.splice(sequence.tracks.indexOf(overlayTrack), 0, {
     ...lowerTrack, id: randomUUID(), name: "Upper video",
-    clips: [upperClip],
+    clips: [upperClip, {
+      ...lowerClip, id: randomUUID(), source_in: 0, source_out: 3_000_000,
+      timeline_start: 3_000_000, timeline_end: 6_000_000,
+    }],
   });
   sequence.subtitle_segments = [];
   sequence.width = 160;
@@ -152,5 +158,26 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   await expect(composite).toHaveCount(0);
   await expect(page.getByLabel("Нижний видеослой")).toHaveCount(0);
   await expect(page.locator("img.preview-media")).toHaveCount(1);
+  // The two moving layers overlap again on both sides of the 4s chunk
+  // boundary. The second window should be prefetched near 3.6s; native
+  // decoder readiness must still gate visibility after the handoff.
+  await scrub(3.6);
+  await expect(composite).toBeVisible({ timeout: 90_000 });
+  const firstToken = await composite.getAttribute("src");
+  await scrub(4.2);
+  await expect(composite).toBeVisible({ timeout: 90_000 });
+  const secondToken = await composite.getAttribute("src");
+  expect(secondToken).toMatch(/^http:\/\/zeter-media\.localhost\/_preview\/[0-9a-f-]{36}$/i);
+  expect(secondToken).not.toBe(firstToken);
+  const boundaryScreenshot = await page.locator(".preview-frame").screenshot({
+    animations: "disabled", scale: "css",
+  });
+  const boundaryRgb = center(boundaryScreenshot);
+  const boundaryExportRgb = center(outputPath, 4.2);
+  for (let channel = 0; channel < 3; channel++) {
+    expect(Math.abs(boundaryRgb[channel] - boundaryExportRgb[channel]),
+      "paused native seam vs independently rendered FFmpeg export RGB channel " + channel,
+    ).toBeLessThanOrEqual(35);
+  }
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
 });
