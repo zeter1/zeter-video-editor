@@ -199,6 +199,25 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   });
   const boundaryRgb = center(boundaryScreenshot);
   const boundaryExportRgb = center(outputPath, 4.2);
+  // Diagnostics remain attached to the strict RGB oracle: distinguish a
+  // decoded-but-not-presented frame from an FFmpeg window parity regression.
+  console.log("[WebView2 seam RGB]", JSON.stringify({
+    at: 4.2,
+    actual: [...boundaryRgb], export: [...boundaryExportRgb],
+    exportAt4s: [...center(outputPath, 4.0)],
+    exportAt4_4s: [...center(outputPath, 4.4)],
+    composite: await composite.evaluate((node) => {
+      const video = node as HTMLVideoElement;
+      return {
+        currentTime: video.currentTime, duration: video.duration,
+        readyState: video.readyState, seeking: video.seeking,
+        videoWidth: video.videoWidth, videoHeight: video.videoHeight,
+        visibility: video.style.visibility,
+        decodedFrames: video.getVideoPlaybackQuality?.().totalVideoFrames ?? null,
+        src: video.currentSrc.replace(/_preview\\/[^/]+$/, "_preview/[token]"),
+      };
+    }),
+  }));
   for (let channel = 0; channel < 3; channel++) {
     expect(Math.abs(boundaryRgb[channel] - boundaryExportRgb[channel]),
       "paused native seam vs independently rendered FFmpeg export RGB channel " + channel,
