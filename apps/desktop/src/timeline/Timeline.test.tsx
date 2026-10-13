@@ -95,9 +95,22 @@ describe("Timeline", () => {
     const projectStore = createProjectStore();
     const transientStore = createTransientStore();
     const executeEditCommand = vi.fn();
+    const fixture = sequence();
+    projectStore.applySnapshot({
+      revision: 12,
+      project: {
+        id: "project-1", name: "Fixture",
+        settings: {
+          default_sequence_width: 1920,
+          default_sequence_height: 1080,
+          default_sequence_fps: 30,
+        },
+        media: [], sequences: [fixture],
+      },
+    });
     render(
       <Timeline
-        sequence={sequence()}
+        sequence={fixture}
         projectStore={projectStore}
         transientStore={transientStore}
         executeEditCommand={executeEditCommand}
@@ -119,7 +132,7 @@ describe("Timeline", () => {
     expect(screen.getByRole("alert")).toBeTruthy();
     expect(transientStore.getState().playheadTimeUs).toBe(5_500_000);
     expect(executeEditCommand).not.toHaveBeenCalled();
-    expect(projectStore.getState().revision).toBe(0);
+    expect(projectStore.getState().revision).toBe(12);
   });
 
 
