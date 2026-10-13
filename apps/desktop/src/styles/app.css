@@ -455,6 +455,7 @@ button {
   border-bottom: 1px solid var(--border-soft);
   background: #0b1016;
   cursor: crosshair;
+  touch-action: none;
 }
 
 .timeline-ruler-interactive:focus-visible {
