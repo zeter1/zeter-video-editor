@@ -1,3 +1,13 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003o NATIVE PAUSED SEAM / alpha.19 (DRAFT, NOT MERGED)
+
+- **CURRENT PR / BASE:** [#78](https://github.com/zeter1/zeter-video-editor/pull/78) is OPEN DRAFT on `feat/preview-adjacent-prefetch-alpha19-20261013` (desktop source 0.1.0-alpha.19); main `edf2fc59e8ca970d03b7b93750ea71820f717866` remains 0.1.0-alpha.18. No release, signing or owner-PC installation.
+- **OBSERVED FAIL:** [Windows CI #38458991912](https://github.com/zeter1/zeter-video-editor/actions/runs/38458991912) on `52a1519e619185ac5fc302928e95bcc9e242636c` COMPLETED FAILURE. Rust and frontend build, version policy, 170 Vitest and 20 native WebView2 E2E passed before the 4.2-second seam. Native VIDEO, screenshot and Canvas drawImage all read [125,125,127] while independently exported FFmpeg [231,231,18] and canonical two-second cache [237,230,19] agreed. rVFC mediaTime=0.2/currentTime=0.2/readyState=4 do **not** prove pixel correctness; DEBUG NSIS was skipped. No lowering of RGB ≤35 gate.
+- **ROOT HYPOTHESIS / CODE CHANGE:** Native instrumentation captured **two seeking events** for each single requested paused frame (including at 4.2s). The effect set `currentTime` before metadata, then an unconditional `onLoadedMetadata` assignment retriggered an identical native seek, racing the presented frame. The handler now skips redundant seek if the requested position already matches, with Vitest covering both duplicate prevention and metadata arriving before initial seek. This is a suspected cause, NOT YET proven by native parity.
+- **ACCEPTANCE:** Full exact-final-head Windows CI: version/fmt/Rust with pinned FFmpeg, TypeScript/Vitest, native WebView2 RGB parity at 0.4 and 4.2s against independent FFmpeg, remaining native E2E and DEBUG NSIS must all be COMPLETED SUCCESS. Self-review and squash merge only then, followed by main CI. Never claim canvas/video parity from timestamps alone.
+- **NEXT PRODUCT-CODE TASK:** Finish THIS same ZVE-003o PR: read exact-head CI after duplicate-seek fix, inspect native RGB and event logs. If still failing, isolate decoded data vs the custom stream/codec rather than suppressing oracle; repair and retest. Only after merge tackle continuous live FFmpeg A/V composite with clock/prebuffer/parity.
+
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003o ADJACENT PAUSED COMPOSITE PREFETCH / alpha.19 (PR #78 DRAFT, WINDOWS CI GATE)
 
 - **Сценарий:** остановленный Preview при наличии двух движущихся видеодорожек заранее рендерит следующее FFmpeg-окно и переиспользует его opaque token при переходе 3.6→4.2с, не меняя Rust EditCommand/Undo/Redo, .vcut v2, исходники и экспорт. Rust поддерживает максимум два независимых leases; отказ prefetch сохраняет direct fallback.

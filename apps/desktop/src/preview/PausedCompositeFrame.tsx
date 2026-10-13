@@ -174,7 +174,13 @@ export function PausedCompositeFrame({
             presented.timeUs === playheadTimeUs ? "visible" : "hidden" }}
           onLoadedMetadata={() => {
             watchPresentedFrame();
-            if (video.current) video.current.currentTime = Math.max(0, targetSeconds);
+            // The effect may already have started this seek before metadata.
+            // Setting even the same currentTime again causes a second native
+            // seeking event and can race paused WebView2 frame presentation.
+            const node = video.current;
+            if (node && Math.abs(node.currentTime - targetSeconds) > 0.0005) {
+              node.currentTime = Math.max(0, targetSeconds);
+            }
           }}
           onLoadedData={watchPresentedFrame}
           onSeeked={watchPresentedFrame}

@@ -112,6 +112,27 @@ describe("opaque cached FFmpeg paused Preview", () => {
     unmount();
   });
 
+  it("does not restart a native seek when metadata arrives after the correct target", async () => {
+    invoke.mockImplementation(async (command: string) => command === "request_preview_chunk"
+      ? { token: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        start_us: 4_000_000, end_us: 8_000_000 }
+      : null);
+    render(<PausedCompositeFrame {...props} playheadTimeUs={4_200_000} />);
+    const current = await screen.findByLabelText("Точный FFmpeg кадр") as HTMLVideoElement;
+    let position = 0.2;
+    const seeks: number[] = [];
+    Object.defineProperty(current, "currentTime", {
+      configurable: true,
+      get: () => position,
+      set: (value: number) => { seeks.push(value); position = value; },
+    });
+    fireEvent.loadedMetadata(current);
+    expect(seeks).toEqual([]); // initial effect's seek must not be restarted
+    position = 0; // metadata can also arrive before an initial seek
+    fireEvent.loadedMetadata(current);
+    expect(seeks).toEqual([0.2]);
+  });
+
   it("discards a late response after project revision changes", async () => {
     let resolveOld!: (result: unknown) => void;
     invoke.mockImplementation((command: string, args?: { expectedRevision?: number }) => {
