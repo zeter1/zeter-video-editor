@@ -1,4 +1,5 @@
 import type { Clip, Sequence } from "../generated/ipc";
+import { seekByFrames } from "../timeline/frameSeek";
 
 // A seek, pause or load can intentionally interrupt a pending native play().
 // This is not a codec error and should not alarm the editor user.
@@ -18,6 +19,30 @@ export function sequencePlayableEndUs(sequence: Sequence): number {
     }
   }
   return end;
+}
+
+/**
+ * Preview's previous/next-frame buttons use the same integer frame grid as
+ * the timeline ruler. A terminal clip boundary need not lie on that grid:
+ * advancing from the final full frame may land on the exact authored end,
+ * while stepping backward from an off-grid end selects the final full frame.
+ */
+export function stepPreviewFrame(
+  timeUs: number,
+  fps: number,
+  direction: -1 | 1,
+  endUs: number,
+): number {
+  const gridTargetUs = seekByFrames(timeUs, fps, direction, endUs);
+  if (direction === 1 && timeUs < endUs && gridTargetUs <= timeUs) {
+    return endUs;
+  }
+  if (direction === -1 && timeUs === endUs && endUs > 0) {
+    const lastFrameIndex = Math.floor(endUs / 1_000_000 * fps);
+    const lastFrameUs = Math.round(lastFrameIndex / fps * 1_000_000);
+    if (lastFrameUs < endUs) return lastFrameUs;
+  }
+  return gridTargetUs;
 }
 
 // A WebView2 tab can suspend animation callbacks while hidden. Do not convert
