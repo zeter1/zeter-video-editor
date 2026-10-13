@@ -1,0 +1,37 @@
+name: Format bounded FFprobe cache (temporary)
+on:
+  push:
+    branches: [feat/preview-cache-safe-chunk-alpha17-20261013]
+permissions:
+  contents: write
+jobs:
+  format:
+    if: "!contains(github.event.head_commit.message, '[ffprobe-formatted]')"
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+      - name: Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.99.0 --profile minimal
+          rustup component add --toolchain 1.99.0 rustfmt
+          rustup override set 1.99.0
+      - name: Canonical Rust formatting and check-version
+        shell: pwsh
+        run: |
+          cargo fmt --all
+          cargo fmt --all -- --check
+          node scripts/check-version.mjs
+      - name: Commit formatting only when changed
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/media-engine/src/preview_cache.rs
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "style(preview): format bounded ffprobe runner [ffprobe-formatted]"
+            git push
+          }
