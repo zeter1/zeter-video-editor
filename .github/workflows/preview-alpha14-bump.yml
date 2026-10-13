@@ -1,0 +1,34 @@
+name: Temporary alpha14 version synchronization
+on:
+  push:
+    branches:
+      - feat/preview-two-moving-layers-alpha14-20261013
+permissions:
+  contents: write
+concurrency:
+  group: temporary-preview-alpha14-version
+  cancel-in-progress: true
+jobs:
+  bump:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Create canonical next alpha version
+        run: |
+          node scripts/check-version.mjs
+          node scripts/set-version.mjs 0.1.0-alpha.14 --date 2026-10-13 --note "Предпросмотр показывает два одновременно движущихся слоя вместо одного, не меняя экспорт или исходники."
+          node scripts/check-version.mjs
+      - name: Commit synchronized manifests and changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/desktop/package.json apps/desktop/package-lock.json apps/desktop/src-tauri/tauri.conf.json apps/desktop/src-tauri/Cargo.toml Cargo.lock release/runtime-manifest.json README.md PROJECT_STATUS.md CHANGELOG.md
+          git commit -m "chore(version): bump desktop to alpha.14 using canonical script"
+          git push origin "HEAD:${{ github.ref_name }}"
