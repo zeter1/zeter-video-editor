@@ -80,6 +80,41 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
 
   await invokeTauri(page, "project_open", { path: disposableProject });
   await page.reload();
+  // Record only synthetic-test WebView2 presentation metadata. This does not
+  // change the native video callbacks, thresholds, app code, or source paths.
+  await page.evaluate(() => {
+    type FrameEvent = { kind: string; mediaTime?: number; currentTime: number;
+      readyState: number; seeking: boolean; duration: number; decodedFrames: number | null };
+    const state = window as Window & { __previewFrames?: FrameEvent[]; __previewRvfCSupported?: boolean };
+    const events: FrameEvent[] = [];
+    state.__previewFrames = events;
+    state.__previewRvfCSupported = typeof HTMLVideoElement.prototype.requestVideoFrameCallback === "function";
+    const snap = (node: HTMLVideoElement, kind: string, mediaTime?: number) => {
+      if (!node.classList.contains("preview-ffmpeg-composite")) return;
+      events.push({
+        kind, mediaTime, currentTime: node.currentTime, readyState: node.readyState,
+        seeking: node.seeking, duration: node.duration,
+        decodedFrames: node.getVideoPlaybackQuality?.().totalVideoFrames ?? null,
+      });
+      if (events.length > 70) events.splice(0, events.length - 70);
+    };
+    for (const kind of ["loadedmetadata", "loadeddata", "seeking", "seeked", "error"]) {
+      document.addEventListener(kind, (event) => {
+        if (event.target instanceof HTMLVideoElement) snap(event.target, kind);
+      }, true);
+    }
+    const prototype = HTMLVideoElement.prototype;
+    const request = prototype.requestVideoFrameCallback;
+    if (typeof request === "function") {
+      prototype.requestVideoFrameCallback = function (callback) {
+        snap(this, "request");
+        return request.call(this, (now, metadata) => {
+          snap(this, "presented", metadata.mediaTime);
+          callback(now, metadata);
+        });
+      };
+    }
+  });
   const before = await invokeTauri<unknown>(page, "project_snapshot");
 
   const scrub = async (seconds: number) => {
@@ -194,7 +229,20 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
     // A missing overlay may be a failed render, an unexpected transport state,
     // or a terminated WebView2; do not silently skip RGB parity.
     try {
-      console.log("[WebView2 seam diagnostics]", await page.evaluate(() => ({
+      console.log("[WebView2 seam presentation]", await page.evaluate(() => {
+      const state = window as Window & { __previewFrames?: unknown[]; __previewRvfCSupported?: boolean };
+      const node = document.querySelector("video.preview-ffmpeg-composite") as HTMLVideoElement | null;
+      return {
+        supported: state.__previewRvfCSupported,
+        events: state.__previewFrames,
+        video: node ? {
+          currentTime: node.currentTime, seeking: node.seeking, readyState: node.readyState,
+          duration: node.duration, visibility: node.style.visibility,
+          frames: node.getVideoPlaybackQuality?.().totalVideoFrames ?? null,
+        } : null,
+      };
+    }));
+    console.log("[WebView2 seam diagnostics]", await page.evaluate(() => ({
         displayedTime: document.querySelector(".timecode")?.textContent ?? null,
         noticeCount: document.querySelectorAll(".preview-composite-notice").length,
         directVideoCount: document.querySelectorAll("video.preview-media:not(.preview-ffmpeg-composite)").length,
