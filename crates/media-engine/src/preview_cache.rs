@@ -42,7 +42,8 @@ pub fn lookup_preview_cache(path: &Path) -> Result<Option<PathBuf>, MediaError> 
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(source) => return Err(cache_io(path, source)),
     };
-    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > MAX_CHUNK_BYTES {
+    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > MAX_CHUNK_BYTES
+    {
         return Ok(None);
     }
     let mut file = File::open(path).map_err(|source| cache_io(path, source))?;
@@ -56,7 +57,10 @@ pub fn lookup_preview_cache(path: &Path) -> Result<Option<PathBuf>, MediaError> 
 }
 
 fn cache_io(path: &Path, source: io::Error) -> MediaError {
-    MediaError::CacheIo { path: path.to_path_buf(), source }
+    MediaError::CacheIo {
+        path: path.to_path_buf(),
+        source,
+    }
 }
 
 /// Test seam: native builds always use FFprobe; tests can model an invalid or
@@ -108,7 +112,13 @@ impl<R: ExportRunner, P: ChunkProbe> PreviewChunkCache<R, P> {
         runner: R,
         probe: P,
     ) -> Self {
-        Self { cache_root, runtime, runner, probe, gate: Arc::new(Mutex::new(())) }
+        Self {
+            cache_root,
+            runtime,
+            runner,
+            probe,
+            gate: Arc::new(Mutex::new(())),
+        }
     }
 
     /// A single bounded, half-open output interval. Caller passes an immutable
@@ -141,21 +151,35 @@ impl<R: ExportRunner, P: ChunkProbe> PreviewChunkCache<R, P> {
             .file_type()
             .is_symlink()
         {
-            return Err(MediaError::InvalidPreviewChunk { reason: "cache directory is a symlink" });
+            return Err(MediaError::InvalidPreviewChunk {
+                reason: "cache directory is a symlink",
+            });
         }
         let output = directory.join(format!("{key}.mp4"));
         // Even an existing cache hit must satisfy the same FFmpeg window bound.
         let _ = build_preview_chunk_spec(
-            &self.runtime, plan, EncoderKind::Libx264, &output, range.start, range.end,
+            &self.runtime,
+            plan,
+            EncoderKind::Libx264,
+            &output,
+            range.start,
+            range.end,
         )?;
-        let _guard = self.gate.lock().map_err(|_| cache_io(
-            &directory, io::Error::other("preview render gate poisoned"),
-        ))?;
+        let _guard = self
+            .gate
+            .lock()
+            .map_err(|_| cache_io(&directory, io::Error::other("preview render gate poisoned")))?;
         if cancel.is_cancelled() {
             return Err(MediaError::Cancelled);
         }
         if self.valid_chunk(&output, plan, range)? {
-            return Ok(PreviewChunk { key, path: output, start: range.start, end: range.end, reused: true });
+            return Ok(PreviewChunk {
+                key,
+                path: output,
+                start: range.start,
+                end: range.end,
+                reused: true,
+            });
         }
         if fs::symlink_metadata(&output).is_ok() {
             fs::remove_file(&output).map_err(|source| cache_io(&output, source))?;
@@ -163,12 +187,18 @@ impl<R: ExportRunner, P: ChunkProbe> PreviewChunkCache<R, P> {
         prune_project_cache(&directory, None)?;
         let temp = directory.join(format!(
             ".{key}.{}.{}.part.mp4",
-            std::process::id(), TEMP_NONCE.fetch_add(1, Ordering::Relaxed),
+            std::process::id(),
+            TEMP_NONCE.fetch_add(1, Ordering::Relaxed),
         ));
 
         let result = (|| {
             let mut spec = build_preview_chunk_spec(
-                &self.runtime, plan, EncoderKind::Libx264, &temp, range.start, range.end,
+                &self.runtime,
+                plan,
+                EncoderKind::Libx264,
+                &temp,
+                range.start,
+                range.end,
             )?;
             // FFmpeg -fs is output-side and bounds temporary disk allocation.
             let output_arg = spec.args.pop().expect("FFmpeg output argument");
@@ -191,22 +221,35 @@ impl<R: ExportRunner, P: ChunkProbe> PreviewChunkCache<R, P> {
                 return Err(MediaError::Cancelled);
             }
             if child.is_cancelled() {
-                return Err(MediaError::InvalidPreviewChunk { reason: "preview render timed out" });
+                return Err(MediaError::InvalidPreviewChunk {
+                    reason: "preview render timed out",
+                });
             }
             run_result?;
             if !self.valid_chunk(&temp, plan, range)? {
-                return Err(MediaError::InvalidCacheArtifact { artifact: "preview MP4", path: temp.clone() });
+                return Err(MediaError::InvalidCacheArtifact {
+                    artifact: "preview MP4",
+                    path: temp.clone(),
+                });
             }
             // If a source changed during a render, discard its stale output.
             if self.cache_identity(plan, range)? != key {
-                return Err(MediaError::InvalidPreviewChunk { reason: "source changed during preview render" });
+                return Err(MediaError::InvalidPreviewChunk {
+                    reason: "source changed during preview render",
+                });
             }
             if cancel.is_cancelled() {
                 return Err(MediaError::Cancelled);
             }
             fs::rename(&temp, &output).map_err(|source| cache_io(&output, source))?;
             prune_project_cache(&directory, Some(&output))?;
-            Ok(PreviewChunk { key, path: output, start: range.start, end: range.end, reused: false })
+            Ok(PreviewChunk {
+                key,
+                path: output,
+                start: range.start,
+                end: range.end,
+                reused: false,
+            })
         })();
         // A failed render, FFprobe validation or cancellation never leaves a
         // half-finished canonical .mp4 entry in the cache.
@@ -226,8 +269,12 @@ impl<R: ExportRunner, P: ChunkProbe> PreviewChunkCache<R, P> {
         hash.update(plan.project_id.get().as_bytes());
         hash.update(format!("{plan:?}").as_bytes());
         let base = preview_cache_key(
-            plan.sequence_id, plan.captured_revision, range, PreviewQuality::Full,
-            &format!("{:?}", plan.settings), &self.runtime.build_identity,
+            plan.sequence_id,
+            plan.captured_revision,
+            range,
+            PreviewQuality::Full,
+            &format!("{:?}", plan.settings),
+            &self.runtime.build_identity,
         );
         hash.update(base.as_str().as_bytes());
         for source in &plan.sources {
@@ -241,8 +288,13 @@ impl<R: ExportRunner, P: ChunkProbe> PreviewChunkCache<R, P> {
             let canonical = fs::canonicalize(path).map_err(|source| cache_io(path, source))?;
             hash.update(canonical.to_string_lossy().as_bytes());
             hash.update(metadata.len().to_le_bytes());
-            let modified = metadata.modified().map_err(|source| cache_io(path, source))?;
-            let nanos = modified.duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+            let modified = metadata
+                .modified()
+                .map_err(|source| cache_io(path, source))?;
+            let nanos = modified
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
             hash.update(nanos.to_le_bytes());
         }
         let digest = hash.finalize();
@@ -291,26 +343,41 @@ fn prune_project_cache(directory: &Path, retain: Option<&Path>) -> Result<(), Me
     for item in fs::read_dir(directory).map_err(|source| cache_io(directory, source))? {
         let item = item.map_err(|source| cache_io(directory, source))?;
         let path = item.path();
-        let Some(name) = path.file_name().and_then(|name| name.to_str()) else { continue };
-        if name.len() != 68 || !name.ends_with(".mp4")
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if name.len() != 68
+            || !name.ends_with(".mp4")
             || !name[..64].bytes().all(|byte| byte.is_ascii_hexdigit())
         {
             continue;
         }
         let metadata = fs::symlink_metadata(&path).map_err(|source| cache_io(&path, source))?;
-        if !metadata.is_file() || metadata.file_type().is_symlink() { continue; }
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            continue;
+        }
         total = total.saturating_add(metadata.len());
-        entries.push((path, metadata.len(), metadata.modified().unwrap_or(UNIX_EPOCH)));
+        entries.push((
+            path,
+            metadata.len(),
+            metadata.modified().unwrap_or(UNIX_EPOCH),
+        ));
     }
     entries.sort_by_key(|entry| entry.2);
     for (path, bytes, _) in entries {
-        if total <= MAX_PROJECT_BYTES { break; }
-        if retain.is_some_and(|keep| keep == path) { continue; }
+        if total <= MAX_PROJECT_BYTES {
+            break;
+        }
+        if retain.is_some_and(|keep| keep == path) {
+            continue;
+        }
         fs::remove_file(&path).map_err(|source| cache_io(&path, source))?;
         total = total.saturating_sub(bytes);
     }
     if total > MAX_PROJECT_BYTES {
-        return Err(MediaError::InvalidPreviewChunk { reason: "project preview cache budget exceeded" });
+        return Err(MediaError::InvalidPreviewChunk {
+            reason: "project preview cache budget exceeded",
+        });
     }
     Ok(())
 }
