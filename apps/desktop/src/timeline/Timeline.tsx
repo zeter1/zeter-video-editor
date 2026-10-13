@@ -21,6 +21,7 @@ import {
 import { followPlayheadScrollLeft } from "./followPlayhead";
 import { commitTimelineCommand } from "./interaction";
 import { MarkerLayer } from "./MarkerLayer";
+import { TimecodeInput } from "./TimecodeInput";
 import { contentPixelToTimeUs, timeUsToPixel } from "./timeScale";
 import { TrackView } from "./TrackView";
 
@@ -160,6 +161,9 @@ export function Timeline({
   );
   const previousMarkerTimeUs = adjacentMarkerTime(sequence.markers, transient.playheadTimeUs, -1);
   const nextMarkerTimeUs = adjacentMarkerTime(sequence.markers, transient.playheadTimeUs, 1);
+  // Bound typed seeks to authored content + the existing ruler tail: an
+  // arbitrarily large timecode must not create millions of ruler DOM ticks.
+  const seekLimitUs = Math.max(MIN_TIMELINE_DURATION_US, sequenceContentEndUs(sequence)) + RULER_STEP_US;
   const endUs = timelineEndUs(sequence, transient.playheadTimeUs);
   const contentWidth =
     TIMELINE_TRACK_HEADER_WIDTH_PX +
@@ -282,9 +286,16 @@ export function Timeline({
         <button type="button" onClick={addMarker}>
           + Маркер
         </button>
-        <span>
-          Курсор {(transient.playheadTimeUs / 1_000_000).toFixed(2)} с
-        </span>
+        <TimecodeInput
+          key={sequence.id}
+          fps={sequence.fps}
+          timeUs={transient.playheadTimeUs}
+          maxTimeUs={seekLimitUs}
+          disabled={Boolean(transient.drag)}
+          onSeek={(timeUs) => {
+            if (!transientStore.getState().drag) transientStore.setPlayheadTime(timeUs);
+          }}
+        />
         <label>
           Масштаб
           <input

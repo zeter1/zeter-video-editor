@@ -1,3 +1,13 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003d FRAME-TIMECODE SEEK (PR pending)
+
+- **USER-VISIBLE RESULT:** Timeline toolbar adds a Russian-labeled HH:MM:SS:FF timecode input with exact non-drop frame seek on Enter. Focused drafts do not jump with playback, invalid/out-of-range input announces an error, Escape/blur cancel. FPS nominal labels round against real FPS including fractional rates. Seek limit: maximum of authored sequence end and default 30 s, plus 5 s ruler tail; prevents excessive ruler ticks.
+- **SAFETY:** Only transient playhead time; no Rust edit, revision, Undo/Redo, .vcut/media mutation, FFmpeg, AI or export change. Field disabled during timeline drag and keyed by sequence ID to reset drafts on sequence switches.
+- **BASE:** main `a868873d9b78011493e56213175f1566d76cb4f6` / source version 0.1.0-alpha.7; branch `feat/timeline-timecode-alpha8-20261013`. Existing stacked draft PR #36/#38 used as reference only, not merged.
+- **ACCEPTANCE:** React/Vitest timecode, component and Timeline integration; actual Windows Tauri/WebView2 main workflow verifies transient seek, invalid timecode, revision unchanged. Run full exact-HEAD Windows CI and review before permitted merge; no manual user-PC QA or signed release.
+- **NEXT FIRST ACTION:** Check current branch PR and CI on exact HEAD; if green review and merge; otherwise diagnose before claiming completion. Synchronize Google task checkpoint with actual outcome.
+
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003c ADJACENT MARKER NAVIGATION (PR #66 DRAFT)
 
 - **USER-VISIBLE RESULT:** Timeline toolbar offers «Предыдущий маркер» and «Следующий маркер» with Shift+M / Ctrl+Shift+M (physical KeyM on Russian layouts). Jumps to nearest strictly earlier/later distinct marker timestamp regardless of marker array order; zero-time and endpoints are safe. Buttons disable without a destination. Focus, text input, dialogs, IME, repeats, modifiers, and dragging are guarded.
