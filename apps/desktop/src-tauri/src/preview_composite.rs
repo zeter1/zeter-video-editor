@@ -515,8 +515,10 @@ mod tests {
         let (_, new_cancel, _) = service
             .begin(project, second, PathBuf::from("unused-cache"), runtime)
             .unwrap();
-        assert!(old_cancel.is_cancelled());
+        // Both adjacent windows stay alive until their own request retires.
+        assert!(!old_cancel.is_cancelled());
         service.cancel_request(first).unwrap();
+        assert!(old_cancel.is_cancelled());
         assert!(!new_cancel.is_cancelled());
         service.cancel_request(second).unwrap();
         assert!(new_cancel.is_cancelled());
