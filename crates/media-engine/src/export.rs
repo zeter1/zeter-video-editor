@@ -283,7 +283,11 @@ pub fn build_preview_chunk_spec(
         });
     }
     Ok(build_export_spec_with_window(
-        runtime, plan, encoder, output, Some((start, end)),
+        runtime,
+        plan,
+        encoder,
+        output,
+        Some((start, end)),
     ))
 }
 
