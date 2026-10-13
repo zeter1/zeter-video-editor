@@ -189,6 +189,26 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   // Keyboard zoom is timeline-only. The playhead must not move.
   const zoomInput = page.getByRole("slider", { name: "Масштаб таймлайна" });
   await expect(zoomInput).toHaveValue("1");
+  const zoomTimecode = page.getByRole("textbox", { name: "Таймкод" });
+  await zoomTimecode.fill("00:00:03:00");
+  await zoomTimecode.press("Enter");
+  const zoomPlayhead = page.getByRole("slider", { name: "Timeline playhead" });
+  await expect(zoomPlayhead).toHaveAttribute("aria-valuenow", "3000000");
+  const playheadScreenX = () => page.locator(".timeline-playhead").evaluate((element) => {
+    const scroller = element.closest(".timeline-scroll");
+    if (!scroller) throw new Error("timeline scroll is missing");
+    return element.getBoundingClientRect().left - scroller.getBoundingClientRect().left;
+  });
+  const beforeZoomX = await playheadScreenX();
+  await zoomInput.focus();
+  await zoomInput.press("ArrowRight");
+  await expect(zoomInput).toHaveValue("1.25");
+  await expect.poll(async () => Math.abs((await playheadScreenX()) - beforeZoomX))
+    .toBeLessThanOrEqual(1);
+  await expect(zoomPlayhead).toHaveAttribute("aria-valuenow", "3000000");
+  await expectRevision(page, revision);
+  await zoomInput.press("ArrowLeft");
+  await expect(zoomInput).toHaveValue("1");
   await page.keyboard.press("Shift+=");
   await expect(zoomInput).toHaveValue("1.25");
   await page.keyboard.press("-");
