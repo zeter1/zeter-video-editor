@@ -148,6 +148,48 @@ describe("Timeline", () => {
     });
   });
 
+  it("seeks when the marker is clicked, and only the explicit delete control edits Rust state", async () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    projectStore.applySnapshot({
+      revision: 4,
+      project: {
+        id: "project-1", name: "Fixture",
+        settings: {
+          default_sequence_width: 1920,
+          default_sequence_height: 1080,
+          default_sequence_fps: 30,
+        },
+        media: [], sequences: [sequence()],
+      },
+    });
+    const executeEditCommand = vi.fn().mockResolvedValue(success(5));
+    render(
+      <Timeline
+        sequence={sequence()}
+        projectStore={projectStore}
+        transientStore={transientStore}
+        executeEditCommand={executeEditCommand}
+        reconcileCommandResult={vi.fn().mockResolvedValue("refreshed")}
+        requestIdFactory={() => "request-1"}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Перейти к маркеру Beat" }));
+    expect(transientStore.getState().playheadTimeUs).toBe(1_500_000);
+    expect(projectStore.getState().revision).toBe(4);
+    expect(executeEditCommand).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить маркер Beat" }));
+    await vi.waitFor(() => expect(executeEditCommand).toHaveBeenCalledWith({
+      request_id: "request-1",
+      expected_revision: 4,
+      command: {
+        RemoveMarker: { sequence_id: "sequence-1", marker_id: "marker-1" },
+      },
+    }));
+  });
+
   it("keeps pointer movement transient until pointer-up commits exactly one MoveClip", async () => {
     const projectStore = createProjectStore();
     const transientStore = createTransientStore();

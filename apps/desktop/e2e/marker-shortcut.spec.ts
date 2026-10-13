@@ -48,3 +48,47 @@ test("M adds an undoable marker through native Rust in WebView2", async () => {
     (await invokeTauri<Snapshot>(page, "project_snapshot")).project.sequences[0].markers.length,
   ).toBe(markersBefore.length + 1);
 });
+
+test("marker click seeks without deleting; explicit removal is undoable in native Rust", async () => {
+  const { page, state } = await connectTauri();
+  await invokeTauri(page, "project_open", { path: state.importProjectPath });
+  await page.reload();
+  const ruler = page.getByRole("slider", { name: "Timeline playhead" });
+  await ruler.focus();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  const markerTime = Number(await ruler.getAttribute("aria-valuenow"));
+  const before = await invokeTauri<Snapshot>(page, "project_snapshot");
+  await page.keyboard.press("m");
+  await expect.poll(async () =>
+    (await invokeTauri<Snapshot>(page, "project_snapshot")).revision,
+  ).toBe(before.revision + 1);
+
+  const snapshot = await invokeTauri<Snapshot>(page, "project_snapshot");
+  const marker = snapshot.project.sequences[0].markers.find((item) =>
+    !before.project.sequences[0].markers.some((old) => old.id === item.id),
+  );
+  expect(marker).toBeDefined();
+  expect(marker?.time).toBe(markerTime);
+
+  await ruler.focus();
+  await page.keyboard.press("Home");
+  await expect(ruler).toHaveAttribute("aria-valuenow", "0");
+
+  await page.getByRole("button", { name: `Перейти к маркеру ${marker!.label}` }).click();
+  await expect(ruler).toHaveAttribute("aria-valuenow", String(markerTime));
+  const afterSeek = await invokeTauri<Snapshot>(page, "project_snapshot");
+  expect(afterSeek.revision).toBe(snapshot.revision);
+  expect(afterSeek.project.sequences[0].markers).toEqual(snapshot.project.sequences[0].markers);
+
+  await page.getByRole("button", { name: `Удалить маркер ${marker!.label}` }).click();
+  await expect.poll(async () =>
+    (await invokeTauri<Snapshot>(page, "project_snapshot")).project.sequences[0].markers
+      .some((item) => item.id === marker!.id),
+  ).toBe(false);
+  await page.keyboard.press("Control+z");
+  await expect.poll(async () =>
+    (await invokeTauri<Snapshot>(page, "project_snapshot")).project.sequences[0].markers
+      .some((item) => item.id === marker!.id),
+  ).toBe(true);
+});

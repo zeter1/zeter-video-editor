@@ -1,3 +1,15 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003b SAFE TIMELINE MARKERS (PR #65 DRAFT)
+
+- **PRODUCT RESULT:** Clicking a marker pin/label no longer deletes it. The click seeks only the transient playhead to the marker's exact microsecond time without a Rust edit or revision; a separate keyboard-accessible Russian «Удалить маркер …» control issues the original revisioned `RemoveMarker`, undoable via Rust Undo/Redo.
+- **SCOPE:** `apps/desktop/src/timeline/MarkerLayer.tsx`, `Timeline.tsx`, `src/styles/app.css`, `Timeline.test.tsx`, `e2e/marker-shortcut.spec.ts`; tests and version docs. No Rust Core, `.vcut v2`, media, preview rendering or FFmpeg export changes.
+- **BASE / DELIVERY:** main `f1b310c8f842c13377c9d0cf794b9e2c17304825`, branch `feat/timeline-marker-safe-navigation-alpha6-20261012`, draft https://github.com/zeter1/zeter-video-editor/pull/65; not in main.
+- **VERSION:** `0.1.0-alpha.5` → `0.1.0-alpha.6` through the actual `node scripts/set-version.mjs` in a GitHub Actions checkout; version and release policy checks passed in https://github.com/zeter1/zeter-video-editor/actions/runs/38338043376. This is not a release. The temporary branch-scoped workflow used for that command must be removed before merge; no existing CI gates are changed.
+- **OBSERVED CI:** First Windows PR check https://github.com/zeter1/zeter-video-editor/actions/runs/38302734496 (HEAD `63d5742ea7b6fb48245093647fed244f9f377012`) failed after both marker native E2Es and Vitest succeeded: unrelated real WebView2 2x A/V backward scrub yielded no usable measurements for 12 s (Infinity); following transport test could not connect to CDP. No threshold was relaxed. Diagnostic retry attempt 2 was cancelled when branch advanced. Final exact-HEAD Windows acceptance, NSIS and manual owner-PC QA still unverified.
+- **GATE:** Review final diff and full Windows final-HEAD CI; investigate any native A/V recurrence (don't label flaky without evidence). Keep draft/unmerged until mandatory gates pass. No signed installer/tag/release.
+- **NEXT FIRST ACTION:** Check PR #65 current HEAD and corresponding full Windows CI conclusion; if green, complete diff review and merge, then verify main and post-merge CI. If red, diagnose actual failing step on its SHA.
+
+---
+
 # VERIFIED MAIN CHECKPOINT — 2026-10-12 — MARKER HOTKEY M / alpha.5 (PR #64 MERGED)
 
 - **ONE COMPLETED PRODUCT TASK (ZVE-003a):** Unmodified M or physical KeyM under Russian layout (ь) creates a timeline marker at the playhead without selecting a clip. Uses existing revisioned Rust AddMarker and Rust Undo/Redo; both toolbar and keyboard create «Маркер N».
@@ -559,7 +571,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.5` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.6` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
