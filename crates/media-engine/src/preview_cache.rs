@@ -100,7 +100,10 @@ fn bounded_probe(runtime: &ManagedRuntime, path: &Path) -> Result<MediaProbe, Me
     let stderr = child.stderr.take().expect("piped ffprobe stderr");
     let out_reader = thread::spawn(move || {
         let mut bytes = Vec::new();
-        stdout.take(MAX_PROBE_JSON_BYTES + 1).read_to_end(&mut bytes).map(|_| bytes)
+        stdout
+            .take(MAX_PROBE_JSON_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map(|_| bytes)
     });
     let err_reader = thread::spawn(move || {
         let mut bytes = Vec::new();
@@ -121,29 +124,43 @@ fn bounded_probe(runtime: &ManagedRuntime, path: &Path) -> Result<MediaProbe, Me
         let _ = child.kill();
         let _ = child.wait();
     }
-    let stdout = out_reader.join().map_err(|_| MediaError::InvalidCacheArtifact {
-        artifact: "ffprobe stdout",
-        path: path.to_path_buf(),
-    })?.map_err(|source| MediaError::ProcessIo {
-        program: spec.program.clone(), operation: "read bounded ffprobe stdout", source,
-    })?;
-    let stderr = err_reader.join().map_err(|_| MediaError::InvalidCacheArtifact {
-        artifact: "ffprobe stderr",
-        path: path.to_path_buf(),
-    })?.map_err(|source| MediaError::ProcessIo {
-        program: spec.program.clone(), operation: "read bounded ffprobe stderr", source,
-    })?;
+    let stdout = out_reader
+        .join()
+        .map_err(|_| MediaError::InvalidCacheArtifact {
+            artifact: "ffprobe stdout",
+            path: path.to_path_buf(),
+        })?
+        .map_err(|source| MediaError::ProcessIo {
+            program: spec.program.clone(),
+            operation: "read bounded ffprobe stdout",
+            source,
+        })?;
+    let stderr = err_reader
+        .join()
+        .map_err(|_| MediaError::InvalidCacheArtifact {
+            artifact: "ffprobe stderr",
+            path: path.to_path_buf(),
+        })?
+        .map_err(|source| MediaError::ProcessIo {
+            program: spec.program.clone(),
+            operation: "read bounded ffprobe stderr",
+            source,
+        })?;
     let status = match outcome {
         Ok(Some(status)) => status,
-        Ok(None) => return Err(MediaError::InvalidCacheArtifact {
-            artifact: "ffprobe timed out",
-            path: path.to_path_buf(),
-        }),
-        Err(source) => return Err(MediaError::ProcessIo {
-            program: spec.program,
-            operation: "wait for bounded ffprobe",
-            source,
-        }),
+        Ok(None) => {
+            return Err(MediaError::InvalidCacheArtifact {
+                artifact: "ffprobe timed out",
+                path: path.to_path_buf(),
+            });
+        }
+        Err(source) => {
+            return Err(MediaError::ProcessIo {
+                program: spec.program,
+                operation: "wait for bounded ffprobe",
+                source,
+            });
+        }
     };
     if !status.success() {
         return Err(status_error(
