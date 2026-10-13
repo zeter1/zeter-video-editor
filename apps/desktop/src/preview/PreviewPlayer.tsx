@@ -1,8 +1,9 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 
-import type { Clip, MediaRef, Sequence, Track, TrackId } from "../generated/ipc";
+import type { Clip, MediaRef, ProjectId, ProjectRevision, Sequence, Track, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
+import { PausedCompositeFrame } from "./PausedCompositeFrame";
 import { PreviewAudioTracks, previewAudioVolume } from "./PreviewAudioTracks";
 import { adjacentEditBoundaryUs, collectEditBoundariesUs } from "./editNavigation";
 import {
@@ -21,6 +22,8 @@ type PreviewScale = "Fit" | "100%";
 
 interface PreviewPlayerProps {
   sequence: Sequence;
+  projectId?: ProjectId | null;
+  revision?: ProjectRevision | null;
   media?: MediaRef[];
   selectedClip: Clip | null;
   selectedTrackId: TrackId | null;
@@ -166,6 +169,8 @@ function SecondaryVideoLayer({
 
 export function PreviewPlayer({
   sequence,
+  projectId = null,
+  revision = null,
   media = [],
   selectedClip,
   selectedTrackId,
@@ -601,10 +606,21 @@ export function PreviewPlayer({
           ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
           ) : null}
+          {pictureSelection.multipleVideos && !playing && projectId && revision !== null ? (
+            <PausedCompositeFrame
+              key={`${projectId}:${revision}:${sequence.id}`}
+              projectId={projectId}
+              revision={revision}
+              sequenceId={sequence.id}
+              playheadTimeUs={playheadTimeUs}
+              fps={sequence.fps}
+            />
+          ) : null}
           {pictureSelection.multipleVideos ? (
             <span className="preview-composite-notice" role="status">
-              В этой области несколько видеодорожек. Отдельные декодеры показывают два верхних
-              движущихся слоя, но их точное наложение и звук могут отличаться от экспорта.
+              В этой области несколько видеодорожек. Во время воспроизведения отдельные декодеры
+              показывают два верхних движущихся слоя, и результат может отличаться от экспорта.
+              На паузе после подготовки используется точный FFmpeg-кадр.
             </span>
           ) : null}
           {mediaError ? <span className="preview-media-error" role="alert">{mediaError}</span> : null}

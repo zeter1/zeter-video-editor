@@ -1,9 +1,11 @@
-import type { Clip, MediaRef, Sequence, TrackId } from "../generated/ipc";
+import type { Clip, MediaRef, ProjectId, ProjectRevision, Sequence, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { PreviewPlayer } from "../preview/PreviewPlayer";
 
 interface PreviewPanelProps {
   sequence: Sequence | null;
+  projectId?: ProjectId | null;
+  revision?: ProjectRevision | null;
   media?: MediaRef[];
   selectedClip: Clip | null;
   selectedTrackId: TrackId | null;
@@ -14,6 +16,8 @@ interface PreviewPanelProps {
 
 export function PreviewPanel({
   sequence,
+  projectId = null,
+  revision = null,
   media = [],
   selectedClip,
   selectedTrackId,
@@ -40,6 +44,8 @@ export function PreviewPanel({
       {sequence ? (
         <PreviewPlayer
           sequence={sequence}
+          projectId={projectId}
+          revision={revision}
           media={media}
           selectedClip={selectedClip}
           selectedTrackId={selectedTrackId}

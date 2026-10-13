@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
@@ -25,11 +26,12 @@ type FixtureProject = {
   revision: number;
   project: {
     name: string;
-    sequences: Array<{ tracks: FixtureTrack[]; subtitle_segments: unknown[] }>;
+    sequences: Array<{ id: string; width: number; height: number; fps: number; tracks: FixtureTrack[]; subtitle_segments: unknown[] }>;
   };
 };
 
-test("real WebView2 has two moving video layers with an honest compositor warning", async () => {
+test("native paused composite matches FFmpeg export and retires after seek", async () => {
+  test.setTimeout(120_000);
   const { page, state } = await connectTauri();
   const project = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as FixtureProject;
   const sequence = project.project.sequences[0];
@@ -61,6 +63,9 @@ test("real WebView2 has two moving video layers with an honest compositor warnin
     clips: [upperClip],
   });
   sequence.subtitle_segments = [];
+  sequence.width = 160;
+  sequence.height = 90;
+  sequence.fps = 30;
   project.project.name = "WebView2 overlapping video fallback";
   project.revision = 0;
   const disposableProject = path.join(path.dirname(state.workflowProjectPath), "preview-overlap-fallback.vcut");
@@ -91,12 +96,60 @@ test("real WebView2 has two moving video layers with an honest compositor warnin
   await expect(page.locator(".preview-still-layers > video.preview-media")).toHaveCount(2);
   await expect(page.getByLabel("Нижний видеослой")).toHaveJSProperty("muted", true);
   await expect(page.locator(".preview-still-layers > img.preview-media")).toHaveCount(1);
-  await expect(page.locator("video.preview-media")).toHaveCount(2);
+  await expect(page.locator("video.preview-media:not(.preview-ffmpeg-composite)")).toHaveCount(2);
   await expect(page.locator("img.preview-media")).toHaveAttribute("src", new RegExp(still.media_id));
+  const composite = page.getByLabel("Точный FFmpeg кадр");
+  await expect(composite).toBeVisible({ timeout: 90_000 });
+  await expect(composite).toHaveAttribute(
+    "src", /^http:\/\/zeter-media\.localhost\/_preview\/[0-9a-f-]{36}$/i,
+  );
+  await expect.poll(
+    () => composite.evaluate((node) => (node as HTMLVideoElement).currentTime),
+  ).toBeGreaterThan(0.30);
+
+  // Native WebView2 pixels vs the *full export* using the same authoritative
+  // Rust RenderSnapshot but a separately decoded pinned-FFmpeg frame.
+  const outputPath = path.join(path.dirname(disposableProject), "preview-composite-oracle.mp4");
+  const started = await invokeTauri<{ job_id: string }>(page, "start_export_mp4", {
+    sequenceId: sequence.id, outputPath,
+  });
+  await expect.poll(async () => {
+    const event = await invokeTauri<{ state: string; failure?: unknown }>(
+      page, "get_job_state", { jobId: started.job_id },
+    );
+    if (event.state === "Failed" || event.state === "Cancelled") {
+      throw new Error("Native export oracle failed: " + JSON.stringify(event));
+    }
+    return event.state;
+  }, { timeout: 90_000, intervals: [500, 1000, 2000] }).toBe("Completed");
+  const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
+  const center = (input: Buffer | string, at?: number): Buffer => {
+    const piped = Buffer.isBuffer(input);
+    return execFileSync(ffmpeg, [
+      "-hide_banner", "-loglevel", "error",
+      ...(at === undefined ? [] : ["-ss", String(at)]),
+      "-i", piped ? "pipe:0" : input,
+      "-vf", "crop=2:2,format=rgb24", "-frames:v", "1",
+      "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
+    ], { input: piped ? input : undefined, windowsHide: true, maxBuffer: 4_000_000 });
+  };
+  const screenshot = await page.locator(".preview-frame").screenshot({
+    animations: "disabled", scale: "css",
+  });
+  const nativeRgb = center(screenshot);
+  const exportedRgb = center(outputPath, 0.4);
+  expect(nativeRgb.length).toBe(12);
+  expect(exportedRgb.length).toBe(12);
+  for (let channel = 0; channel < 3; channel++) {
+    expect(Math.abs(nativeRgb[channel] - exportedRgb[channel]),
+      "native paused WebView2 center pixel vs FFmpeg export channel " + channel,
+    ).toBeLessThanOrEqual(35);
+  }
 
   await scrub(1.6);
   await expect(notice).toHaveCount(0);
   await expect(page.locator("video.preview-media")).toHaveCount(1);
+  await expect(composite).toHaveCount(0);
   await expect(page.getByLabel("Нижний видеослой")).toHaveCount(0);
   await expect(page.locator("img.preview-media")).toHaveCount(1);
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
