@@ -73,16 +73,25 @@ struct Lease {
     sources: Vec<SourceStamp>,
 }
 
+const MAX_WINDOW_REQUESTS: usize = 2;
+
+struct WindowRequest {
+    id: JobId,
+    generation: u64,
+    cancel: CancellationToken,
+    lease: Option<Lease>,
+}
+
 #[derive(Default)]
 struct Inner {
     generation: u64,
-    request_id: Option<JobId>,
-    cancel: Option<CancellationToken>,
-    lease: Option<Lease>,
+    project_id: Option<ProjectId>,
+    // Visible and adjacent prefetch windows only, with oldest-first eviction.
+    requests: Vec<WindowRequest>,
     cache: Option<(ProjectId, PreviewChunkCache)>,
 }
 
-/// A new request or cancellation invalidates every previous token and job.
+/// Two independent request-scoped leases, both invalidated on project change.
 /// No filesystem paths supplied by the renderer enter this service.
 #[derive(Default)]
 pub struct PreviewService {
@@ -98,19 +107,30 @@ impl PreviewService {
         runtime: ManagedRuntime,
     ) -> Result<(u64, CancellationToken, PreviewChunkCache), AppError> {
         let mut inner = self.inner.lock().map_err(|_| AppError::StatePoisoned)?;
-        if let Some(old) = inner.cancel.take() {
-            old.cancel();
+        if inner.project_id != Some(project_id) {
+            Self::retire(&mut inner);
+            inner.project_id = Some(project_id);
+        }
+        if let Some(index) = inner.requests.iter().position(|req| req.id == request_id) {
+            inner.requests.remove(index).cancel.cancel();
+        }
+        if inner.requests.len() >= MAX_WINDOW_REQUESTS {
+            inner.requests.remove(0).cancel.cancel();
         }
         inner.generation = inner.generation.wrapping_add(1);
-        inner.lease = None;
-        inner.request_id = Some(request_id);
         if inner.cache.as_ref().is_none_or(|(id, _)| *id != project_id) {
             inner.cache = Some((project_id, PreviewChunkCache::new(root, runtime)));
         }
         let cancel = CancellationToken::new();
-        inner.cancel = Some(cancel.clone());
+        let generation = inner.generation;
+        inner.requests.push(WindowRequest {
+            id: request_id,
+            generation,
+            cancel: cancel.clone(),
+            lease: None,
+        });
         Ok((
-            inner.generation,
+            generation,
             cancel,
             inner.cache.as_ref().expect("cache initialized").1.clone(),
         ))
@@ -118,15 +138,16 @@ impl PreviewService {
 
     fn publish(&self, generation: u64, lease: Lease) -> Result<bool, AppError> {
         let mut inner = self.inner.lock().map_err(|_| AppError::StatePoisoned)?;
-        if inner.generation != generation
-            || inner
-                .cancel
-                .as_ref()
-                .is_none_or(CancellationToken::is_cancelled)
-        {
+        if inner.project_id != Some(lease.project_id) {
             return Ok(false);
         }
-        inner.lease = Some(lease);
+        let Some(request) = inner.requests.iter_mut().find(|req| req.generation == generation) else {
+            return Ok(false);
+        };
+        if request.cancel.is_cancelled() {
+            return Ok(false);
+        }
+        request.lease = Some(lease);
         Ok(true)
     }
 
@@ -136,23 +157,21 @@ impl PreviewService {
         Ok(())
     }
 
-    /// Discard a caller only if it still owns the latest rendering generation:
-    /// a delayed component cleanup must never cancel a newer seek/preview.
+    /// A delayed cleanup revokes only its own request's token and render.
     pub fn cancel_request(&self, request_id: JobId) -> Result<(), AppError> {
         let mut inner = self.inner.lock().map_err(|_| AppError::StatePoisoned)?;
-        if inner.request_id == Some(request_id) {
-            Self::retire(&mut inner);
+        if let Some(index) = inner.requests.iter().position(|req| req.id == request_id) {
+            inner.requests.remove(index).cancel.cancel();
         }
         Ok(())
     }
 
     fn retire(inner: &mut Inner) {
         inner.generation = inner.generation.wrapping_add(1);
-        if let Some(cancel) = inner.cancel.take() {
-            cancel.cancel();
+        for request in inner.requests.drain(..) {
+            request.cancel.cancel();
         }
-        inner.lease = None;
-        inner.request_id = None;
+        inner.project_id = None;
     }
 
     pub fn resolve(
@@ -162,9 +181,12 @@ impl PreviewService {
         revision: ProjectRevision,
     ) -> Option<PathBuf> {
         let inner = self.inner.lock().ok()?;
-        let lease = inner.lease.as_ref()?;
-        (lease.token == token
-            && lease.project_id == project_id
+        if inner.project_id != Some(project_id) {
+            return None;
+        }
+        let lease = inner.requests.iter().filter_map(|req| req.lease.as_ref())
+            .find(|lease| lease.token == token)?;
+        (lease.project_id == project_id
             && lease.revision == revision
             && lease.created.elapsed() <= LEASE_TTL
             && lease.sources.iter().all(SourceStamp::still_fresh))
@@ -369,12 +391,78 @@ mod tests {
             service.resolve("not-an-issued-token", project, revision),
             None
         );
-        let old_request = service.inner.lock().unwrap().request_id.unwrap();
+        let old_request = service.inner.lock().unwrap().requests[0].id;
         service.cancel_request(JobId::new()).unwrap();
         assert!(service.resolve(&lease.token, project, revision).is_some());
         service.cancel_request(old_request).unwrap();
         assert!(service.resolve(&lease.token, project, revision).is_none());
         assert!(!service.publish(generation, lease).unwrap());
+    }
+
+    #[test]
+    fn two_adjacent_windows_keep_independent_leases_with_bounded_eviction() {
+        let service = PreviewService::default();
+        let project = ProjectId::new();
+        let revision = ProjectRevision::new(4);
+        let runtime = ManagedRuntime::from_dir("unused-runtime", "unit");
+        let root = PathBuf::from("unused-cache");
+        let first = JobId::new();
+        let second = JobId::new();
+        let (first_gen, first_cancel, _) = service
+            .begin(project, first, root.clone(), runtime.clone())
+            .unwrap();
+        let first_lease = Lease {
+            token: JobId::new().get().to_string(),
+            project_id: project,
+            revision,
+            path: PathBuf::from("first.mp4"),
+            created: Instant::now(),
+            sources: Vec::new(),
+        };
+        assert!(service.publish(first_gen, first_lease.clone()).unwrap());
+        let (second_gen, second_cancel, _) = service
+            .begin(project, second, root.clone(), runtime.clone())
+            .unwrap();
+        let second_lease = Lease {
+            token: JobId::new().get().to_string(),
+            path: PathBuf::from("second.mp4"),
+            ..first_lease.clone()
+        };
+        assert!(service.publish(second_gen, second_lease.clone()).unwrap());
+        assert_eq!(service.resolve(&first_lease.token, project, revision), Some(first_lease.path.clone()));
+        assert_eq!(service.resolve(&second_lease.token, project, revision), Some(second_lease.path.clone()));
+        service.cancel_request(first).unwrap();
+        assert!(first_cancel.is_cancelled());
+        assert!(!second_cancel.is_cancelled());
+        assert!(service.resolve(&first_lease.token, project, revision).is_none());
+        assert!(service.resolve(&second_lease.token, project, revision).is_some());
+
+        let (third_gen, third_cancel, _) = service
+            .begin(project, JobId::new(), root.clone(), runtime.clone())
+            .unwrap();
+        service.begin(project, JobId::new(), root, runtime).unwrap();
+        assert!(second_cancel.is_cancelled());
+        assert!(!third_cancel.is_cancelled());
+        assert!(service.resolve(&second_lease.token, project, revision).is_none());
+        assert!(!service.publish(second_gen, second_lease).unwrap());
+        assert_ne!(third_gen, first_gen);
+        assert_eq!(service.inner.lock().unwrap().requests.len(), MAX_WINDOW_REQUESTS);
+    }
+
+    #[test]
+    fn project_switch_revokes_all_prefetched_leases() {
+        let service = PreviewService::default();
+        let project = ProjectId::new();
+        let runtime = ManagedRuntime::from_dir("unused-runtime", "unit");
+        let root = PathBuf::from("unused-cache");
+        let (_, first_cancel, _) = service
+            .begin(project, JobId::new(), root.clone(), runtime.clone()).unwrap();
+        let (_, second_cancel, _) = service
+            .begin(project, JobId::new(), root.clone(), runtime.clone()).unwrap();
+        service.begin(ProjectId::new(), JobId::new(), root, runtime).unwrap();
+        assert!(first_cancel.is_cancelled());
+        assert!(second_cancel.is_cancelled());
+        assert_eq!(service.inner.lock().unwrap().requests.len(), 1);
     }
 
     #[test]
