@@ -184,10 +184,9 @@ pub fn serve(app: &AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
     // A media UUID is the only accepted URL path. The file path is looked up
     // from the authoritative, currently-open Rust project.
     let media_id = request.uri().path().trim_start_matches('/');
-    if media_id.len() != 36
-        || !media_id
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+    let opaque_id = media_id.strip_prefix("_preview/").unwrap_or(media_id);
+    if opaque_id.len() != 36
+        || !opaque_id.bytes().all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
     {
         return failure(404);
     }
@@ -201,16 +200,33 @@ pub fn serve(app: &AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
         let Ok(snapshot) = project.snapshot() else {
             return failure(404);
         };
-        let Some(media) = snapshot
-            .project
-            .media
-            .iter()
-            .find(|media| media.id.get().to_string() == media_id)
-        else {
-            return failure(404);
-        };
-        std::path::PathBuf::from(&media.absolute_path)
+        if let Some(token) = media_id.strip_prefix("_preview/") {
+            // An opaque token resolves only for the currently open project and
+            // exact revision. Never treat this segment as a filesystem path.
+            let Some(path) = state.preview.resolve(
+                token, snapshot.project.id, snapshot.revision,
+            ) else {
+                return failure(404);
+            };
+            path
+        } else {
+            let Some(media) = snapshot.project.media.iter()
+                .find(|media| media.id.get().to_string() == media_id)
+            else {
+                return failure(404);
+            };
+            std::path::PathBuf::from(&media.absolute_path)
+        }
     };
+    if media_id.starts_with("_preview/") {
+        // Reject replaced/symlinked cache entries even if an issued token
+        // still names an otherwise plausible MP4 path.
+        match std::fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink()
+                && metadata.len() <= 64 * 1024 * 1024 => {}
+            _ => return failure(404),
+        }
+    }
     let Some(mime) = media_mime(&path) else {
         return failure(415);
     };

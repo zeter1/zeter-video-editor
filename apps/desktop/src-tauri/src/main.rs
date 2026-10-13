@@ -5,6 +5,7 @@ mod contracts;
 mod diagnostics;
 mod error;
 mod ipc;
+mod preview_composite;
 mod preview_stream;
 mod runtime_manifest;
 mod transcription_ipc;
@@ -90,6 +91,8 @@ fn main() {
             ipc::project_open_recovery,
             ipc::project_save,
             ipc::project_snapshot,
+            preview_composite::request_preview_chunk,
+            preview_composite::cancel_preview_chunk,
             transcription_ipc::start_transcription,
             transcription_ipc::get_transcription_result,
             transcription_ipc::apply_transcription,
