@@ -1,0 +1,31 @@
+name: Temporary alpha.12 version sync (ZVE-003h)
+on:
+  push:
+    branches:
+      - feat/timeline-playhead-anchored-zoom-alpha12-20261013
+    paths:
+      - .github/workflows/zve-alpha12-version-sync.yml
+permissions:
+  contents: write
+jobs:
+  version-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Use mandatory canonical version update
+        run: |
+          node scripts/set-version.mjs 0.1.0-alpha.12 --date 2026-10-13 --note "ZVE-003h: масштабирование таймлайна сохраняет экранную позицию курсора и не изменяет проект."
+          node scripts/check-version.mjs
+          node --test scripts/version-policy.test.mjs
+      - name: Commit synchronized manifest versions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git commit -m "chore(version): synchronize desktop alpha.12 through canonical script"
+          git push
