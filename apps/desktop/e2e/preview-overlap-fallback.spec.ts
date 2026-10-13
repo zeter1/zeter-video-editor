@@ -165,7 +165,25 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   await expect(composite).toBeVisible({ timeout: 90_000 });
   const firstToken = await composite.getAttribute("src");
   await scrub(4.2);
-  await expect(composite).toBeVisible({ timeout: 90_000 });
+  try {
+    await expect(composite).toBeVisible({ timeout: 90_000 });
+  } catch (error) {
+    // Native diagnostic on the exact seam failure, without exposing source paths.
+    // A missing overlay may be a failed render, an unexpected transport state,
+    // or a terminated WebView2; do not silently skip RGB parity.
+    try {
+      console.log("[WebView2 seam diagnostics]", await page.evaluate(() => ({
+        displayedTime: document.querySelector(".timecode")?.textContent ?? null,
+        noticeCount: document.querySelectorAll(".preview-composite-notice").length,
+        directVideoCount: document.querySelectorAll("video.preview-media:not(.preview-ffmpeg-composite)").length,
+        compositeVideoCount: document.querySelectorAll("video.preview-ffmpeg-composite").length,
+        transportPauseCount: document.querySelectorAll('button[aria-label="Пауза"]').length,
+      })));
+    } catch {
+      console.log("[WebView2 seam diagnostics] renderer no longer reachable");
+    }
+    throw error;
+  }
   const secondToken = await composite.getAttribute("src");
   expect(secondToken).toMatch(/^http:\/\/zeter-media\.localhost\/_preview\/[0-9a-f-]{36}$/i);
   expect(secondToken).not.toBe(firstToken);
