@@ -1,5 +1,14 @@
 # MERGED ZVE-003r CI REPAIR — 2026-10-14 — native 2× A/V verification / alpha.22
 
+### ZVE-005 — multi-track UI candidate 2026-10-14 (DRAFT PR #86)
+
+- **Feature candidate:** + Видео / + Аудио buttons create correctly numbered persistent track models through the already-authoritative Rust AddTrack command, alongside existing tracks of their kind. Selected Video/Audio lane is now respected by media-library + AddClip (instead of always using Video 1/Audio 1); the selected lane is highlighted. Pending edits and clip drags suppress duplicate adds; rejected edits do not mutate local project state. Undo/Redo remains Rust-owned.
+- **Branch/PR:** https://github.com/zeter1/zeter-video-editor/pull/86 at `feat/zve-005-add-video-audio-tracks-20261014` based on main `e09a30d0646cad4fec5e57c5cd4e4b3f5639aa8a`. Version `0.1.0-alpha.23` is a **draft source candidate**, not a released or owner-installed binary.
+- **Verification:** React/Vitest tests include insert position, numbering and rejection; native Windows WebView2 E2E targets AddTrack snapshot, Undo/Redo, and media-library + placement to Video 2. CI of exact final HEAD must be green before merge; actual Windows manual QA of this new version is NOT yet confirmed.
+- **Unrelated hard gate:** ZVE-004a native WebAudio FFmpeg composite sound gate remains failed in DRAFT PR #85; no weakened tests, CORS changes, merge or speculative composite claims.
+- **NEXT:** review/fix exact-HEAD Windows CI E2E/NSIS results, test installer on real Windows with 2 video layers and 2 audio lanes, verify source .vcut saving and multi-layer timing, then merge only if allowed and fully green. Export GUI and FFmpeg-composite Stage 1 remain future separate issues.
+
+
 - **DELIVERY:** [PR #83](https://github.com/zeter1/zeter-video-editor/pull/83) was squash-MERGED after exact HEAD `14bb5ffedf8065873300f0081db082f510cb4b7d` [Windows CI #38545615709](https://github.com/zeter1/zeter-video-editor/actions/runs/38545615709) COMPLETED SUCCESS: version check, rustfmt, Rust/managed FFmpeg, TS/Vite, Vitest, all real native WebView2 E2E (including fullscreen and 2× WAV), DEBUG NSIS and artifact `11885300396`. Merge commit `d0a2d2a1909ce1f92a9d365b3f568211a5e4fc43`. Post-merge exact-main CI [#38547113747](https://github.com/zeter1/zeter-video-editor/actions/runs/38547113747) started but NOT terminal at this checkpoint; this docs-only head creates a subsequent main SHA whose full CI also needs terminal verification. No new app version, tag, Release or signing.
 - **ONE TASK / REASON:** the post-merge exact-main Windows [CI #38535112167](https://github.com/zeter1/zeter-video-editor/actions/runs/38535112167) on `d195040ac0ee7c9cf1c8273285f8634d063013a3` COMPLETED FAILURE. Rust workspace/FFmpeg, TypeScript/Vite and Vitest passed; 25/27 native WebView2 E2E passed. Existing `preview-two-speed-av-drift.spec.ts` collected 6 real rVFC samples for initial phase, but failed to regain a 2× video/independent WAV clock after 1.35s forward scrub (12s polling, Infinity). Subsequent `transport.spec.ts` could not reconnect CDP; DEBUG NSIS was SKIPPED. **Do not call main fully green.**
 - **DIAGNOSIS/BOUNDARY:** initial six sampled frames spanned source mediaTime 1.3333 → 4.7333 s on a 6.0s source/3.0s timeline. Serial Playwright/CDP round-trips can advance the 2× video almost to EOF before the forward scrub. This is a test sampling and/or transport end-boundary race hypothesis, not proof all user playback is correct. Do not reduce real drift thresholds, skip failing E2E or assume repeat CI success fixes a production race.
@@ -829,7 +838,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.22` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.23` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
