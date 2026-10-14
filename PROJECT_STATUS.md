@@ -1,4 +1,14 @@
-# ZVE-004a DESIGN REVIEW — 2026-10-14 — continuous FFmpeg A/V composite (NO PRODUCT CODE)
+# ZVE-004a WRITTEN SPEC APPROVED / STAGE-1 PLAN IN REVIEW — 2026-10-14 (NO PRODUCT CODE)
+
+- **USER APPROVAL:** the user explicitly approved the written ZVE-004a specification in this chat on 2026-10-14, after the earlier approval of architecture variant A. This approval permits Superpowers **writing-plans only**, not execution of the implementation plan.
+- **DELIVERABLE:** [Stage-1 implementation plan](docs/superpowers/plans/2026-10-14-continuous-ffmpeg-av-preview-stage1.md) committed on PR [#84](https://github.com/zeter1/zeter-video-editor/pull/84), with exact interfaces, RED/GREEN tests, risk cases and native Windows hard gates. Stage 1 covers one FFmpeg MP4 decoder/audio clock for two moving video layers plus independent WAV, Pause/Play and in-window seek; continuous N→N+1 seams are Stage 2.
+- **HARD GATE:** feasibility and real captured WebView2 audio output/RMS are mandatory; FFprobe-only evidence, DOM audio state or a green mock test are insufficient. No product code or native WebView2 acceptance was run in this planning-only pass.
+- **REPO BASE:** `main` SHA `e09a30d0646cad4fec5e57c5cd4e4b3f5639aa8a` with exact Windows CI [#38547269155](https://github.com/zeter1/zeter-video-editor/actions/runs/38547269155) COMPLETED SUCCESS. Desktop source stays `0.1.0-alpha.22`; PR #84 remains OPEN/DRAFT. No merge, tag, release, installer, signing or local Windows QA.
+- **NEXT PRODUCT-CODE TASK:** first **user review/approval of the written plan and selection of Native vs subagent execution**. After that, start Task 1 native audio-capture feasibility before runtime changes. Do not bump `alpha.23`, implement the composite controller, or merge PR #84 merely on written-spec approval; version bump belongs to the later tested product PR.
+
+---
+
+# PREVIOUS CHECKPOINT — ZVE-004a DESIGN REVIEW — 2026-10-14 (historical; approval superseded)
 
 - **USER DECISION:** variant A (existing hybrid RenderSnapshot → FFmpeg cached MP4 A/V preview, direct/proxy elsewhere) expressly approved in chat on 2026-10-14. This approves the architectural direction, NOT the written spec or implementation plan.
 - **SPEC FOR REVIEW:** [2026-10-14-continuous-ffmpeg-av-preview-design.md](docs/superpowers/specs/2026-10-14-continuous-ffmpeg-av-preview-design.md), branch `docs/zve-004a-continuous-ffmpeg-av-spec-20261014`, based on main `e09a30d0646cad4fec5e57c5cd4e4b3f5639aa8a`. No production source/tests/manifest modifications, no alpha bump (desktop source remains `0.1.0-alpha.22`), no merge/tag/Release/install/signing.
