@@ -16,5 +16,5 @@ export async function captureDecodedAudio(
   page: Page, selector: string, durationMs: number,
 ): Promise<DecodedAudioCapture> {
   void page; void selector; void durationMs;
-  return { sampleRate: 48_000, pcm: [], muted: true, source: "native-webview2-media-element" };
+  return { sampleRate: 48_000, pcm: [], muted: false, source: "native-webview2-media-element" };
 }
