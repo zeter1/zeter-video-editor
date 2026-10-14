@@ -1,3 +1,23 @@
+# ZVE-004a WRITTEN SPEC APPROVED / STAGE-1 PLAN IN REVIEW — 2026-10-14 (NO PRODUCT CODE)
+
+- **USER APPROVAL:** the user explicitly approved the written ZVE-004a specification in this chat on 2026-10-14, after the earlier approval of architecture variant A. This approval permits Superpowers **writing-plans only**, not execution of the implementation plan.
+- **DELIVERABLE:** [Stage-1 implementation plan](docs/superpowers/plans/2026-10-14-continuous-ffmpeg-av-preview-stage1.md) committed on PR [#84](https://github.com/zeter1/zeter-video-editor/pull/84), with exact interfaces, RED/GREEN tests, risk cases and native Windows hard gates. Stage 1 covers one FFmpeg MP4 decoder/audio clock for two moving video layers plus independent WAV, Pause/Play and in-window seek; continuous N→N+1 seams are Stage 2.
+- **HARD GATE:** feasibility and real captured WebView2 audio output/RMS are mandatory; FFprobe-only evidence, DOM audio state or a green mock test are insufficient. No product code or native WebView2 acceptance was run in this planning-only pass.
+- **REPO BASE:** `main` SHA `e09a30d0646cad4fec5e57c5cd4e4b3f5639aa8a` with exact Windows CI [#38547269155](https://github.com/zeter1/zeter-video-editor/actions/runs/38547269155) COMPLETED SUCCESS. Desktop source stays `0.1.0-alpha.22`; PR #84 remains OPEN/DRAFT. No merge, tag, release, installer, signing or local Windows QA.
+- **NEXT PRODUCT-CODE TASK:** first **user review/approval of the written plan and selection of Native vs subagent execution**. After that, start Task 1 native audio-capture feasibility before runtime changes. Do not bump `alpha.23`, implement the composite controller, or merge PR #84 merely on written-spec approval; version bump belongs to the later tested product PR.
+
+---
+
+# PREVIOUS CHECKPOINT — ZVE-004a DESIGN REVIEW — 2026-10-14 (historical; approval superseded)
+
+- **USER DECISION:** variant A (existing hybrid RenderSnapshot → FFmpeg cached MP4 A/V preview, direct/proxy elsewhere) expressly approved in chat on 2026-10-14. This approves the architectural direction, NOT the written spec or implementation plan.
+- **SPEC FOR REVIEW:** [2026-10-14-continuous-ffmpeg-av-preview-design.md](docs/superpowers/specs/2026-10-14-continuous-ffmpeg-av-preview-design.md), branch `docs/zve-004a-continuous-ffmpeg-av-spec-20261014`, based on main `e09a30d0646cad4fec5e57c5cd4e4b3f5639aa8a`. No production source/tests/manifest modifications, no alpha bump (desktop source remains `0.1.0-alpha.22`), no merge/tag/Release/install/signing.
+- **BASELINE ACCEPTANCE:** exact-main Windows CI [#38547269155](https://github.com/zeter1/zeter-video-editor/actions/runs/38547269155) COMPLETED SUCCESS on `e09a30d`; this is prior main verification, not verification of a new live FFmpeg compositor.
+- **PROPOSED PRODUCT RESULT:** when two moving video tracks overlap, one multiplexed FFmpeg MP4 supplies picture/mixed A/V under a master clock; share existing 4s window cache, retain at most two leases, cancel stale revisions, explicitly label degraded playback. First vertical slice includes real native WebView2 RGB **and audible-path RMS** oracle. Warmed chunk and accurate sound are required before claiming completion; seam continuity is a separate stage within the approved architecture.
+- **NEXT PRODUCT-CODE TASK:** first secure user approval of the written spec, then run Superpowers writing-plans; have the user review/select execution for that plan before TDD implementation in `PreviewPlayer.tsx`, a new focused composite transport/controller, `PausedCompositeFrame.tsx`, optional Rust preview service/cache and native E2E. In the product PR, use canonical `node scripts/set-version.mjs 0.1.0-alpha.23 --note ...` exactly once and exact-head Windows CI. Do not invent a completed feature from this design PR.
+
+---
+
 # MERGED ZVE-003r CI REPAIR — 2026-10-14 — native 2× A/V verification / alpha.22
 
 - **DELIVERY:** [PR #83](https://github.com/zeter1/zeter-video-editor/pull/83) was squash-MERGED after exact HEAD `14bb5ffedf8065873300f0081db082f510cb4b7d` [Windows CI #38545615709](https://github.com/zeter1/zeter-video-editor/actions/runs/38545615709) COMPLETED SUCCESS: version check, rustfmt, Rust/managed FFmpeg, TS/Vite, Vitest, all real native WebView2 E2E (including fullscreen and 2× WAV), DEBUG NSIS and artifact `11885300396`. Merge commit `d0a2d2a1909ce1f92a9d365b3f568211a5e4fc43`. Post-merge exact-main CI [#38547113747](https://github.com/zeter1/zeter-video-editor/actions/runs/38547113747) started but NOT terminal at this checkpoint; this docs-only head creates a subsequent main SHA whose full CI also needs terminal verification. No new app version, tag, Release or signing.
