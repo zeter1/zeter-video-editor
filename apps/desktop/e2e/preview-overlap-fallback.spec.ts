@@ -224,7 +224,30 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   // boundary. The second window should be prefetched near 3.6s; native
   // decoder readiness must still gate visibility after the handoff.
   await scrub(3.6);
-  await expect(composite).toBeVisible({ timeout: 90_000 });
+  try {
+    await expect(composite).toBeVisible({ timeout: 90_000 });
+  } catch (error) {
+    // If native WebView2 reports a frame but hides the first paused render,
+    // keep seek/rVFC ordering observable on the exact failed CI head.
+    try {
+      console.log("[WebView2 first paused frame]", JSON.stringify(await page.evaluate(() => {
+        const node = document.querySelector("video.preview-ffmpeg-composite") as HTMLVideoElement | null;
+        return {
+          video: node ? {
+            currentTime: node.currentTime, seeking: node.seeking,
+            readyState: node.readyState, duration: node.duration,
+            visibility: node.style.visibility,
+            frames: node.getVideoPlaybackQuality?.().totalVideoFrames ?? null,
+          } : null,
+          timecode: document.querySelector(".timecode")?.textContent ?? null,
+          nativeFrames: (window as Window & { __previewFrames?: unknown[] }).__previewFrames?.slice(-25) ?? [],
+        };
+      })));
+    } catch {
+      console.log("[WebView2 first paused frame] native renderer no longer reachable");
+    }
+    throw error;
+  }
   const firstToken = await composite.getAttribute("src");
   await scrub(4.2);
   try {

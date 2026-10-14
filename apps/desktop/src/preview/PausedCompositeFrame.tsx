@@ -54,6 +54,12 @@ export function PausedCompositeFrame({
   const [presented, setPresented] = useState<{ token: string; timeUs: number } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const pendingFrameRef = useRef<{ node: HTMLVideoElement; id: number } | null>(null);
+  // WebView2 may report the *correct* GPU frame before firing seeked. Keep
+  // that proof until the native seek completes instead of waiting forever
+  // for a second frame callback that paused playback may never produce.
+  const observedFrameRef = useRef<{
+    node: HTMLVideoElement; token: string; timeUs: number; mediaTime: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -120,6 +126,19 @@ export function PausedCompositeFrame({
     pendingFrameRef.current = null;
   };
 
+  const confirmObservedFrame = () => {
+    const frame = observedFrameRef.current;
+    const node = video.current;
+    if (!frame || !node || frame.node !== node || !chunk ||
+        frame.token !== chunk.token || frame.timeUs !== playheadTimeUs) return;
+    const tolerance = Math.max(0.002, 0.5 / fps);
+    if (!node.seeking && node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        Math.abs(node.currentTime - targetSeconds) <= tolerance &&
+        Math.abs(frame.mediaTime - targetSeconds) <= tolerance) {
+      setPresented({ token: frame.token, timeUs: frame.timeUs });
+    }
+  };
+
   const watchPresentedFrame = () => {
     const node = video.current;
     if (!node || !chunk || typeof node.requestVideoFrameCallback !== "function" ||
@@ -133,10 +152,12 @@ export function PausedCompositeFrame({
           pendingFrameRef.current.id !== id) return;
       pendingFrameRef.current = null;
       if (video.current !== node) return;
-      if (!node.seeking && node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-          Math.abs(node.currentTime - targetSeconds) <= tolerance &&
-          Math.abs(metadata.mediaTime - targetSeconds) <= tolerance) {
-        setPresented({ token, timeUs });
+      if (Math.abs(metadata.mediaTime - targetSeconds) <= tolerance) {
+        // Retain actual presented-frame evidence even while WebView2 still
+        // reports seeking=true. onSeeked/onLoadedData can complete the gate
+        // without requiring a second rVFC from the paused decoder.
+        observedFrameRef.current = { node, token, timeUs, mediaTime: metadata.mediaTime };
+        confirmObservedFrame();
       } else {
         // A callback for the old GPU frame is not evidence of this seek.
         watchPresentedFrame();
@@ -147,6 +168,7 @@ export function PausedCompositeFrame({
 
   useEffect(() => {
     clearPendingFrame();
+    observedFrameRef.current = null;
     const node = video.current;
     if (!node || !chunk) return;
     // Native paused playback may submit its sole frame before loadeddata
@@ -173,6 +195,7 @@ export function PausedCompositeFrame({
           style={{ visibility: presented?.token === chunk.token &&
             presented.timeUs === playheadTimeUs ? "visible" : "hidden" }}
           onLoadedMetadata={() => {
+            confirmObservedFrame();
             watchPresentedFrame();
             // The effect may already have started this seek before metadata.
             // Setting even the same currentTime again causes a second native
@@ -182,8 +205,14 @@ export function PausedCompositeFrame({
               node.currentTime = Math.max(0, targetSeconds);
             }
           }}
-          onLoadedData={watchPresentedFrame}
-          onSeeked={watchPresentedFrame}
+          onLoadedData={() => {
+            confirmObservedFrame();
+            watchPresentedFrame();
+          }}
+          onSeeked={() => {
+            confirmObservedFrame();
+            watchPresentedFrame();
+          }}
           onSeeking={() => {
             // Preserve the early callback while the corresponding seek runs.
             setPresented(null);
@@ -191,6 +220,7 @@ export function PausedCompositeFrame({
           }}
           onError={() => {
             clearPendingFrame();
+            observedFrameRef.current = null;
             // A corrupt decoder response must never obscure the direct fallback.
             const request = requestsRef.current.get(chunk.start_us);
             if (request?.chunk?.token === chunk.token) {
