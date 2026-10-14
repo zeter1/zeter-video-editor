@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import { captureDecodedAudio } from "./compositeAudioCapture";
 import { connectTauri, invokeTauri } from "./tauri";
 
@@ -23,6 +24,24 @@ test("native WebView2 provides actual decoded 1000 Hz AAC samples", async () => 
   await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
   await expect.poll(() => video.evaluate((element) =>
     (element as HTMLVideoElement).currentTime), { timeout: 10_000 }).toBeGreaterThan(0.1);
+
+  // Diagnostic only: endpoint enumeration cannot prove WASAPI loopback captures PCM.
+  const origins = await video.evaluate((element) => {
+    const media = element as HTMLVideoElement;
+    return {
+      appOrigin: location.origin,
+      mediaOrigin: new URL(media.currentSrc).origin,
+      corsMode: media.crossOrigin,
+    };
+  });
+  const endpointInfo = execFileSync("powershell.exe", [
+    "-NoProfile", "-NonInteractive", "-Command",
+    "$endpoints=@(Get-PnpDevice -Class AudioEndpoint -PresentOnly -ErrorAction SilentlyContinue); " +
+      "$audio=Get-Service Audiosrv -ErrorAction SilentlyContinue; " +
+      "@{presentAudioEndpointCount=$endpoints.Count; audioService=if($audio){$audio.Status.ToString()}else{'NotFound'}} | ConvertTo-Json -Compress",
+  ], { encoding: "utf8", timeout: 15_000 }).trim();
+  console.log("[native audio capture feasibility origins] " + JSON.stringify(origins));
+  console.log("[native Windows loopback preflight] " + endpointInfo);
 
   const capture = await captureDecodedAudio(page, "video[aria-label='Предпросмотр видео']", 800);
   const values = capture.pcm.filter(Number.isFinite);
