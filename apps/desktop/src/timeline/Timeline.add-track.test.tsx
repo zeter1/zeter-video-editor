@@ -113,7 +113,7 @@ describe("timeline create tracks", () => {
       media: [], sequences: [seq],
     };
     projectStore.applySnapshot({ revision: 7, project });
-    const executeEditCommand = vi.fn(async () => { throw new Error("native edit rejected"); });
+    const executeEditCommand = vi.fn(async (_request: EditRequest) => { throw new Error("native edit rejected"); });
     render(<Timeline sequence={seq} projectStore={projectStore} transientStore={transientStore}
       executeEditCommand={executeEditCommand} reconcileCommandResult={vi.fn()} />);
 
@@ -122,8 +122,8 @@ describe("timeline create tracks", () => {
     expect(executeEditCommand.mock.calls[0][0].command).toMatchObject({ AddTrack: {
       track: { name: "Видео 9", kind: "Video" },
     } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Добавить видеодорожку" }))
-      .not.toBeDisabled());
+    await waitFor(() => expect((screen.getByRole("button", { name: "Добавить видеодорожку" }) as HTMLButtonElement).disabled)
+      .toBe(false));
     expect(transientStore.getState().selectedTrackId).toBe(null);
     expect(projectStore.getState().revision).toBe(7);
   });
@@ -145,14 +145,14 @@ describe("timeline create tracks", () => {
       executeEditCommand={executeEditCommand} reconcileCommandResult={vi.fn(async () => undefined)} />);
 
     transientStore.beginClipDrag("clip-any", 0);
-    expect(screen.getByRole("button", { name: "Добавить видеодорожку" })).toBeDisabled();
+    expect((screen.getByRole("button", { name: "Добавить видеодорожку" }) as HTMLButtonElement).disabled).toBe(true);
     transientStore.endClipDrag();
     fireEvent.click(screen.getByRole("button", { name: "Добавить видеодорожку" }));
-    expect(screen.getByRole("button", { name: "Добавить аудиодорожку" })).toBeDisabled();
+    expect((screen.getByRole("button", { name: "Добавить аудиодорожку" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Добавить аудиодорожку" }));
     expect(executeEditCommand).toHaveBeenCalledTimes(1);
     finish({ request_id: "any", revision: 3, changed_entities: [] });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Добавить аудиодорожку" }))
-      .not.toBeDisabled());
+    await waitFor(() => expect((screen.getByRole("button", { name: "Добавить аудиодорожку" }) as HTMLButtonElement).disabled)
+      .toBe(false));
   });
 });
