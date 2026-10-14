@@ -243,7 +243,13 @@ export function AppShell({
     const ext = media.absolute_path.split(".").pop()?.toLowerCase() ?? "";
     const kind: Clip["kind"] = ["mp3", "wav", "flac", "aac", "ogg", "m4a", "opus"].includes(ext)
       ? "Audio" : ["png", "jpg", "jpeg", "gif", "bmp", "webp"].includes(ext) ? "Image" : "Video";
-    const track = seq.tracks.find((item) => item.kind === (kind === "Audio" ? "Audio" : "Video"));
+    const trackKind = kind === "Audio" ? "Audio" : "Video";
+    // Add-media (+) targets the lane the editor explicitly selected.
+    // If the selection is unrelated (or absent), preserve the established
+    // default of the first matching track. Rust validates locked lanes.
+    const selectedTrackId = transientStore.getState().selectedTrackId;
+    const track = seq.tracks.find((item) => item.id === selectedTrackId && item.kind === trackKind)
+      ?? seq.tracks.find((item) => item.kind === trackKind);
     if (!track) { projectStore.setError("Нет подходящей дорожки."); return; }
     const duration = media.duration && media.duration > 0 ? media.duration : 5_000_000;
     const start = Math.max(0, ...track.clips.map((clip) => clip.timeline_end));
