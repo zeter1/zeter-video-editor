@@ -283,6 +283,7 @@ button {
 }
 
 .preview-stage {
+  position: relative;
   display: grid;
   /* The panel grid owns both dimensions: expose its content box to Fit. */
   container-type: size;
@@ -1126,3 +1127,50 @@ button {
 .ai-manual-subtitles button { display: block; margin: 9px 0; width: 100%; }
 .ai-subtitle-review { word-break: break-word; color: #dce3ee; }
 .ai-workspace [role="status"] { color: #c3e0bb; }
+
+
+/* Only the Preview canvas enters native fullscreen; transport remains in the dock.
+   Percentage-based sizing must handle both landscape and portrait sequences. */
+.preview-stage:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  padding: 12px;
+  overflow: hidden;
+  background: #070a0f;
+}
+
+.preview-stage:fullscreen .preview-frame.preview-scale-fit {
+  width: min(100cqw, calc(100cqh * var(--preview-aspect)));
+}
+
+.preview-fullscreen-exit {
+  position: absolute;
+  z-index: 10;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #718ab7;
+  border-radius: 6px;
+  color: #f5f8ff;
+  background: rgba(14, 21, 34, 0.9);
+  cursor: pointer;
+  font-size: 24px;
+}
+
+.preview-fullscreen-exit:hover,
+.preview-fullscreen-exit:focus-visible {
+  border-color: #a5bdf9;
+  background: #263652;
+}
+
+.preview-fullscreen-error {
+  position: absolute;
+  z-index: 10;
+  bottom: 12px;
+  left: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #fff0ef;
+  background: #622629;
+}

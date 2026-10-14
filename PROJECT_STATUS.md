@@ -1,3 +1,13 @@
+# ACTIVE ZVE-003r — 2026-10-14 — FULLSCREEN PREVIEW / alpha.22 IN PR #82 (NOT MERGED)
+
+- **BASE:** main `218cea8a37ceb0db3617c7fdef4e0c1104568403`, desktop `0.1.0-alpha.21`; exact main Windows CI [#38528493247](https://github.com/zeter1/zeter-video-editor/actions/runs/38528493247) COMPLETED SUCCESS, including Rust, frontend/Vitest, native Windows WebView2 and DEBUG NSIS.
+- **PRODUCT USER GAP AND IMPLEMENTATION:** `docs/superpowers/specs/2026-10-06-zeter-video-editor-design.md` §10 approves fullscreen Preview. Before this branch there was no fullscreen entry. [PR #82](https://github.com/zeter1/zeter-video-editor/pull/82) adds native `requestFullscreen` for `.preview-stage`, browser Esc/fullscreenchange exit and an overlay exit button, portrait/landscape Fit styling and localized errors on rejection. `PreviewFullscreen.test.tsx` (3 regressions) and native `e2e/preview-fullscreen.spec.ts` were added. No `.vcut`, project-core, EditCommand, audio, FFmpeg export or source-media changes.
+- **TDD EVIDENCE:** first RED-only branch `f62f7217efe865a1f69be7a5ff09e8db7dc8357a` [CI #38531280061](https://github.com/zeter1/zeter-video-editor/actions/runs/38531280061) FAILED for all 3 new frontend tests because role button `На весь экран` did not exist; baseline Rust/frontend build completed successfully. The implementation followed that confirmed failure. Canonical `set-version.mjs 0.1.0-alpha.22` + `check-version.mjs` ran SUCCESS on [branch Action #38532219075](https://github.com/zeter1/zeter-video-editor/actions/runs/38532219075); temporary workflow was subsequently DELETED from the feature branch.
+- **ACCEPTANCE GATE OPEN:** run exact-final-HEAD Windows CI: version-policy, check-version, cargo fmt/tests with FFmpeg, TS/Vite, all Vitest, native Tauri/WebView2 E2E specifically fullscreen entry/exit and existing A/V/RGB, DEBUG NSIS artifact, self-review. **DO NOT MERGE if any gate failed/pending**; use strict `expected_head_sha` on squash merge after verified SUCCESS. No tag, public signed release or owner-PC installation.
+- **NEXT PRODUCT-CODE TASK (separate dialogue after closing this slice):** scoped architectural decision for continuous FFmpeg live A/V composite with one master clock, bounded prebuffer/handoff, revision/token cancellation, independently captured native WebView2 RGB and RMS parity; approved MVP design currently avoids a new native GPU compositor, so confirm architecture/scope before implementing.
+
+---
+
 # VERIFIED ZVE-003q MERGE — 2026-10-14 — SECONDARY VIDEO AUDIO AND A/V TEST FIX / alpha.21
 
 - **PRODUCT RESULT:** [PR #80](https://github.com/zeter1/zeter-video-editor/pull/80) merged as `a6e0c17e5fc46c3b9db385f4fbed585411ffbb18`: native WebView2 Preview now permits the lower video's soundtrack after foreground clock and follower seek readiness, respecting audio mute/volume/fade; subsequent seek/pause/error remutes it. Tests include a real WebView2 synthetic AAC fixture. Native Preview remains an approximation; no continuous FFmpeg live A/V, independent RMS parity, or user-PC listening QA.
@@ -798,7 +808,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.21` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.22` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
