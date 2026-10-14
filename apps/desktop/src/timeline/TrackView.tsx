@@ -51,7 +51,7 @@ export function TrackView({
   requestIdFactory,
 }: TrackViewProps) {
   return (
-    <div className={`timeline-track${track.locked ? " is-locked" : ""}`}>
+    <div className={`timeline-track${track.locked ? " is-locked" : ""}${transientStore.getState().selectedTrackId === track.id ? " is-selected" : ""}`}>
       <div className="timeline-track-header">
         <div className="track-title-row">
           <strong>{track.name}</strong>
