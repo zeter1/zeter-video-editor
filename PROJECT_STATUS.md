@@ -1,3 +1,13 @@
+# VERIFIED ZVE-005 MERGE — 2026-10-14 — UI video/audio lanes / alpha.23
+
+- **PRODUCT:** [PR #86](https://github.com/zeter1/zeter-video-editor/pull/86) adds “+ Видео” / “+ Аудио” with Rust-authoritative `EditCommand::AddTrack`, selection and media-library AddClip targeting, Undo/Redo, numbered lanes and unchanged source media/project format. Prior dialogue's user said “всё работает” after manual UI checks; separate save/reopen and long export evidence is not claimed.
+- **MERGE:** exact PR HEAD `f15731c0696732996eadd074185a62d78d398a78` [native Windows CI #38595852922](https://github.com/zeter1/zeter-video-editor/actions/runs/38595852922) COMPLETED SUCCESS (version/rustfmt, Rust workspace, TS/Vite/Vitest, real Tauri/WebView2 E2E, NSIS DEBUG artifact); PR #86 squash MERGED main as `6cf9167b08cc88e700c3349e03733ce0a0d8a77d`. Source version `0.1.0-alpha.23`, not a signed/public release. No tag, release, signing or installation performed by assistant.
+- **POST-MERGE GATE:** exact merge-SHA main push [CI #38607740573](https://github.com/zeter1/zeter-video-editor/actions/runs/38607740573) was IN_PROGRESS at merge confirmation. This docs-only checkpoint produces a new main SHA; check the resulting head's own CI before declaring post-merge SUCCESS. Do not treat PR CI as main CI.
+- **BLOCKER IN SEPARATE TASK:** ZVE-004a [PR #85](https://github.com/zeter1/zeter-video-editor/pull/85) native PCM proof remains blocked by cross-origin media/WebAudio; no CORS/security exception authorized or merged.
+- **NEXT PRODUCT-CODE TASK — NEW DIALOGUE ONLY:** verify current main CI and examine the approved spec + actual UI/export wiring for the user-observed missing visible MP4 export command. Choose one bounded end-to-end export UI slice reusing the existing FFmpeg backend, with selectable destination, progress, cancel/errors and native Windows output-file verification; do not implement blindly if current main already exposes it. One dialogue = one independent task, so ZVE-005 closes here.
+
+---
+
 # MERGED ZVE-003r CI REPAIR — 2026-10-14 — native 2× A/V verification / alpha.22
 
 ### ZVE-005 — multi-track UI candidate 2026-10-14 (DRAFT PR #86)
