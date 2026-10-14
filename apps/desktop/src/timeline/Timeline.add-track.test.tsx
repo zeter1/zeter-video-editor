@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { EditRequest, Sequence } from "../generated/ipc";
@@ -144,9 +144,9 @@ describe("timeline create tracks", () => {
     render(<Timeline sequence={seq} projectStore={projectStore} transientStore={transientStore}
       executeEditCommand={executeEditCommand} reconcileCommandResult={vi.fn(async () => undefined)} />);
 
-    transientStore.beginClipDrag("clip-any", 0);
+    act(() => transientStore.beginClipDrag("clip-any", 0));
     expect((screen.getByRole("button", { name: "Добавить видеодорожку" }) as HTMLButtonElement).disabled).toBe(true);
-    transientStore.endClipDrag();
+    act(() => transientStore.endClipDrag());
     fireEvent.click(screen.getByRole("button", { name: "Добавить видеодорожку" }));
     expect((screen.getByRole("button", { name: "Добавить аудиодорожку" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Добавить аудиодорожку" }));
