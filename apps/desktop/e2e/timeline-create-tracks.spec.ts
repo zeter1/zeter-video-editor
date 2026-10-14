@@ -88,8 +88,10 @@ test("native AddTrack buttons create undoable video/audio lanes without modifyin
   });
   await videoLane.locator(".timeline-track-lane").click({ position: { x: 200, y: 20 } });
   await expect(videoLane).toHaveClass(/is-selected/);
-  const mediaRow = page.locator(".media-row").filter({ hasText: "synthetic-1080p.mp4" });
-  await expect(mediaRow).toHaveCount(1);
+  // Existing fixture projects may already contain a video with this basename;
+  // never assume a media-list *name* is globally unique.
+  const mediaRow = page.locator(".media-row").filter({ hasText: "synthetic-1080p.mp4" }).first();
+  await expect(mediaRow).toBeVisible();
   await mediaRow.locator(".media-add").click();
   await expect.poll(async () => {
     const snapshot = await invokeTauri<Snapshot>(page, "project_snapshot");
