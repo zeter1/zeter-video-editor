@@ -38,7 +38,8 @@ test("native WebView2 provides actual decoded 1000 Hz AAC samples", async () => 
     "-NoProfile", "-NonInteractive", "-Command",
     "$endpoints=@(Get-PnpDevice -Class AudioEndpoint -PresentOnly -ErrorAction SilentlyContinue); " +
       "$audio=Get-Service Audiosrv -ErrorAction SilentlyContinue; " +
-      "@{presentAudioEndpointCount=$endpoints.Count; audioService=if($audio){$audio.Status.ToString()}else{'NotFound'}} | ConvertTo-Json -Compress",
+      "$status=if($audio){$audio.Status.ToString()}else{'NotFound'}; " +
+      "@{presentAudioEndpointCount=$endpoints.Count; audioService=$status} | ConvertTo-Json -Compress",
   ], { encoding: "utf8", timeout: 15_000 }).trim();
   console.log("[native audio capture feasibility origins] " + JSON.stringify(origins));
   console.log("[native Windows loopback preflight] " + endpointInfo);
