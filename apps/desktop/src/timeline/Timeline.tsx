@@ -347,7 +347,7 @@ export function Timeline({
     setAddingTrack(true);
     const originalSequenceId = sequence.id;
     const id = crypto.randomUUID();
-    const lastOfKind = sequence.tracks.findLastIndex((track) => track.kind === kind);
+    const lastOfKind = sequence.tracks.reduce((last, track, index) => track.kind === kind ? index : last, -1);
     try {
       const result = await commitCommand({
         AddTrack: {
