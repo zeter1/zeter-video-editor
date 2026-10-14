@@ -112,6 +112,34 @@ describe("opaque cached FFmpeg paused Preview", () => {
     unmount();
   });
 
+  it("retains an exact native frame reported before seeked without waiting for another paused callback", async () => {
+    invoke.mockImplementation(async (command: string) => command === "request_preview_chunk"
+      ? { token: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        start_us: 0, end_us: 4_000_000 }
+      : null);
+    const { rerender } = render(<PausedCompositeFrame {...props} playheadTimeUs={3_600_000} />);
+    const current = await screen.findByLabelText("Точный FFmpeg кадр") as HTMLVideoElement;
+    let seeking = true;
+    Object.defineProperty(current, "seeking", { configurable: true, get: () => seeking });
+    Object.defineProperty(current, "readyState", { configurable: true, value: 2 });
+    fireEvent.seeking(current);
+    submitFrame(3.6);
+    expect(current.style.visibility).toBe("hidden");
+
+    // WebView2 is permitted to signal rVFC before seeked. A paused decoder
+    // is not obliged to issue a second frame callback for the same picture.
+    seeking = false;
+    fireEvent.seeked(current);
+    await waitFor(() => expect(current.style.visibility).toBe("visible"));
+
+    rerender(<PausedCompositeFrame {...props} playheadTimeUs={3_700_000} />);
+    expect(current.style.visibility).toBe("hidden");
+    fireEvent.seeked(current); // old 3.6s proof cannot unlock a 3.7s seek.
+    expect(current.style.visibility).toBe("hidden");
+    submitFrame(3.7);
+    await waitFor(() => expect(current.style.visibility).toBe("visible"));
+  });
+
   it("does not restart a native seek when metadata arrives after the correct target", async () => {
     invoke.mockImplementation(async (command: string) => command === "request_preview_chunk"
       ? { token: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
