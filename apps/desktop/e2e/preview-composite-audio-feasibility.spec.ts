@@ -21,9 +21,6 @@ test("native WebView2 provides actual decoded 1000 Hz AAC samples", async () => 
   await expect.poll(() => video.evaluate((element) =>
     (element as HTMLVideoElement).readyState), { timeout: 20_000 }).toBeGreaterThanOrEqual(2);
 
-  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
-  await expect.poll(() => video.evaluate((element) =>
-    (element as HTMLVideoElement).currentTime), { timeout: 10_000 }).toBeGreaterThan(0.1);
 
   // Diagnostic only: endpoint enumeration cannot prove WASAPI loopback captures PCM.
   const origins = await video.evaluate((element) => {
@@ -43,6 +40,10 @@ test("native WebView2 provides actual decoded 1000 Hz AAC samples", async () => 
   ], { encoding: "utf8", timeout: 15_000 }).trim();
   console.log("[native audio capture feasibility origins] " + JSON.stringify(origins));
   console.log("[native Windows loopback preflight] " + endpointInfo);
+
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  await expect.poll(() => video.evaluate((element) =>
+    (element as HTMLVideoElement).currentTime), { timeout: 10_000 }).toBeGreaterThan(0.1);
 
   const capture = await captureDecodedAudio(page, "video[aria-label='Предпросмотр видео']", 800);
   const values = capture.pcm.filter(Number.isFinite);
