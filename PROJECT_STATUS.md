@@ -1,3 +1,48 @@
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003o NATIVE SEAM PIXEL ORACLE / alpha.19 (PR #78 DRAFT)
+
+- **EXACT CI EVIDENCE:** [CI #38460432598](https://github.com/zeter1/zeter-video-editor/actions/runs/38460432598) on `c4e4016604a731d8d37bf9696bd9c96fbf2031a2` COMPLETED FAILURE at 4.2s native center RGB only; 171 Vitest, Rust+FFmpeg, TS build and 20 previous native E2E passed. Two native seeks became one, disproving duplicated-seek as the RGB root cause. DEBUG NSIS and remaining E2E skipped due stopped test shell. Do NOT merge.
+- **ROOT OBSERVATION:** The independent export 2x2 center has adjacent RGB [233,230,18] (yellow) and [17,18,234] (blue). Their average [125,124,126] matches WebView2 native screenshot, video screenshot AND Canvas [125,125,127]. This is bilinear CSS scaling at the fixture's sharp two-color center boundary, not demonstrated video frame corruption. The old strict test compared this antialiased pixel to the unscaled left yellow pixel; rVFC mediaTime=0.2 was accurate but insufficient for arbitrary sampling.
+- **CURRENT WORK:** Same PR/alpha.19 native E2E retains per-channel RGB tolerance ≤35 but samples BOTH pixel interiors at x=1/4 and 3/4 from separately FFmpeg-decoded full export as well as WebView2; and retains the center with a two-color 50/50 resampled-edge reference. Other tests, source files, FFmpeg cache contract and export are unchanged. Verify these **all** on exact final SHA in full Windows CI, including native WebView2 and DEBUG NSIS, self-review then squash merge/main CI only on SUCCESS. No tag/release/signing/installation.
+- **PR / VERSION:** [#78](https://github.com/zeter1/zeter-video-editor/pull/78) OPEN DRAFT; main `edf2fc59e8ca970d03b7b93750ea71820f717866` alpha.18, branch alpha.19; same original bounded adjacent preview task. Next product-code task after finishing is continuous live FFmpeg A/V clock with bounded prebuffer and RGB/RMS parity.
+
+---
+
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003o NATIVE PAUSED SEAM / alpha.19 (DRAFT, NOT MERGED)
+
+- **CURRENT PR / BASE:** [#78](https://github.com/zeter1/zeter-video-editor/pull/78) is OPEN DRAFT on `feat/preview-adjacent-prefetch-alpha19-20261013` (desktop source 0.1.0-alpha.19); main `edf2fc59e8ca970d03b7b93750ea71820f717866` remains 0.1.0-alpha.18. No release, signing or owner-PC installation.
+- **OBSERVED FAIL:** [Windows CI #38458991912](https://github.com/zeter1/zeter-video-editor/actions/runs/38458991912) on `52a1519e619185ac5fc302928e95bcc9e242636c` COMPLETED FAILURE. Rust and frontend build, version policy, 170 Vitest and 20 native WebView2 E2E passed before the 4.2-second seam. Native VIDEO, screenshot and Canvas drawImage all read [125,125,127] while independently exported FFmpeg [231,231,18] and canonical two-second cache [237,230,19] agreed. rVFC mediaTime=0.2/currentTime=0.2/readyState=4 do **not** prove pixel correctness; DEBUG NSIS was skipped. No lowering of RGB ≤35 gate.
+- **ROOT HYPOTHESIS / CODE CHANGE:** Native instrumentation captured **two seeking events** for each single requested paused frame (including at 4.2s). The effect set `currentTime` before metadata, then an unconditional `onLoadedMetadata` assignment retriggered an identical native seek, racing the presented frame. The handler now skips redundant seek if the requested position already matches, with Vitest covering both duplicate prevention and metadata arriving before initial seek. This is a suspected cause, NOT YET proven by native parity.
+- **ACCEPTANCE:** Full exact-final-head Windows CI: version/fmt/Rust with pinned FFmpeg, TypeScript/Vitest, native WebView2 RGB parity at 0.4 and 4.2s against independent FFmpeg, remaining native E2E and DEBUG NSIS must all be COMPLETED SUCCESS. Self-review and squash merge only then, followed by main CI. Never claim canvas/video parity from timestamps alone.
+- **NEXT PRODUCT-CODE TASK:** Finish THIS same ZVE-003o PR: read exact-head CI after duplicate-seek fix, inspect native RGB and event logs. If still failing, isolate decoded data vs the custom stream/codec rather than suppressing oracle; repair and retest. Only after merge tackle continuous live FFmpeg A/V composite with clock/prebuffer/parity.
+
+---
+
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003o ADJACENT PAUSED COMPOSITE PREFETCH / alpha.19 (PR #78 DRAFT, WINDOWS CI GATE)
+
+- **Сценарий:** остановленный Preview при наличии двух движущихся видеодорожек заранее рендерит следующее FFmpeg-окно и переиспользует его opaque token при переходе 3.6→4.2с, не меняя Rust EditCommand/Undo/Redo, .vcut v2, исходники и экспорт. Rust поддерживает максимум два независимых leases; отказ prefetch сохраняет direct fallback.
+- **Сбой/исправление:** прежний native Windows WebView2 E2E на PR #78 HEAD 81eaec9b1a1fbca50c6e8e2011144ed769e10e81 завершился FAILED: на 4.2с native пиксель [125,125,127] против full export [233,230,18], хотя отрендеренный cache MP4 на 0.2с [237,230,19]. `PausedCompositeFrame.tsx` теперь использует `requestVideoFrameCallback(metadata.mediaTime)` и защиту от callback устаревшего seek вместо одного лишь `currentTime`/`readyState`. Добавлены Vitest-тесты настоящего presentation gate, временно устаревших и отменённых callback. RGB-допуск E2E 35 не изменён.
+- **Доставка/риск:** main edf2fc59e8ca970d03b7b93750ea71820f717866 / 0.1.0-alpha.18, PR https://github.com/zeter1/zeter-video-editor/pull/78 — OPEN DRAFT, branch `feat/preview-adjacent-prefetch-alpha19-20261013` / 0.1.0-alpha.19. Реальный PR HEAD и CI проверять перед любым merge; первая проверка нового rVFC-кода https://github.com/zeter1/zeter-video-editor/actions/runs/38444530098 запущена на f210dccc6e14c792022491ba371631a4ee665a01, но промежуточная — ПОСЛЕДУЮЩИЙ HEAD всё равно требует собственный exact-HEAD Windows CI. Не выдавать прежний успех Rust/TS за полный успех Pixel/WebView2.
+- **Приёмка:** Windows CI exact-final-HEAD COMPLETED SUCCESS для check-version/rustfmt/Rust pinned FFmpeg/TS/Vitest/native WebView2 RGB против независимого full export/debug NSIS, review diff, squash merge с проверкой main и main CI. Не публиковать tag/Release, не подписывать и не устанавливать без отдельного решения и manual Windows QA.
+- **NEXT PRODUCT-CODE TASK:** после завершения ZVE-003o интегрировать полноценный live FFmpeg-composite A/V, единый clock, bounded prebuffer/handoff, cancel/revision и независимый native RGB+RMS oracle; см. `PreviewPlayer.tsx`, `PreviewAudioTracks.tsx`, `preview_composite.rs`. Без такой приёмки live режим не включать.
+
+---
+
+# ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003o ADJACENT PAUSED COMPOSITE PREFETCH / alpha.19 (BRANCH; EXACT-HEAD WINDOWS CI PENDING)
+
+- **USER PATH / BEFORE → AFTER:** Stepping or scrubbing from a paused overlapping-video region across the 4-second FFmpeg boundary previously discarded the existing opaque lease and waited for a fresh render. Within the last 1.5 s of a window, the UI now pre-renders the next bounded chunk, preserves its independent opaque lease across that seek, and displays it only after the native decoder acknowledges the frame. If prefetch is slow/invalid or near the end, retain the direct native fallback; a failed speculative request is retired so the foreground can retry on crossing. No full live playback claim.
+- **IMPLEMENTATION / INVARIANTS:** `apps/desktop/src-tauri/src/preview_composite.rs` holds at most two independent project-scoped request slots, with oldest-first cancellation/eviction, generation-scoped publish, source/revision/TTL validation and full revocation on project changes. `apps/desktop/src/preview/PausedCompositeFrame.tsx` starts an adjacent request only within 1.5 s of the forward boundary, retains and reuses its response across the seam, retires stale scope/seek/unmount tokens, and never exposes a filesystem path. Regression tests in Rust and Vitest cover independent cancellation, bounded slots, project switch, 4-second handoff and stale revision. Live FFmpeg A/V mixing and seamless playback are intentionally NOT enabled.
+- **BASE / VERSION / CHECKS:** main `edf2fc59e8ca970d03b7b93750ea71820f717866`, `0.1.0-alpha.18`, post-merge Windows CI #38394435396 COMPLETED SUCCESS. Branch `feat/preview-adjacent-prefetch-alpha19-20261013`; `0.1.0-alpha.19` prepared by `scripts/set-version.mjs` + `scripts/check-version.mjs` in branch-only GitHub Action #38406807549 COMPLETED SUCCESS. Rustfmt, exact-final-head Windows Rust/FFmpeg, frontend build/Vitest, native Windows Tauri/WebView2 E2E and DEBUG NSIS **PENDING** at the time of this checkpoint; do not merge unless passed. No release, tag, signing, installation or owner-PC QA.
+- **ACCEPTANCE:** In paused overlap at 2.0 s request only 0–4 s; at 2.6 s prefetch 4–8 s, crossing 4 s uses that token without a second render. No more than two jobs/leases; delayed cancellation cannot tear down the surviving window; edit/project switch discards stale tokens. Native Windows WebView2 verifies the decoded 4.2s frame after an opaque-token handoff against separately exported FFmpeg RGB; version/toolchain gates and DEBUG NSIS smoke remain mandatory. Source projects and media remain byte-identical.
+- **NEXT PRODUCT-CODE TASK AFTER MERGE:** Real **live** FFmpeg composite across adjacent windows, one A/V clock, prebuffered audio and native WebView2 RGB+RMS parity, with graceful stalls/rebuffering and cancellation, using the new two-lease service; extend `PreviewPlayer.tsx` and `PreviewAudioTracks.tsx`. Do not enable live mode before verified audio/pixel parity.
+
+---
+
+# VERIFIED MAIN CHECKPOINT — 2026-10-13 — ZVE-003n alpha.18 MERGED
+
+- PR #77 merged as main SHA `edf2fc59e8ca970d03b7b93750ea71820f717866`; exact PR HEAD `1c09affb1c4b570cecb9091006362788cfbaa4c0` SUCCESS CI #38393061246; post-merge main CI #38394435396 COMPLETED SUCCESS. Paused FFmpeg-composite and opaque per-request streaming in main. This corrects the historical branch-state checkpoint below; no signed release or user-PC QA.
+ 
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-13 — ZVE-003n PAUSED FFMPEG COMPOSITE WITH OPAQUE IPC / alpha.18 (BRANCH / PR GATES PENDING)
 
 - **USER BEHAVIOR (ONE BOUNDED SLICE):** When two moving videos overlap and the playhead is paused, request a bounded, export-filtergraph FFmpeg output window from the authoritative Rust revision and display its WebView2-decoded frame only after that requested time is ready. Previously all overlapping videos were WebView2-decoded and composited approximately. Live playback/audio deliberately retains the existing decoder/transport path; continuous FFmpeg A/V playback and pixel-parity over live playback are NOT claimed.
@@ -705,7 +750,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.18` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.19` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
