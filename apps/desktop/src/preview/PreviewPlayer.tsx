@@ -212,6 +212,49 @@ export function PreviewPlayer({
   const [scale, setScale] = useState<PreviewScale>("Fit");
   const [playing, setPlaying] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
+  const fullscreenStageRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Native Esc exits fullscreen without calling React transport handlers.
+    const syncFullscreen = () => {
+      const activeFullscreen = document.fullscreenElement === fullscreenStageRef.current;
+      setFullscreen(activeFullscreen);
+      if (activeFullscreen) setFullscreenError(null);
+    };
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
+  const enterFullscreen = async (): Promise<void> => {
+    const stage = fullscreenStageRef.current;
+    if (!stage) return;
+    setFullscreenError(null);
+    if (document.fullscreenElement && document.fullscreenElement !== stage) {
+      setFullscreenError("Другое окно уже находится в полноэкранном режиме.");
+      return;
+    }
+    if (typeof stage.requestFullscreen !== "function") {
+      setFullscreenError("Полноэкранный режим недоступен в этом окружении.");
+      return;
+    }
+    try {
+      // Request synchronously from the click handler, before the first await.
+      await stage.requestFullscreen();
+    } catch {
+      setFullscreenError("Не удалось развернуть предпросмотр на весь экран.");
+    }
+  };
+
+  const exitFullscreen = async (): Promise<void> => {
+    if (document.fullscreenElement !== fullscreenStageRef.current) return;
+    try {
+      await document.exitFullscreen();
+    } catch {
+      setFullscreenError("Не удалось выйти из полноэкранного режима.");
+    }
+  };
   // Standalone audio must not run ahead while the active video decoder stalls.
   // A media key prevents a previous video from unblocking a newly selected clip.
   const [syncedVideoKey, setSyncedVideoKey] = useState<string | null>(null);
@@ -517,7 +560,7 @@ export function PreviewPlayer({
 
   return (
     <>
-      <div className="preview-stage">
+      <div className="preview-stage" ref={fullscreenStageRef}>
         <div
           className={`preview-frame preview-scale-${scale === "Fit" ? "fit" : "100"}`}
           style={{
@@ -664,6 +707,18 @@ export function PreviewPlayer({
             />
           ) : null}
         </div>
+        {fullscreen ? (
+          <button
+            type="button"
+            className="preview-fullscreen-exit"
+            aria-label="Выйти из полноэкранного режима"
+            title="Выйти из полноэкранного режима (Esc)"
+            onClick={() => { void exitFullscreen(); }}
+          >×</button>
+        ) : null}
+        {fullscreenError ? (
+          <span className="preview-fullscreen-error" role="alert">{fullscreenError}</span>
+        ) : null}
       </div>
       <PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={playheadTimeUs} playing={audioTransportPlaying} />
       <div className="preview-controls" aria-label="Управление предпросмотром">
@@ -740,6 +795,12 @@ export function PreviewPlayer({
             onClick={() => setScale(value)}
           >{value === "Fit" ? "Вписать" : "100%"}</button>
         ))}
+        <button
+          type="button"
+          aria-label="На весь экран"
+          title="Развернуть предпросмотр на весь экран"
+          onClick={() => { void enterFullscreen(); }}
+        >⛶</button>
         <span className="quality-pill" data-testid="preview-quality">{quality === "Full" ? "Полное" : quality}</span>
         <span className="quality-pill" data-testid="preview-scale">{scale === "Fit" ? "Вписать" : scale}</span>
       </div>
