@@ -31,8 +31,8 @@ export function previewAudioVolume(clip: Clip, timeUs: number): number {
 
 // Start standalone audio only after a native seek has reached its clip source-in.
 // Assigning currentTime at loadedmetadata is not evidence that seeking completed.
-function synchronizeAudioClock(
-  node: HTMLAudioElement, clip: Clip, timeUs: number, playing: boolean,
+export function synchronizeAudioClock(
+  node: HTMLMediaElement, clip: Clip, timeUs: number, playing: boolean,
   pendingSeek: { current: boolean },
 ): boolean {
   if (node.readyState < HTMLMediaElement.HAVE_METADATA) return false;

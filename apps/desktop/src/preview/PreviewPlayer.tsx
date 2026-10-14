@@ -4,7 +4,7 @@ import type { Clip, MediaRef, ProjectId, ProjectRevision, Sequence, Track, Track
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
 import { PausedCompositeFrame } from "./PausedCompositeFrame";
-import { PreviewAudioTracks, previewAudioVolume } from "./PreviewAudioTracks";
+import { PreviewAudioTracks, previewAudioVolume, synchronizeAudioClock } from "./PreviewAudioTracks";
 import { adjacentEditBoundaryUs, collectEditBoundariesUs } from "./editNavigation";
 import {
   advanceGapTimeUs,
@@ -103,37 +103,50 @@ function supportsPresentedFrames(node: HTMLVideoElement | null): node is HTMLVid
     typeof node.cancelVideoFrameCallback === "function");
 }
 
-/** Muted follower decoder; only the foreground video advances timeline and audio. */
+/** Follower decoder with gated embedded sound; foreground video remains the only timeline clock. */
 function SecondaryVideoLayer({
-  clip, src, playheadTimeUs, playing,
+  clip, trackMuted, src, playheadTimeUs, playing,
 }: {
-  clip: Clip; src: string; playheadTimeUs: number; playing: boolean;
+  clip: Clip; trackMuted: boolean; src: string; playheadTimeUs: number; playing: boolean;
 }) {
   const node = useRef<HTMLVideoElement>(null);
   const [failed, setFailed] = useState(false);
-  const targetSeconds = sourceTime(clip, playheadTimeUs);
+  const [soundReady, setSoundReady] = useState(false);
+  const pendingSeekRef = useRef(false);
+  const timeRef = useRef(playheadTimeUs);
+  timeRef.current = playheadTimeUs;
+  const synchronize = (current: HTMLVideoElement, timeUs: number): void => {
+    setSoundReady(synchronizeAudioClock(current, clip, timeUs, playing, pendingSeekRef) &&
+      current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA);
+  };
 
   useEffect(() => {
     const current = node.current;
     if (!current) return;
-    const speed = clip.speed > 0 ? clip.speed : 1;
-    current.playbackRate = speed;
-    // Playback tolerance is in timeline seconds, converted to source seconds.
-    // Paused frame steps seek independently; the follower cannot move the clock.
-    const tolerance = (playing ? 0.12 : 0.001) * speed;
-    if (Number.isFinite(targetSeconds) &&
-        Math.abs(current.currentTime - targetSeconds) > tolerance) {
-      current.currentTime = Math.max(0, targetSeconds);
-    }
-  }, [clip.source_in, clip.timeline_start, clip.speed, targetSeconds, playing]);
+    current.playbackRate = clip.speed > 0 ? clip.speed : 1;
+    // A source-clock jump is not audible until seeked acknowledges it.
+    synchronize(current, playheadTimeUs);
+  }, [clip, playheadTimeUs, playing]);
+
+  useEffect(() => {
+    const current = node.current;
+    if (!current) return;
+    // Never leak an old frame's sound after seek, pause, mute or stall.
+    current.muted = !playing || !soundReady || trackMuted || clip.audio.muted;
+    current.volume = previewAudioVolume(clip, playheadTimeUs);
+  }, [clip, trackMuted, playheadTimeUs, playing, soundReady]);
 
   useEffect(() => {
     const current = node.current;
     if (!current) return;
     let cancelled = false;
-    if (playing) {
+    if (playing && soundReady && !current.seeking &&
+        current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
       void current.play().catch((reason: unknown) => {
-        if (!cancelled && !isBenignMediaPlayRejection(reason)) setFailed(true);
+        if (!cancelled && !isBenignMediaPlayRejection(reason)) {
+          current.muted = true;
+          setFailed(true);
+        }
       });
     } else {
       current.pause();
@@ -142,7 +155,7 @@ function SecondaryVideoLayer({
       cancelled = true;
       current.pause();
     };
-  }, [playing, src]);
+  }, [playing, soundReady, src]);
 
   return (
     <>
@@ -158,9 +171,26 @@ function SecondaryVideoLayer({
         onLoadedMetadata={() => {
           if (!node.current) return;
           node.current.playbackRate = clip.speed > 0 ? clip.speed : 1;
-          node.current.currentTime = Math.max(0, sourceTime(clip, playheadTimeUs));
+          synchronize(node.current, timeRef.current);
         }}
-        onError={() => setFailed(true)}
+        onCanPlay={() => {
+          if (node.current) synchronize(node.current, timeRef.current);
+        }}
+        onSeeking={() => {
+          pendingSeekRef.current = true;
+          if (node.current) node.current.muted = true;
+          setSoundReady(false);
+        }}
+        onSeeked={() => {
+          if (!node.current || node.current.seeking) return;
+          pendingSeekRef.current = false;
+          synchronize(node.current, timeRef.current);
+        }}
+        onError={() => {
+          if (node.current) node.current.muted = true;
+          setSoundReady(false);
+          setFailed(true);
+        }}
       />
       {failed ? <span role="alert">Не удалось декодировать нижний видеослой.</span> : null}
     </>
@@ -497,8 +527,8 @@ export function PreviewPlayer({
         >
           {videoSource && active ? (
             <div className="preview-still-layers">
-              {(pictureLayers.length > 0 ? pictureLayers : [{ clip: active, src: videoSource }])
-                .map(({ clip, src: layerSrc }) => clip.kind === "Video" && clip.id === active.id ? (
+              {(pictureLayers.length > 0 ? pictureLayers : [{ clip: active, track: activeTrack!, src: videoSource }])
+                .map(({ clip, track, src: layerSrc }) => clip.kind === "Video" && clip.id === active.id ? (
             <video
               key={key}
               ref={video}
@@ -575,6 +605,7 @@ export function PreviewPlayer({
                   <SecondaryVideoLayer
                     key={clip.id}
                     clip={clip}
+                    trackMuted={track.muted}
                     src={layerSrc}
                     playheadTimeUs={playheadTimeUs}
                     playing={audioTransportPlaying}
