@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -14,6 +15,7 @@ import type {
   EditRequest,
   RequestId,
   Sequence,
+  TrackKind,
 } from "../generated/ipc";
 import type { ProjectStore } from "../state/projectStore";
 import {
@@ -33,6 +35,19 @@ export const TIMELINE_PIXELS_PER_SECOND = 100;
 export const TIMELINE_TRACK_HEADER_WIDTH_PX = 132;
 const RULER_STEP_US = 5_000_000;
 const MIN_TIMELINE_DURATION_US = 30_000_000;
+
+type CreatableTrackKind = Extract<TrackKind, "Video" | "Audio">;
+
+function newTrackName(sequence: Sequence, kind: CreatableTrackKind): string {
+  const label = kind === "Video" ? "Видео" : "Аудио";
+  const prefix = kind === "Video" ? /^(?:Видео|Video)\s+(\d+)$/i : /^(?:Аудио|Audio)\s+(\d+)$/i;
+  const used = new Set(sequence.tracks.map((track) => track.name.toLowerCase()));
+  let number = Math.max(0, ...sequence.tracks
+    .filter((track) => track.kind === kind)
+    .map((track) => Number(track.name.match(prefix)?.[1] ?? 0))) + 1;
+  while (used.has(`${label} ${number}`.toLowerCase())) number += 1;
+  return `${label} ${number}`;
+}
 
 interface TimelineProps {
   sequence: Sequence;
@@ -101,6 +116,10 @@ export function Timeline({
   const transient = useTransientStore(transientStore);
   const scrollRef = useRef<HTMLDivElement>(null);
   const rulerPointerIdRef = useRef<number | null>(null);
+  const [addingTrack, setAddingTrack] = useState(false);
+  const addingTrackRef = useRef(false);
+  const sequenceIdRef = useRef(sequence.id);
+  sequenceIdRef.current = sequence.id;
   const previousZoomRef = useRef({ sequenceId: sequence.id, zoom: transient.timelineZoom });
 
   // A pointer from a previous sequence must not continue scrubbing this one.
@@ -320,6 +339,37 @@ export function Timeline({
     if (target !== null) transientStore.setPlayheadTime(target);
   }
 
+  async function addTrack(kind: CreatableTrackKind): Promise<void> {
+    // Rust remains the single authoritative owner; never optimistically alter a
+    // sequence or select a track that the edit command may reject.
+    if (addingTrackRef.current || transientStore.getState().drag) return;
+    addingTrackRef.current = true;
+    setAddingTrack(true);
+    const originalSequenceId = sequence.id;
+    const id = crypto.randomUUID();
+    const lastOfKind = sequence.tracks.reduce((last, track, index) => track.kind === kind ? index : last, -1);
+    try {
+      const result = await commitCommand({
+        AddTrack: {
+          sequence_id: originalSequenceId,
+          track: {
+            id, name: newTrackName(sequence, kind), kind,
+            muted: false, locked: false, hidden: false, clips: [],
+          },
+          // Group new Video and Audio lanes beside existing lanes of their kind.
+          index: lastOfKind < 0 ? sequence.tracks.length : lastOfKind + 1,
+        },
+      });
+      if (result.kind === "committed" && sequenceIdRef.current === originalSequenceId) {
+        transientStore.selectClip(null);
+        transientStore.selectTrack(id);
+      }
+    } finally {
+      addingTrackRef.current = false;
+      setAddingTrack(false);
+    }
+  }
+
   function addMarker(): void {
     void commitCommand({
       AddMarker: {
@@ -356,6 +406,22 @@ export function Timeline({
         </button>
         <button type="button" onClick={addMarker}>
           + Маркер
+        </button>
+        <button
+          type="button"
+          aria-label="Добавить видеодорожку"
+          disabled={addingTrack || Boolean(transient.drag)}
+          onClick={() => void addTrack("Video")}
+        >
+          + Видео
+        </button>
+        <button
+          type="button"
+          aria-label="Добавить аудиодорожку"
+          disabled={addingTrack || Boolean(transient.drag)}
+          onClick={() => void addTrack("Audio")}
+        >
+          + Аудио
         </button>
         <TimecodeInput
           key={sequence.id}
