@@ -40,7 +40,7 @@ type CreatableTrackKind = Extract<TrackKind, "Video" | "Audio">;
 
 function newTrackName(sequence: Sequence, kind: CreatableTrackKind): string {
   const label = kind === "Video" ? "Видео" : "Аудио";
-  const prefix = kind === "Video" ? /^(?:Видео|Video)\\s+(\\d+)$/i : /^(?:Аудио|Audio)\\s+(\\d+)$/i;
+  const prefix = kind === "Video" ? /^(?:Видео|Video)\s+(\d+)$/i : /^(?:Аудио|Audio)\s+(\d+)$/i;
   const used = new Set(sequence.tracks.map((track) => track.name.toLowerCase()));
   let number = Math.max(0, ...sequence.tracks
     .filter((track) => track.kind === kind)
