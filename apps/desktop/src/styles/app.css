@@ -596,6 +596,10 @@ button {
   background: #121218;
 }
 
+.timeline-track.is-selected .timeline-track-header {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .track-title-row {
   display: flex;
   align-items: center;
