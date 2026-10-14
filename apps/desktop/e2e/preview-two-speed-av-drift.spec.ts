@@ -120,14 +120,21 @@ test("2x compositor frame stays aligned with independent WAV after forward/backw
     // An explicit recovery gate permits the actual native seek/decoder to
     // settle; a single lucky sample is no longer sufficient to pass the test.
     let recoveryMs: number | null = null;
+    const samples: Array<NonNullable<Awaited<ReturnType<typeof measure>>>> = [];
     await expect.poll(async () => {
       const observation = await measure();
       if (!observation) return Number.POSITIVE_INFINITY;
-      if (Math.abs(observation.driftUs) < 300_000) recoveryMs = Date.now() - requestedAtMs;
+      if (Math.abs(observation.driftUs) < 300_000) {
+        // Recovery is already an actual synchronized decoder/rVFC sample.
+        // Reuse that valid measurement as the FIRST of the required six
+        // instead of discarding it and racing the 3s clip's source EOF.
+        // Keep all 6-sample, p50/p95 and maximum drift gates unchanged.
+        recoveryMs = Date.now() - requestedAtMs;
+        samples.push(observation);
+      }
       return Math.abs(observation.driftUs);
     }, { intervals: [50, 100, 150], timeout: 12_000 }).toBeLessThan(300_000);
 
-    const samples: Array<NonNullable<Awaited<ReturnType<typeof measure>>>> = [];
     for (let attempt = 0; attempt < 16 && samples.length < 6; attempt++) {
       const observation = await measure();
       if (observation) samples.push(observation);
