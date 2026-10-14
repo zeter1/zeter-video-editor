@@ -1,3 +1,12 @@
+# ACTIVE PRODUCT WORK — 2026-10-14 — ZVE-003q SECONDARY VIDEO AUDIO / alpha.21 (PR CI REQUIRED)
+
+- **GOAL / BEFORE → AFTER:** overlapping two video clips should preview both audible embedded soundtracks unless track/clip mute disables them. Previously lower picture was always hard-muted. The branch uses the existing timeline-source clock/seek acknowledgement to unmute the follower only after it is ready and foreground transport allows playback; subsequent seeking/pause/errors remute it. Video image still composites with current native approximation.
+- **DELIVERY / BASE:** main `37c8fe2cd87e4e3235d6d2eda16c8e8b86393f9c` / `0.1.0-alpha.20` had post-merge CI [#38519198569](https://github.com/zeter1/zeter-video-editor/actions/runs/38519198569) COMPLETED SUCCESS. Branch `fix/preview-secondary-video-audio-alpha21-20261014` / source `0.1.0-alpha.21` produced by actual canonical `node scripts/set-version.mjs` and `node scripts/check-version.mjs` in branch Action [#38521553674](https://github.com/zeter1/zeter-video-editor/actions/runs/38521553674) COMPLETED SUCCESS. Scope: `PreviewPlayer.tsx`, `PreviewAudioTracks.tsx`, `PreviewSecondaryVideoAudio.test.tsx`; old Rust/FFmpeg and project schema unchanged. No tag/Release/signing/installation.
+- **ACCEPTANCE:** two overlapping moving video clips with unmuted audio → bottom video starts only on valid native seeked + ready foreground, sound obeys track/clip mute and fades, seeks and pauses immediately stop stale audio; primary clock/picture/standalone WAV unaffected. TypeScript/frontend/Vitest and real Windows WebView2 E2E (including current native RGB parity), Rust workspace, version policy, DEBUG NSIS must PASS on exact final branch HEAD; self-review before any merge. Current scope still NOT sample-accurate FFmpeg live composite, no RMS audio oracle for both tracks. PR gate pending at this checkpoint; do NOT merge while pending or failed.
+- **NEXT PRODUCT-CODE TASK AFTER PASSING THIS SLICE:** a separately approved bounded FFmpeg continuous A/V composite with shared clock, prebuffer window handoff, revision/job cancellation, native WebView2 RGB+RMS independent export parity; check the approved spec before expanding preview architecture.
+
+---
+
 # ACTIVE PRODUCT WORK — 2026-10-14 — ZVE-003p PAUSED WebView2 FRAME-ORDER RACE / alpha.20 (WINDOWS CI REQUIRED)
 
 - **FIRST FACT:** PR [#78](https://github.com/zeter1/zeter-video-editor/pull/78) was merged to main as `32787675d5843c102f6971ce87285c0ebcccbae0`; main source version is `0.1.0-alpha.19`. Exact PR HEAD `153e3edc1888f144a5ae724574bcb241c8b9fa2b` passed complete Windows CI [#38461663623](https://github.com/zeter1/zeter-video-editor/actions/runs/38461663623). This PR acceptance does not transfer to post-merge CI.
@@ -761,7 +770,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.20` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.21` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
