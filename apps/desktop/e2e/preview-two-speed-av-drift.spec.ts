@@ -135,11 +135,72 @@ test("2x compositor frame stays aligned with independent WAV after forward/backw
       return Math.abs(observation.driftUs);
     }, { intervals: [50, 100, 150], timeout: 12_000 }).toBeLessThan(300_000);
 
-    for (let attempt = 0; attempt < 16 && samples.length < 6; attempt++) {
-      const observation = await measure();
-      if (observation) samples.push(observation);
-      await page.waitForTimeout(35);
-    }
+    // Each separate CDP/page.evaluate trip can consume several real playback
+    // frames. On this 3s fixture, six serial remote calls have previously
+    // allowed the native video to reach EOF *before* the forward scrub begins.
+    // Collect the remaining independent video-frame/WAV-clock observations in
+    // one renderer task. The minimum six samples and drift thresholds remain.
+    const moreSamples = await page.evaluate(async ({ audioId, needed }) => {
+      type Observation = {
+        driftUs: number; clock: "rVFC" | "decoder";
+        sourceSeconds: number; wavSeconds: number;
+        callbackNowMs: number | null; expectedDisplayTimeMs: number | null;
+        presentedFrames: number | null; observedAtMs: number;
+      };
+      const result: Observation[] = [];
+      const v = document.querySelector("video.preview-media") as HTMLVideoElement | null;
+      const a = document.querySelector('[data-testid="preview-audio-' + audioId + '"]') as HTMLAudioElement | null;
+      if (!v || !a || needed <= 0) return result;
+      const ready = () => !v.paused && !a.paused && !v.seeking && !a.seeking &&
+        v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        a.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+      const observe = (
+        sourceSeconds: number, clock: "rVFC" | "decoder",
+        now: number | null, displayTime: number | null, frames: number | null,
+      ): Observation => ({
+        driftUs: Math.round((sourceSeconds / 2 - a.currentTime) * 1_000_000),
+        clock, sourceSeconds, wavSeconds: a.currentTime,
+        callbackNowMs: now, expectedDisplayTimeMs: displayTime,
+        presentedFrames: frames, observedAtMs: performance.now(),
+      });
+
+      if (typeof v.requestVideoFrameCallback !== "function" ||
+          typeof v.cancelVideoFrameCallback !== "function") {
+        for (let attempt = 0; attempt < needed * 12 && result.length < needed; attempt++) {
+          if (ready()) result.push(observe(v.currentTime, "decoder", null, null, null));
+          await new Promise<void>((resolve) => setTimeout(resolve, 35));
+        }
+        return result;
+      }
+
+      return new Promise<Observation[]>((resolve) => {
+        let finished = false;
+        let requestId: number | null = null;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timeoutId);
+          if (requestId !== null) v.cancelVideoFrameCallback(requestId);
+          resolve(result);
+        };
+        // A native stall still fails the existing six-frame assertion; this
+        // bounded wait does not fabricate samples or weaken drift tolerances.
+        const timeoutId = setTimeout(finish, 2500);
+        const onFrame: VideoFrameRequestCallback = (now, metadata) => {
+          if (finished) return;
+          if (ready()) {
+            result.push(observe(
+              metadata.mediaTime, "rVFC", now,
+              metadata.expectedDisplayTime, metadata.presentedFrames,
+            ));
+          }
+          if (result.length >= needed || v.ended || v.paused) finish();
+          else requestId = v.requestVideoFrameCallback(onFrame);
+        };
+        requestId = v.requestVideoFrameCallback(onFrame);
+      });
+    }, { audioId: wavSource.id, needed: 6 - samples.length });
+    samples.push(...moreSamples);
     const absDrifts = samples.map((entry) => Math.abs(entry.driftUs)).sort((a, b) => a - b);
     const percentile = (fraction: number) =>
       absDrifts[Math.max(0, Math.ceil(absDrifts.length * fraction) - 1)];
