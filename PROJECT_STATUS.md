@@ -1,11 +1,13 @@
-# ACTIVE ZVE-006 — 2026-10-15 — MP4 export toolbar / alpha.24 candidate
+# ACTIVE ZVE-006b — 2026-10-15 — detachable MP4 task window, timeline I/O range, FFmpeg progress
 
-- **PRODUCT:** A visible `Экспорт MP4` command now opens a Windows destination picker, starts the existing Rust/FFmpeg H.264 render job for the active sequence, shows running/completed/failed/cancelled state and supports cancel. During encoding progress is indeterminate because backend `JobEventDto.progress` currently reports 0 until done; no invented percentages. Existing destinations are rejected rather than erased, with atomic no-clobber publication. No `.vcut` migration; source media unchanged.
-- **BRANCH:** `feat/zve-006-export-mp4-ui-20261015` based on main `a9b4ac97a630be3a65b9949b7e231acc6a9cf513`. Candidate source version `0.1.0-alpha.24`, NOT merged, signed, tagged or released. Exact branch Windows CI/native WebView2/NSIS and owner-PC end-to-end QA remain REQUIRED; do not call complete until passed.
-- **TEST COVERAGE:** React/Vitest picker, cancellation, terminal status and error handling; existing real FFmpeg export E2E extended with toolbar visibility and preserved destination check. Existing source-output and cancellation gates retained. Direct UI native file picker is unit-tested with a mock; native dialog interaction and actual output inspection on owner's Windows PC are outstanding.
-- **NEXT:** check exact PR HEAD Windows CI; repair regressions in this same task, then self-review and merge only if required checks succeed. Separate blocked ZVE-004a PCM/CORS draft #85 is not part of export.
+- **USER REQUEST:** On Windows a separate export-queue window shows every MP4 task and real progress; while editing select a timeline interval (Shift + drag ruler or I/O buttons), enqueue it, and continue working. Use a native Rust job queue rather than a frontend-only list.
+- **IMPLEMENTED IN DRAFT:** PR #87 https://github.com/zeter1/zeter-video-editor/pull/87, branch `feat/zve-006-export-mp4-ui-20261015`; app version remains `0.1.0-alpha.24` because the original MP4 UI is not yet merged. Backend stores immutable RenderPlan + range and destination per task, queues serial FFmpeg via Tokio async Mutex, supports queued/running cancellation, reports actual FFmpeg `out_time_us` progress via JobManager. Tauri `export-queue` detached window polls authoritative task list with permissions and per-task cancel; frontend selects non-destructive time range and permits additional MP4s while first renders.
+- **TESTS IN BRANCH:** React/Vitest interval UI + task list + multi-queue; Windows Tauri E2E checks queue state, task-list IPC, actual exported range duration via FFprobe, no-clobber and cancellation. Running exact-HEAD CI; only call successful when exact SHA is COMPLETED SUCCESS including Rust, WebView2 E2E and DEBUG NSIS. Latest development code HEAD will change during CI repairs; always re-fetch. Main remains `0.1.0-alpha.23` until verified merge.
+- **RESTRICTIONS:** Queue contents are process-local, not persisted across editor restarts. Windows debug installer unsigned; do not label a signed/public release. Manual PC QA still required, especially opening independent window, compiling range with A/V, selecting two distinct intervals mid-edit, cancellation, FFmpeg percentages, and verifying neither originals nor existing outputs change. Do not merge until owner verifies.
+- **NEXT IN THIS DIALOGUE:** fix exact-HEAD Windows CI, review diff and ask owner to install/test DEBUG preview artifact. After explicit successful manual QA finish PR #87; do not start a different product task.
 
 ---
+
 
 # VERIFIED ZVE-005 MERGE — 2026-10-14 — UI video/audio lanes / alpha.23
 
