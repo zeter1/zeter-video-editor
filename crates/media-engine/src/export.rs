@@ -1,8 +1,9 @@
 use std::{
     fs,
-    io::{self, Read},
+    io::{self, BufRead, BufReader},
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::Arc,
     thread,
     time::Duration,
 };
@@ -26,6 +27,16 @@ pub trait ExportRunner: Clone {
         spec: &ProcessSpec,
         cancel: &CancellationToken,
     ) -> Result<ProcessOutput, MediaError>;
+
+    fn run_with_progress(
+        &self,
+        spec: &ProcessSpec,
+        cancel: &CancellationToken,
+        _duration_us: i64,
+        _progress: Arc<dyn Fn(f32) + Send + Sync>,
+    ) -> Result<ProcessOutput, MediaError> {
+        self.run(spec, cancel)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -36,6 +47,16 @@ impl ExportRunner for ManagedExportRunner {
         &self,
         spec: &ProcessSpec,
         cancel: &CancellationToken,
+    ) -> Result<ProcessOutput, MediaError> {
+        self.run_with_progress(spec, cancel, 0, Arc::new(|_| {}))
+    }
+
+    fn run_with_progress(
+        &self,
+        spec: &ProcessSpec,
+        cancel: &CancellationToken,
+        duration_us: i64,
+        progress: Arc<dyn Fn(f32) + Send + Sync>,
     ) -> Result<ProcessOutput, MediaError> {
         if cancel.is_cancelled() {
             return Err(MediaError::Cancelled);
@@ -56,9 +77,37 @@ impl ExportRunner for ManagedExportRunner {
             operation: "stderr capture",
             source: io::Error::other("stderr pipe unavailable"),
         })?;
-        let stderr_reader = thread::spawn(move || {
+        let stderr_reader = thread::spawn(move || -> io::Result<Vec<u8>> {
             let mut bytes = Vec::new();
-            stderr.read_to_end(&mut bytes).map(|_| bytes)
+            let mut last_progress = 0.0_f32;
+            for line in BufReader::new(stderr).lines() {
+                let line = line?;
+                if let Some(time) = line.strip_prefix("out_time_us=")
+                    .and_then(|value| value.parse::<i64>().ok())
+                {
+                    if duration_us > 0 {
+                        let next = (time as f32 / duration_us as f32).clamp(0.0, 0.99);
+                        if next > last_progress {
+                            last_progress = next;
+                            progress(next);
+                        }
+                    }
+                } else if !line.starts_with("frame=")
+                    && !line.starts_with("fps=")
+                    && !line.starts_with("bitrate=")
+                    && !line.starts_with("total_size=")
+                    && !line.starts_with("out_time_ms=")
+                    && !line.starts_with("out_time=")
+                    && !line.starts_with("dup_frames=")
+                    && !line.starts_with("drop_frames=")
+                    && !line.starts_with("speed=")
+                    && !line.starts_with("progress=")
+                {
+                    bytes.extend_from_slice(line.as_bytes());
+                    bytes.push(b'\n');
+                }
+            }
+            Ok(bytes)
         });
 
         let status = loop {
@@ -151,6 +200,26 @@ impl<R: ExportRunner> ExportJob<R> {
         output: &Path,
         cancel: CancellationToken,
     ) -> Result<ExportReceipt, JobFailure> {
+        self.run_with_progress(plan, output, cancel, None, Arc::new(|_| {}))
+    }
+
+    pub fn run_with_progress(
+        &self,
+        plan: RenderPlan,
+        output: &Path,
+        cancel: CancellationToken,
+        range: Option<(TimeUs, TimeUs)>,
+        progress: Arc<dyn Fn(f32) + Send + Sync>,
+    ) -> Result<ExportReceipt, JobFailure> {
+        let total_us = (plan.duration_seconds().unwrap_or(0.0) * 1_000_000.0).round() as i64;
+        if let Some((start, end)) = range {
+            if start >= end || end.get() > total_us {
+                return Err(export_failure(MediaError::InvalidExportSettings {
+                    reason: "export range outside sequence or empty",
+                }));
+            }
+        }
+        let expected_duration_us = range.map(|(s, e)| e.get() - s.get()).unwrap_or(total_us);
         if export_destination_is_source(&plan, output) {
             return Err(export_failure(MediaError::InvalidExportSettings {
                 reason: "export destination must not replace source media",
@@ -175,8 +244,8 @@ impl<R: ExportRunner> ExportJob<R> {
         let mut encoder = selection.primary;
         let mut used_software_fallback = false;
 
-        let first_spec = build_export_spec(&self.runtime, &plan, encoder, &temp_output);
-        match self.runner.run(&first_spec, &cancel) {
+        let first_spec = build_export_spec_with_window(&self.runtime, &plan, encoder, &temp_output, range);
+        match self.runner.run_with_progress(&first_spec, &cancel, expected_duration_us, progress.clone()) {
             Ok(_) => {}
             Err(error)
                 if encoder.is_hardware()
@@ -190,8 +259,8 @@ impl<R: ExportRunner> ExportJob<R> {
 
                 encoder = selection.software_fallback.expect("checked fallback");
                 used_software_fallback = true;
-                let fallback_spec = build_export_spec(&self.runtime, &plan, encoder, &temp_output);
-                if let Err(error) = self.runner.run(&fallback_spec, &cancel) {
+                let fallback_spec = build_export_spec_with_window(&self.runtime, &plan, encoder, &temp_output, range);
+                if let Err(error) = self.runner.run_with_progress(&fallback_spec, &cancel, expected_duration_us, progress) {
                     cleanup_file(&temp_output);
                     return Err(map_runner_failure(error));
                 }
@@ -304,7 +373,10 @@ fn build_export_spec_with_window(
         .arg("-y")
         .arg("-hide_banner")
         .arg("-loglevel")
-        .arg("error");
+        .arg("error")
+        .arg("-nostats")
+        .arg("-progress")
+        .arg("pipe:2");
 
     // Use one FFmpeg input per media-backed clip. This intentionally trades some
     // decode efficiency for a much simpler and deterministic filtergraph: every

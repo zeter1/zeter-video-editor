@@ -50,6 +50,18 @@ impl JobService {
         Ok(job_id)
     }
 
+    pub fn enqueue_job(&self, spec: JobSpec) -> JobId {
+        self.manager.submit(spec)
+    }
+
+    pub fn begin_job(&self, job_id: JobId) -> Result<(), JobError> {
+        self.manager.start(job_id)
+    }
+
+    pub fn set_progress(&self, job_id: JobId, progress: f32) -> Result<(), JobError> {
+        self.manager.set_progress(job_id, progress)
+    }
+
     pub fn mark_completed(&self, job_id: JobId) -> Result<(), JobError> {
         self.manager.complete(job_id)
     }

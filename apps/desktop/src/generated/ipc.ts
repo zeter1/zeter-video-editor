@@ -265,3 +265,10 @@ export interface JobEventDto {
   source_revision: ProjectRevision;
   failure: JobFailure | null;
 }
+
+export interface ExportTaskDto {
+  job: JobEventDto;
+  output_path: string;
+  range_start_us: TimeUs | null;
+  range_end_us: TimeUs | null;
+}

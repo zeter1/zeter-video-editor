@@ -103,6 +103,8 @@ fn main() {
             ipc::import_media_path,
             ipc::create_short_from_candidate,
             ipc::start_export_mp4,
+            ipc::list_export_tasks,
+            ipc::open_export_window,
             ipc::start_job,
             ipc::cancel_job,
             ipc::get_job_state,
