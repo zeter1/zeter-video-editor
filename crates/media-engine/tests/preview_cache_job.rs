@@ -98,8 +98,17 @@ impl ExportRunner for FakeRender {
             .map(|arg| arg.to_string_lossy().to_string())
             .collect::<Vec<_>>();
         assert!(args.windows(2).any(|part| part == ["-fs", "67108864"]));
-        assert!(args.contains(&"-ss".to_string()));
-        assert!(args.contains(&"-t".to_string()));
+        assert!(args.windows(2).any(|part| part == ["-t", "1.000000"]));
+        // The fixture has a subtitle but no media-backed clips. A bounded
+        // graph now renders exactly one second of black canvas/subtitles,
+        // so no legacy output-side -ss or input seek is needed.
+        let graph = args
+            .windows(2)
+            .find(|pair| pair[0] == "-filter_complex")
+            .map(|pair| pair[1].as_str())
+            .expect("expected bounded preview filtergraph");
+        assert!(graph.contains("d=1.000000[vbase0]"), "{graph}");
+        assert!(!args.contains(&"-ss".to_string()));
         if cancel.is_cancelled() {
             return Err(MediaError::Cancelled);
         }
