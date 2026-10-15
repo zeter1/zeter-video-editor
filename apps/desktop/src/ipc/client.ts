@@ -5,6 +5,7 @@ import type {
   CommandResultDto,
   EditRequest,
   JobEventDto,
+  ExportTaskDto,
   JobId,
   JobSpec,
   MediaRef,
@@ -36,7 +37,9 @@ export interface IpcClient {
     expectedRevision: ProjectRevision,
     path: string,
   ): Promise<CommandResultDto>;
-  startExportMp4(sequenceId: string, outputPath: string): Promise<JobEventDto>;
+  startExportMp4(sequenceId: string, outputPath: string, rangeStartUs?: number | null, rangeEndUs?: number | null): Promise<JobEventDto>;
+  listExportTasks(): Promise<ExportTaskDto[]>;
+  openExportWindow(): Promise<void>;
   startJob(spec: JobSpec): Promise<JobEventDto>;
   cancelJob(jobId: JobId): Promise<JobEventDto>;
   getJobState(jobId: JobId): Promise<JobEventDto>;
@@ -110,8 +113,10 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
         expectedRevision,
         path,
       }),
-    startExportMp4: (sequenceId, outputPath) =>
-      call(invokeFn, "start_export_mp4", { sequenceId, outputPath }),
+    startExportMp4: (sequenceId, outputPath, rangeStartUs = null, rangeEndUs = null) =>
+      call(invokeFn, "start_export_mp4", { sequenceId, outputPath, rangeStartUs, rangeEndUs }),
+    listExportTasks: () => call(invokeFn, "list_export_tasks"),
+    openExportWindow: () => call(invokeFn, "open_export_window"),
     startJob: (spec) => call(invokeFn, "start_job", { spec }),
     cancelJob: (jobId) => call(invokeFn, "cancel_job", { jobId }),
     getJobState: (jobId) => call(invokeFn, "get_job_state", { jobId }),

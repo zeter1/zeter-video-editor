@@ -73,16 +73,14 @@ describe("ZVE-006 MP4 export UI", () => {
     const button = screen.getByRole("button", { name: "Экспорт MP4" });
     fireEvent.click(button);
     await waitFor(() => expect(client.startExportMp4).toHaveBeenCalledWith(
-      "sequence-export", "C:\\video\\final.mp4",
+      "sequence-export", "C:\\video\\final.mp4", null, null,
     ));
     expect(dialogs.save).toHaveBeenCalledWith(expect.objectContaining({
       filters: [{ name: "MP4 (H.264)", extensions: ["mp4"] }],
     }));
-    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(true));
+    await waitFor(() => expect(screen.getByText(/final.mp4 · Кодирование/)).toBeTruthy());
     expect(screen.getByText(/final.mp4 · Кодирование/)).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Прогресс экспорта" })).toBeTruthy();
-    fireEvent.click(button);
-    expect(client.startExportMp4).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Отменить экспорт" }));
     await waitFor(() => expect(client.cancelJob).toHaveBeenCalledWith("export-job"));
     expect(screen.getByText(/final.mp4 · Отменено/)).toBeTruthy();

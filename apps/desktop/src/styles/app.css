@@ -1200,3 +1200,49 @@ button {
   color: #fff0ef;
   background: #622629;
 }
+
+/* An I/O selection is a non-destructive, UI-only export range. */
+.timeline-export-selection {
+  position: absolute;
+  z-index: 5;
+  top: 27px;
+  bottom: 0;
+  border-left: 2px solid #8dabff;
+  border-right: 2px solid #8dabff;
+  background: rgba(111, 143, 228, 0.16);
+  pointer-events: none;
+}
+.export-tasks-page {
+  min-height: 100vh;
+  width: 100%;
+  padding: 24px;
+  background: #090c11;
+  overflow: auto;
+  font-size: 14px;
+}
+.export-tasks-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 20px; border-bottom: 1px solid #2d3a4d; padding-bottom: 18px;
+}
+.export-tasks-header h1 { margin: 0 0 8px; font-size: 21px; }
+.export-tasks-header p { margin: 0; color: #a8b3c8; }
+.export-tasks-header button, .export-task button {
+  background: #1d2a40; color: #e4ebfb; border: 1px solid #3d5271;
+  border-radius: 5px; padding: 8px 14px; cursor: pointer;
+}
+.export-tasks-list { display: grid; gap: 12px; padding-top: 20px; }
+.export-task {
+  padding: 16px; border: 1px solid #2c3a51; border-radius: 9px;
+  background: #121a26;
+}
+.export-task-top { display: flex; justify-content: space-between; gap: 15px; }
+.export-task-top strong { overflow-wrap: anywhere; font-size: 15px; }
+.export-task-top span { color: #bbd0ff; }
+.export-task-path { color: #8f9eb7; overflow-wrap: anywhere; }
+.export-task-range { color: #ccd7e8; }
+.export-task-progress { display: flex; align-items: center; gap: 14px; }
+.export-task-progress progress { width: 100%; height: 16px; accent-color: #8daaff; }
+.export-task-progress span { min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
+.export-task-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+.export-tasks-empty { padding: 40px; text-align: center; color: #9eacc2; }
+.export-tasks-error { color: #ff9b9b; }

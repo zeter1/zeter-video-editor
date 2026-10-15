@@ -11,6 +11,7 @@ interface TopToolbarProps {
   onRedo: () => void;
   onExportSupportBundle: () => void;
   onExportMp4: () => void;
+  onExportQueue?: () => void;
   exportDisabled?: boolean;
 }
 
@@ -25,6 +26,7 @@ export function TopToolbar({
   onRedo,
   onExportSupportBundle,
   onExportMp4,
+  onExportQueue,
   exportDisabled = false,
 }: TopToolbarProps) {
   const hasProject = projectName !== null;
@@ -62,6 +64,8 @@ export function TopToolbar({
           disabled={!hasProject || exportDisabled}>
           Экспорт MP4
         </button>
+        {onExportQueue ? <button type="button" aria-label="Очередь экспорта"
+          onClick={onExportQueue}>Задачи экспорта</button> : null}
         <span className="toolbar-divider" aria-hidden="true" />
         <button
           type="button"

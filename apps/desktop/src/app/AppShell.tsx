@@ -331,7 +331,7 @@ export function AppShell({
   }
 
   async function handleExportMp4(): Promise<void> {
-    if (exportStarting || exportJob) return;
+    if (exportStarting) return;
     const sequenceId = projectStore.getState().snapshot?.project.sequences[0]?.id;
     const revision = projectStore.getState().revision;
     if (!sequenceId || revision === null) return;
@@ -349,13 +349,32 @@ export function AppShell({
         projectStore.setError("Проект изменился. Повторите экспорт.");
         return;
       }
-      const initial = await client.startExportMp4(sequenceId, outputPath);
+      const rangeStart = transientStore.getState().exportRangeStartUs;
+      const rangeEnd = transientStore.getState().exportRangeEndUs;
+      // Partial I/O marks are intentionally not treated as an export range.
+      if ((rangeStart === null) !== (rangeEnd === null) ||
+          (rangeStart !== null && rangeEnd !== null && rangeStart >= rangeEnd)) {
+        projectStore.setError("Задайте начало и конец диапазона или сбросьте выделение.");
+        return;
+      }
+      const initial = await client.startExportMp4(sequenceId, outputPath, rangeStart, rangeEnd);
       setExportJob({ initial, outputPath });
+      if (isTauri()) await client.openExportWindow();
     } catch (error) {
       projectStore.setError(appError(error)?.message ??
         (error instanceof Error ? error.message : "Не удалось запустить экспорт MP4."));
     } finally {
       setExportStarting(false);
+    }
+  }
+
+  async function handleExportQueue(): Promise<void> {
+    try {
+      if (isTauri()) await client.openExportWindow();
+      else projectStore.setError("Окно задач доступно в установленном приложении Windows.");
+    } catch (error) {
+      projectStore.setError(appError(error)?.message ??
+        (error instanceof Error ? error.message : "Не удалось открыть очередь экспорта."));
     }
   }
 
@@ -516,7 +535,8 @@ export function AppShell({
         onRedo={handleRedo}
         onExportSupportBundle={() => void handleExportSupportBundle()}
         onExportMp4={() => void handleExportMp4()}
-        exportDisabled={exportStarting || exportJob !== null}
+        onExportQueue={() => void handleExportQueue()}
+        exportDisabled={exportStarting}
       />
 
       <div className="workspace-grid">
@@ -568,7 +588,8 @@ export function AppShell({
         />
       </div>
 
-      <JobStatus job={exportJob} client={client} onDismiss={() => setExportJob(null)} />
+      <JobStatus job={exportJob} client={client} onDismiss={() => setExportJob(null)}
+        onOpenQueue={() => void handleExportQueue()} />
 
       {openError ? (
         <ErrorDialog

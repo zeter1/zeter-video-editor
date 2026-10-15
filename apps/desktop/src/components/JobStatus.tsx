@@ -12,12 +12,13 @@ interface JobStatusProps {
   job?: ExportJobView | null;
   client?: IpcClient;
   onDismiss?: () => void;
+  onOpenQueue?: () => void;
 }
 
 const terminal = (state: JobEventDto["state"]) =>
   state === "Completed" || state === "Cancelled" || state === "Failed";
 
-export function JobStatus({ job, client, onDismiss }: JobStatusProps) {
+export function JobStatus({ job, client, onDismiss, onOpenQueue }: JobStatusProps) {
   const [snapshot, setSnapshot] = useState<JobEventDto | null>(job?.initial ?? null);
   const [pollError, setPollError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -65,7 +66,9 @@ export function JobStatus({ job, client, onDismiss }: JobStatusProps) {
     <div className="job-status" role="status" aria-label="Background jobs" data-testid="job-status"
       aria-live="polite">
       <span className="status-dot" aria-hidden="true" />
-      <span>Фоновые задачи</span>
+      <button type="button" onClick={onOpenQueue} disabled={!onOpenQueue}>
+        Все задачи экспорта
+      </button>
       {!job ? <span className="job-state">Ожидание</span> : (
         <>
           <span className="job-state" title={job.outputPath}>MP4: {filename} · {label}</span>
