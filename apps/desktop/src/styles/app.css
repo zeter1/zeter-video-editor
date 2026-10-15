@@ -1290,3 +1290,14 @@ button {
   height: 100%;
   pointer-events: none;
 }
+.preview-title-text {
+  pointer-events: visiblePainted;
+  user-select: none;
+  touch-action: none;
+  cursor: grab;
+}
+.preview-title-text:active { cursor: grabbing; }
+.preview-title-text.is-selected { paint-order: stroke; }
+.preview-title-text:focus-visible {
+  outline: 2px solid #96b6ff;
+}

@@ -3,6 +3,7 @@ import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react"
 import type { Clip, MediaRef, ProjectId, ProjectRevision, Sequence, Track, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
+import { TitleOverlay } from "./TitleOverlay";
 import { PausedCompositeFrame } from "./PausedCompositeFrame";
 import { PreviewAudioTracks, previewAudioVolume, synchronizeAudioClock } from "./PreviewAudioTracks";
 import { adjacentEditBoundaryUs, collectEditBoundariesUs } from "./editNavigation";
@@ -30,6 +31,7 @@ interface PreviewPlayerProps {
   playheadTimeUs: number;
   onSeek: (timeUs: number) => void;
   onCommit: EditCommit;
+  onSelectTitle?: (clipId: string, trackId: string) => void;
 }
 
 function findVisibleClip(sequence: Sequence, timeUs: number): { clip: Clip; track: Track } | null {
@@ -207,6 +209,7 @@ export function PreviewPlayer({
   playheadTimeUs,
   onSeek,
   onCommit,
+  onSelectTitle,
 }: PreviewPlayerProps) {
   const [quality, setQuality] = useState<PreviewQuality>("Full");
   const [scale, setScale] = useState<PreviewScale>("Fit");
@@ -336,11 +339,15 @@ export function PreviewPlayer({
     }),
     [pictureSelection, media],
   );
-  const titleClips = sequence.tracks
+  const [draggingTitle, setDraggingTitle] = useState(false);
+  const visibleTitles = sequence.tracks
     .filter((track) => !track.hidden)
-    .flatMap((track) => track.clips)
-    .filter((clip) => clip.kind === "Text" && clip.text &&
-      clip.timeline_start <= playheadTimeUs && playheadTimeUs < clip.timeline_end);
+    .flatMap((track) => track.clips
+      .filter((clip) => clip.kind === "Text" && clip.text &&
+        clip.timeline_start <= playheadTimeUs && playheadTimeUs < clip.timeline_end)
+      .map((clip) => ({ clip, track })));
+  const pausedComposite = pictureSelection.multipleVideos &&
+    !playing && projectId !== null && revision !== null && !draggingTitle;
   // A still over a video must not replace the foreground transport decoder.
   // Readiness, embedded sound and rVFC continue to follow that same video.
   const movingLayer = pictureLayers.filter(({ clip }) => clip.kind === "Video").at(-1);
@@ -685,7 +692,7 @@ export function PreviewPlayer({
           ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
           ) : null}
-          {pictureSelection.multipleVideos && !playing && projectId && revision !== null ? (
+          {pausedComposite && projectId && revision !== null ? (
             <PausedCompositeFrame
               key={`${projectId}:${revision}:${sequence.id}`}
               projectId={projectId}
@@ -695,31 +702,13 @@ export function PreviewPlayer({
               fps={sequence.fps}
             />
           ) : null}
-          {titleClips.length > 0 &&
-              !(pictureSelection.multipleVideos && !playing && projectId && revision !== null) ? (
-            <svg className="preview-title-layer"
-              viewBox={`0 0 ${sequence.width} ${sequence.height}`}
-              aria-label="Титры предпросмотра" role="img">
-              {titleClips.map((clip) => {
-                const style = clip.text!.style;
-                const x = style.alignment === "Left" ? 20
-                  : style.alignment === "Right" ? sequence.width - 20 : sequence.width / 2;
-                const dx = clip.transform.position_x * sequence.width / 2;
-                const y = sequence.height / 2 + clip.transform.position_y * sequence.height / 2;
-                return (
-                  <text key={clip.id} x={x + dx} y={y}
-                    textAnchor={style.alignment === "Left" ? "start"
-                      : style.alignment === "Right" ? "end" : "middle"}
-                    dominantBaseline="middle" fontFamily={style.font_family}
-                    fontSize={style.font_size} fontWeight={style.weight}
-                    fill={style.color} stroke={style.stroke_color}
-                    strokeWidth={style.stroke_width} paintOrder="stroke"
-                    opacity={style.opacity * clip.transform.opacity}
-                    style={style.shadow ? { filter: "drop-shadow(3px 3px 2px #000)" } : undefined}
-                  >{clip.text!.text}</text>
-                );
-              })}
-            </svg>
+          {visibleTitles.length > 0 ? (
+            <TitleOverlay key={sequence.id} sequenceId={sequence.id}
+              width={sequence.width} height={sequence.height}
+              titles={visibleTitles} selectedClipId={selectedClip?.id ?? null}
+              onSelect={onSelectTitle} onCommit={onCommit}
+              hideGlyphs={pausedComposite}
+              onDraggingChange={setDraggingTitle} />
           ) : null}
           {pictureSelection.multipleVideos ? (
             <span className="preview-composite-notice" role="status">

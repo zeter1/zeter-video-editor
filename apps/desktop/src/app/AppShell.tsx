@@ -734,6 +734,10 @@ export function AppShell({
           selectedTrackId={selectedTrackId}
           playheadTimeUs={transient.playheadTimeUs}
           onSeek={(timeUs) => transientStore.setPlayheadTime(timeUs)}
+          onSelectTitle={(clipId, trackId) => {
+            transientStore.selectTrack(trackId);
+            transientStore.selectClip(clipId);
+          }}
           onCommit={handleEditCommand}
         />
         <InspectorPanel
