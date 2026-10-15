@@ -36,6 +36,7 @@ export interface IpcClient {
     expectedRevision: ProjectRevision,
     path: string,
   ): Promise<CommandResultDto>;
+  startExportMp4(sequenceId: string, outputPath: string): Promise<JobEventDto>;
   startJob(spec: JobSpec): Promise<JobEventDto>;
   cancelJob(jobId: JobId): Promise<JobEventDto>;
   getJobState(jobId: JobId): Promise<JobEventDto>;
@@ -109,6 +110,8 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
         expectedRevision,
         path,
       }),
+    startExportMp4: (sequenceId, outputPath) =>
+      call(invokeFn, "start_export_mp4", { sequenceId, outputPath }),
     startJob: (spec) => call(invokeFn, "start_job", { spec }),
     cancelJob: (jobId) => call(invokeFn, "cancel_job", { jobId }),
     getJobState: (jobId) => call(invokeFn, "get_job_state", { jobId }),

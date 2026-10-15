@@ -10,6 +10,8 @@ interface TopToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onExportSupportBundle: () => void;
+  onExportMp4: () => void;
+  exportDisabled?: boolean;
 }
 
 export function TopToolbar({
@@ -22,6 +24,8 @@ export function TopToolbar({
   onUndo,
   onRedo,
   onExportSupportBundle,
+  onExportMp4,
+  exportDisabled = false,
 }: TopToolbarProps) {
   const hasProject = projectName !== null;
   const canMutate = hasProject || actionsEnabled;
@@ -53,6 +57,11 @@ export function TopToolbar({
         <span className="toolbar-divider" aria-hidden="true" />
         <button type="button" onClick={onUndo} disabled={!canMutate}>Отменить</button>
         <button type="button" onClick={onRedo} disabled={!canMutate}>Повторить</button>
+        <span className="toolbar-divider" aria-hidden="true" />
+        <button type="button" aria-label="Экспорт MP4" onClick={onExportMp4}
+          disabled={!hasProject || exportDisabled}>
+          Экспорт MP4
+        </button>
         <span className="toolbar-divider" aria-hidden="true" />
         <button
           type="button"

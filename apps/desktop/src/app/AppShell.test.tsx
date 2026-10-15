@@ -83,6 +83,7 @@ describe("AppShell diagnostics", () => {
       startJob: vi.fn(),
       cancelJob: vi.fn(),
       getJobState: vi.fn(),
+      startExportMp4: vi.fn(),
       exportSupportBundle,
       reconcileCommandResult: vi.fn(),
     };
@@ -216,6 +217,7 @@ describe("AppShell edit gateway", () => {
       startJob: vi.fn(),
       cancelJob: vi.fn(),
       getJobState: vi.fn(),
+      startExportMp4: vi.fn(),
       exportSupportBundle: vi.fn(),
       reconcileCommandResult,
     };
@@ -303,6 +305,7 @@ describe("AppShell missing-media recovery", () => {
       startJob: vi.fn(),
       cancelJob: vi.fn(),
       getJobState: vi.fn(),
+      startExportMp4: vi.fn(),
       exportSupportBundle: vi.fn(),
       reconcileCommandResult: vi.fn(),
     };
