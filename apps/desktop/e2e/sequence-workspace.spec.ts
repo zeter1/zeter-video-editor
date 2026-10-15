@@ -53,8 +53,8 @@ test("native WebView2 creates a separate portrait sequence and preserves it thro
   await row.locator(".media-add").click();
   await expect.poll(async () => {
     const snapshot = await invokeTauri<Snapshot>(page, "project_snapshot");
-    return snapshot.project.sequences.find((seq) => seq.id === short.id)?
-      .tracks.filter((track) => track.kind === "Video")
+    return snapshot.project.sequences.find((seq) => seq.id === short.id)?.tracks
+      .filter((track) => track.kind === "Video")
       .reduce((count, track) => count + track.clips.length, 0);
   }).toBe(1);
   const withClip = await invokeTauri<Snapshot>(page, "project_snapshot");
