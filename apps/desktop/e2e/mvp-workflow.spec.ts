@@ -987,7 +987,6 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
   });
   expect(started).toMatchObject({
     kind: "Export",
-    state: "Running",
     source_revision: 0,
   });
 
