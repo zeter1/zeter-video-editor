@@ -1282,12 +1282,20 @@ button {
 .export-tasks-error { color: #ff9b9b; }
 
 /* Preview title glyphs use sequence coordinates; pointer events remain on the editor. */
+/* Direct-manipulation canvas for titles. Only glyphs, handles and controls
+   intercept input; the rest of the frame retains normal preview behavior. */
+.preview-title-interaction {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+}
 .preview-title-layer {
   position: absolute;
-  z-index: 3;
   inset: 0;
   width: 100%;
   height: 100%;
+  overflow: visible;
   pointer-events: none;
 }
 .preview-title-text {
@@ -1298,6 +1306,72 @@ button {
 }
 .preview-title-text:active { cursor: grabbing; }
 .preview-title-text.is-selected { paint-order: stroke; }
-.preview-title-text:focus-visible {
-  outline: 2px solid #96b6ff;
+.preview-title-text:focus-visible { outline: 2px solid #96b6ff; }
+.preview-title-bounds {
+  fill: transparent;
+  stroke: #a7c4ff;
+  stroke-width: 3;
+  stroke-dasharray: 9 6;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
+.preview-title-resize {
+  fill: #eef5ff;
+  stroke: #4168bb;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.preview-title-resize[aria-label$="ne"],
+.preview-title-resize[aria-label$="sw"] { cursor: nesw-resize; }
+.preview-title-resize[aria-disabled="true"] {
+  cursor: not-allowed;
+  fill: #87909f;
+}
+.preview-title-toolbar {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: min(96%, 480px);
+  padding: 5px 7px;
+  border: 1px solid #5878b4;
+  border-radius: 7px;
+  background: rgba(17, 24, 40, .97);
+  box-shadow: 0 4px 18px #0009;
+  pointer-events: auto;
+  transform: translate(-50%, calc(-100% - 9px));
+  white-space: nowrap;
+}
+.preview-title-toolbar.is-below {
+  transform: translate(-50%, 9px);
+}
+.preview-title-toolbar button,
+.preview-title-toolbar select,
+.preview-title-toolbar input {
+  min-height: 26px;
+  min-width: 0;
+  border: 1px solid #364c73;
+  border-radius: 4px;
+  color: #ecf1fc;
+  background: #202b41;
+  font-size: 11px;
+}
+.preview-title-toolbar button {
+  cursor: pointer;
+  padding: 0 7px;
+}
+.preview-title-toolbar select[aria-label="Шрифт титра"] { width: 106px; }
+.preview-title-toolbar select[aria-label="Выравнивание титра"] { width: 75px; }
+.preview-title-toolbar input[type="number"] { width: 49px; padding: 0 3px; }
+.preview-title-toolbar input[type="color"] { width: 29px; padding: 2px; }
+.preview-title-toolbar button[aria-pressed="true"] {
+  background: #364b83;
+  border-color: #a7c4ff;
+}
+.preview-title-toolbar :disabled { opacity: .5; cursor: not-allowed; }
+
