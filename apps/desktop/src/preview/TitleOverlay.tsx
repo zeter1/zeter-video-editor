@@ -14,8 +14,9 @@ export function dragTitlePosition(
   if (!(viewport.width > 0 && viewport.height > 0)) return start;
   return {
     ...start,
-    position_x: start.position_x + (to.x - from.x) * 2 / viewport.width,
-    position_y: start.position_y + (to.y - from.y) * 2 / viewport.height,
+    // Stable micro-unit rounding avoids unnecessary history noise on pixel drags.
+    position_x: Math.round((start.position_x + (to.x - from.x) * 2 / viewport.width) * 1_000_000) / 1_000_000,
+    position_y: Math.round((start.position_y + (to.y - from.y) * 2 / viewport.height) * 1_000_000) / 1_000_000,
   };
 }
 
