@@ -1,3 +1,12 @@
+# ACTIVE ZVE-006 — 2026-10-15 — MP4 export toolbar / alpha.24 candidate
+
+- **PRODUCT:** A visible `Экспорт MP4` command now opens a Windows destination picker, starts the existing Rust/FFmpeg H.264 render job for the active sequence, shows running/completed/failed/cancelled state and supports cancel. During encoding progress is indeterminate because backend `JobEventDto.progress` currently reports 0 until done; no invented percentages. Existing destinations are rejected rather than erased, with atomic no-clobber publication. No `.vcut` migration; source media unchanged.
+- **BRANCH:** `feat/zve-006-export-mp4-ui-20261015` based on main `a9b4ac97a630be3a65b9949b7e231acc6a9cf513`. Candidate source version `0.1.0-alpha.24`, NOT merged, signed, tagged or released. Exact branch Windows CI/native WebView2/NSIS and owner-PC end-to-end QA remain REQUIRED; do not call complete until passed.
+- **TEST COVERAGE:** React/Vitest picker, cancellation, terminal status and error handling; existing real FFmpeg export E2E extended with toolbar visibility and preserved destination check. Existing source-output and cancellation gates retained. Direct UI native file picker is unit-tested with a mock; native dialog interaction and actual output inspection on owner's Windows PC are outstanding.
+- **NEXT:** check exact PR HEAD Windows CI; repair regressions in this same task, then self-review and merge only if required checks succeed. Separate blocked ZVE-004a PCM/CORS draft #85 is not part of export.
+
+---
+
 # VERIFIED ZVE-005 MERGE — 2026-10-14 — UI video/audio lanes / alpha.23
 
 - **PRODUCT:** [PR #86](https://github.com/zeter1/zeter-video-editor/pull/86) adds “+ Видео” / “+ Аудио” with Rust-authoritative `EditCommand::AddTrack`, selection and media-library AddClip targeting, Undo/Redo, numbered lanes and unchanged source media/project format. Prior dialogue's user said “всё работает” after manual UI checks; separate save/reopen and long export evidence is not claimed.
@@ -848,7 +857,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.23` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.24` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
