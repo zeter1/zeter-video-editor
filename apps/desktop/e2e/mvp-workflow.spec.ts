@@ -994,6 +994,16 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
   const completed = await waitForJob(page, started.job_id, 90_000);
   expect(completed.state, completed.failure?.technical_detail).toBe("Completed");
   expect(existsSync(exportPath)).toBe(true);
+  await expect(page.getByRole("button", { name: "Экспорт MP4" })).toBeEnabled();
+  // Reusing the destination must report a useful failure without erasing it.
+  const bytesBefore = readFileSync(exportPath);
+  const duplicate = await invokeTauri<ExportJobView>(page, "start_export_mp4", {
+    sequenceId: SEQUENCE, outputPath: exportPath,
+  });
+  const refused = await waitForJob(page, duplicate.job_id, 15_000);
+  expect(refused.state).toBe("Failed");
+  expect(refused.failure?.code).toBe("export_destination_exists");
+  expect(readFileSync(exportPath).equals(bytesBefore)).toBe(true);
 
   const probe = JSON.parse(
     execFileSync(

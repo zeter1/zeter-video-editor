@@ -157,6 +157,12 @@ impl<R: ExportRunner> ExportJob<R> {
             }));
         }
 
+        // An export must never overwrite an existing user file, including a
+        // prior successful render. Re-check atomically during publication.
+        if output.exists() {
+            return Err(destination_exists_failure());
+        }
+
         let temp_output = temporary_output_path(output, plan.settings.container.extension());
         cleanup_file(&temp_output);
 
@@ -215,23 +221,19 @@ impl<R: ExportRunner> ExportJob<R> {
             }));
         }
 
-        if output.exists() {
-            fs::remove_file(output).map_err(|source| {
-                cleanup_file(&temp_output);
-                export_failure(MediaError::ExportIo {
-                    path: output.to_path_buf(),
-                    source,
-                })
-            })?;
-        }
-
-        fs::rename(&temp_output, output).map_err(|source| {
+        // A no-replace hard link is atomic on the same filesystem (the temp
+        // file is next to the destination). Never unlink the user's target.
+        fs::hard_link(&temp_output, output).map_err(|source| {
             cleanup_file(&temp_output);
+            if source.kind() == io::ErrorKind::AlreadyExists {
+                return destination_exists_failure();
+            }
             export_failure(MediaError::ExportIo {
                 path: output.to_path_buf(),
                 source,
             })
         })?;
+        cleanup_file(&temp_output);
 
         Ok(ExportReceipt {
             output_path: output.to_path_buf(),
@@ -750,6 +752,16 @@ fn map_runner_failure(error: MediaError) -> JobFailure {
         cancelled_failure()
     } else {
         export_failure(error)
+    }
+}
+
+fn destination_exists_failure() -> JobFailure {
+    JobFailure {
+        code: "export_destination_exists".into(),
+        stage: "publish".into(),
+        retryable: true,
+        safe_message: "Файл уже существует. Выберите другое имя для MP4.".into(),
+        technical_detail: "export destination already exists (no-clobber)".into(),
     }
 }
 
