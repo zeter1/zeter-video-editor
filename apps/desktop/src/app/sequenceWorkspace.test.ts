@@ -34,7 +34,7 @@ describe("sequence workspace", () => {
   it("creates an independent portrait montage without source clips or shared lane IDs", () => {
     const source = {
       ...sample,
-      tracks: [{ ...sample.tracks[0], clips: [{ id: "old" } as Sequence["tracks"][number]["clips"][number] }, sample.tracks[1]],
+      tracks: [{ ...sample.tracks[0], clips: [{ id: "old" } as Sequence["tracks"][number]["clips"][number]] }, sample.tracks[1]],
       markers: [{ id: "marker", time: 2_000_000, label: "Beat" }],
     };
     const ids = ["short", "video-new", "audio-new"][Symbol.iterator]();
