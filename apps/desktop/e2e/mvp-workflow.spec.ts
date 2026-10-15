@@ -990,6 +990,13 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
     source_revision: 0,
   });
 
+  expect(["Queued", "Running"]).toContain(started.state);
+  const enqueued = await invokeTauri<Array<{
+    job: ExportJobView; output_path: string;
+  }>>(page, "list_export_tasks", {});
+  expect(enqueued.some((task) => task.job.job_id === started.job_id
+    && task.output_path === exportPath)).toBe(true);
+
   const completed = await waitForJob(page, started.job_id, 90_000);
   expect(completed.state, completed.failure?.technical_detail).toBe("Completed");
   expect(existsSync(exportPath)).toBe(true);
@@ -1026,6 +1033,33 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
     width: 1920,
     height: 1080,
   });
+
+  const rangePath = path.join(path.dirname(state.workflowProjectPath), "task19-range.mp4");
+  const ranged = await invokeTauri<ExportJobView>(page, "start_export_mp4", {
+    sequenceId: SEQUENCE,
+    outputPath: rangePath,
+    rangeStartUs: 500_000,
+    rangeEndUs: 1_500_000,
+  });
+  const queueWithRange = await invokeTauri<Array<{
+    job: ExportJobView; output_path: string;
+    range_start_us: number | null; range_end_us: number | null;
+  }>>(page, "list_export_tasks", {});
+  expect(queueWithRange.find((task) => task.job.job_id === ranged.job_id))
+    .toMatchObject({
+      output_path: rangePath,
+      range_start_us: 500_000,
+      range_end_us: 1_500_000,
+    });
+  const rangedResult = await waitForJob(page, ranged.job_id, 90_000);
+  expect(rangedResult.state, rangedResult.failure?.technical_detail).toBe("Completed");
+  const rangeProbe = JSON.parse(execFileSync(path.join(state.runtimeDir, "ffprobe.exe"),
+    ["-v", "error", "-show_entries", "format=duration", "-of", "json", rangePath],
+    { encoding: "utf8", windowsHide: true },
+  )) as { format: { duration: string } };
+  expect(Number(rangeProbe.format.duration)).toBeGreaterThan(0.8);
+  expect(Number(rangeProbe.format.duration)).toBeLessThan(1.25);
+  await expectRevision(page, 0);
 
   const cancelledPath = path.join(
     path.dirname(state.workflowProjectPath),
