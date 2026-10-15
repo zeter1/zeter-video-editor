@@ -45,7 +45,7 @@ describe("titles in the editor", () => {
     }));
     const client = {
       ...createIpcClient(),
-      projectSnapshot: vi.fn(async () => null),
+      projectSnapshot: vi.fn(async () => store.getState().snapshot!),
       executeEditCommand,
       reconcileCommandResult: vi.fn(async () => {
         const cmd: EditCommand = executeEditCommand.mock.lastCall![0].command;
@@ -105,7 +105,7 @@ describe("titles in the editor", () => {
     store.applySnapshot(initial());
     const transient = createTransientStore();
     vi.spyOn(window, "prompt").mockReturnValue(null);
-    const client = { ...createIpcClient(), projectSnapshot: vi.fn(async () => null),
+    const client = { ...createIpcClient(), projectSnapshot: vi.fn(async () => store.getState().snapshot!),
       executeEditCommand: vi.fn() };
     render(<AppShell client={client} projectStore={store} transientStore={transient} />);
     fireEvent.click(screen.getByRole("button", { name: "Текст" }));
