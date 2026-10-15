@@ -34,8 +34,8 @@ function mount(onCommit = vi.fn(async () => true), onSelect = vi.fn(), locked = 
     width: 600, height: 337.5, x: 0, y: 0, top: 0, left: 0,
     bottom: 337.5, right: 600, toJSON: () => ({}),
   });
-  (glyph as SVGTextElement).setPointerCapture = vi.fn();
-  (glyph as SVGTextElement).releasePointerCapture = vi.fn();
+  (glyph as unknown as SVGTextElement).setPointerCapture = vi.fn();
+  (glyph as unknown as SVGTextElement).releasePointerCapture = vi.fn();
   return { ...renderResult, glyph, svg, onCommit, onSelect };
 }
 const down = { pointerId: 1, isPrimary: true, button: 0, clientX: 300, clientY: 120 };
