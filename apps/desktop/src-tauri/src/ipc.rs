@@ -621,9 +621,13 @@ pub async fn open_export_window(app: tauri::AppHandle) -> Result<(), AppErrorDto
     config.maximized = false;
     config.visible = true;
     tauri::WebviewWindowBuilder::from_config(&app, &config)
-        .map_err(|error| diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None))?
+        .map_err(|error| {
+            diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None)
+        })?
         .build()
-        .map_err(|error| diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None))?;
+        .map_err(|error| {
+            diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None)
+        })?;
     Ok(())
 }
 
