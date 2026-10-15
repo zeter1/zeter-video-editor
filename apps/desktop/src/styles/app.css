@@ -45,7 +45,7 @@ button {
 .app-shell {
   position: relative;
   display: grid;
-  grid-template-rows: 58px minmax(0, 1fr) 34px;
+  grid-template-rows: 58px 44px minmax(0, 1fr) 34px;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
@@ -153,6 +153,40 @@ button {
   margin: 0 2px;
   background: var(--border);
 }
+
+.sequence-switcher {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #10151d;
+}
+
+.sequence-switcher label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sequence-switcher select,
+.sequence-switcher button {
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 10px;
+  color: var(--text);
+  background: var(--surface-raised);
+  font: inherit;
+  font-size: 12px;
+}
+
+.sequence-switcher select:first-of-type {
+  min-width: 170px;
+  max-width: 280px;
+}
+
+.sequence-switcher button { cursor: pointer; }
+.sequence-switcher :disabled { opacity: 0.45; cursor: default; }
 
 .workspace-grid {
   display: grid;

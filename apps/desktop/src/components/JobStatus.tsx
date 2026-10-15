@@ -44,7 +44,10 @@ export function JobStatus({ job, client, onDismiss, onOpenQueue }: JobStatusProp
   }, [client, job?.initial.job_id]);
 
   async function cancel(): Promise<void> {
-    if (!client || !job || !snapshot || terminal(snapshot.state)) return;
+    // The button is visible from job.initial immediately, before the effect
+    // copies it into local polling state. Cancellation must be just as ready.
+    const current = snapshot?.job_id === job?.initial.job_id ? snapshot : job?.initial;
+    if (!client || !job || !current || terminal(current.state)) return;
     setCancelling(true);
     try {
       const next = await client.cancelJob(job.initial.job_id);

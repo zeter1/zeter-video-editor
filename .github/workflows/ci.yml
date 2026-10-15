@@ -57,6 +57,12 @@ jobs:
         run: npm run build
         working-directory: apps/desktop
 
+      # TypeScript's app tsconfig excludes Playwright specs. Parse them early
+      # so a syntax error fails before costly native Rust/FFmpeg work.
+      - name: Validate Playwright E2E specs
+        run: npx playwright test --list
+        working-directory: apps/desktop
+
       - name: Download and verify pinned FFmpeg runtime
         shell: pwsh
         run: ./scripts/fetch-ffmpeg-runtime.ps1 -Url $env:ZETER_CI_FFMPEG_ARCHIVE_URL -Sha256 $env:ZETER_CI_FFMPEG_ARCHIVE_SHA256 -OutputDir "$env:RUNNER_TEMP/ffmpeg-runtime"

@@ -4,6 +4,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 
 import { AiWorkspace } from "../ai/AiWorkspace";
+import { createEmptySequence, resolveSequence } from "./sequenceWorkspace";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { ErrorDialog } from "../errors/ErrorDialog";
 import type { RecoveryAction } from "../errors/actions";
@@ -104,10 +105,12 @@ export function AppShell({
   const [exportStarting, setExportStarting] = useState(false);
   const [exportJob, setExportJob] = useState<ExportJobView | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [creatingSequence, setCreatingSequence] = useState(false);
+  const [portraitSequence, setPortraitSequence] = useState(false);
   const markerShortcutPending = useRef(false);
 
   const project = projectState.snapshot?.project ?? null;
-  const activeSequence = project?.sequences[0] ?? null;
+  const activeSequence = resolveSequence(project?.sequences ?? [], transient.selectedSequenceId);
   const selectedClipContext = useMemo(
     () => findSelectedClipContext(activeSequence, transient.selectedClipId),
     [activeSequence, transient.selectedClipId],
@@ -148,6 +151,39 @@ export function AppShell({
         error instanceof Error ? error.message : "Edit operation failed.",
       );
       return false;
+    }
+  }
+
+  async function handleCreateSequence(): Promise<void> {
+    const snapshot = projectStore.getState().snapshot;
+    const source = resolveSequence(
+      snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId,
+    );
+    if (creatingSequence || !snapshot || !source ||
+        projectStore.getState().syncStatus !== "synced") return;
+
+    const name = window.prompt("Название новой последовательности", `Монтаж ${snapshot.project.sequences.length + 1}`)?.trim();
+    if (!name) return;
+    // Do not apply a delayed confirmation to a different open project.
+    if (projectStore.getState().snapshot?.project.id !== snapshot.project.id ||
+        resolveSequence(projectStore.getState().snapshot?.project.sequences ?? [],
+          transientStore.getState().selectedSequenceId)?.id !== source.id) {
+      projectStore.setError("Проект или последовательность изменились. Повторите создание.");
+      return;
+    }
+
+    const sequence = createEmptySequence(source, name, portraitSequence);
+    setCreatingSequence(true);
+    try {
+      if (await handleEditCommand({ AddSequence: { sequence, index: null } })) {
+        // The reconciliation must include the authoritative new sequence.
+        if (projectStore.getState().snapshot?.project.sequences.some((item) => item.id === sequence.id))
+          transientStore.selectSequence(sequence.id);
+        else projectStore.setError("Не удалось получить новую последовательность. Обновите проект.");
+      }
+    } finally {
+      setCreatingSequence(false);
     }
   }
 
@@ -237,11 +273,17 @@ export function AppShell({
   }
 
 
-  async function addToTimeline(id: string): Promise<void> {
+  async function addToTimeline(id: string, intendedSequenceId?: string | null): Promise<void> {
     const snapshot = projectStore.getState().snapshot;
-    const seq = snapshot?.project.sequences[0];
+    const seq = intendedSequenceId
+      ? snapshot?.project.sequences.find((item) => item.id === intendedSequenceId)
+      : resolveSequence(snapshot?.project.sequences ?? [], transientStore.getState().selectedSequenceId);
     const media = snapshot?.project.media.find((item) => item.id === id);
-    if (!seq || !media) return;
+    if (!seq) {
+      projectStore.setError("Целевая последовательность недоступна. Повторите добавление.");
+      return;
+    }
+    if (!media) return;
     const ext = media.absolute_path.split(".").pop()?.toLowerCase() ?? "";
     const kind: Clip["kind"] = ["mp3", "wav", "flac", "aac", "ogg", "m4a", "opus"].includes(ext)
       ? "Audio" : ["png", "jpg", "jpeg", "gif", "bmp", "webp"].includes(ext) ? "Image" : "Video";
@@ -268,7 +310,14 @@ export function AppShell({
     } });
   }
 
-  async function importPaths(paths: string[]): Promise<void> {
+  async function importPaths(
+    paths: string[],
+    intendedSequenceId: string | null = resolveSequence(
+      projectStore.getState().snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId,
+    )?.id ?? null,
+  ): Promise<void> {
+    const projectId = projectStore.getState().snapshot?.project.id ?? null;
     const supported = new Set(["mp4","mov","mkv","avi","webm","mp3","wav","flac","aac","m4a",
       "ogg","opus","png","jpg","jpeg","gif","bmp","webp"]);
     const selected = paths.filter((path) => supported.has(path.split(".").pop()?.toLowerCase() ?? ""));
@@ -283,14 +332,19 @@ export function AppShell({
       for (const path of selected) {
         const snapshot = projectStore.getState().snapshot;
         const prev = snapshot?.project.media.find((item) => item.absolute_path.toLowerCase() === path.toLowerCase());
-        if (prev) { await addToTimeline(prev.id); continue; }
+        if (projectId && snapshot?.project.id !== projectId) {
+          throw new Error("Проект сменился во время импорта. Повторите действие.");
+        }
+        if (prev) { await addToTimeline(prev.id, intendedSequenceId); continue; }
         const revision = projectStore.getState().revision;
         if (revision === null) throw new Error("Нет проекта.");
         const knownIds = new Set(snapshot?.project.media.map((item) => item.id) ?? []);
         const result = await client.importMediaPath(requestId(), revision, path);
         await client.reconcileCommandResult(projectStore, result);
         const media = projectStore.getState().snapshot?.project.media.find((item) => !knownIds.has(item.id));
-        if (media) await addToTimeline(media.id);
+        if (projectId && projectStore.getState().snapshot?.project.id !== projectId)
+          throw new Error("Проект сменился во время импорта. Повторите действие.");
+        if (media) await addToTimeline(media.id, intendedSequenceId);
       }
     } catch (error) {
       projectStore.setError(appError(error)?.message ?? (error instanceof Error ? error.message : "Ошибка импорта."));
@@ -309,11 +363,15 @@ export function AppShell({
   }, [client, projectStore]);
 
   async function handleImport(): Promise<void> {
+    const intendedSequenceId = resolveSequence(
+      projectStore.getState().snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId,
+    )?.id ?? null;
     try {
       const files = await openDialog({ title: "Импорт файлов", multiple: true,
         filters: [{ name: "Медиа", extensions: ["mp4","mov","mkv","avi","webm",
           "mp3","wav","flac","aac","m4a","ogg","opus","png","jpg","jpeg","gif","bmp","webp"] }] });
-      if (files) await importPaths(Array.isArray(files) ? files : [files]);
+      if (files) await importPaths(Array.isArray(files) ? files : [files], intendedSequenceId);
     } catch { projectStore.setError("Не удалось выбрать файлы."); }
   }
 
@@ -332,7 +390,10 @@ export function AppShell({
 
   async function handleExportMp4(): Promise<void> {
     if (exportStarting) return;
-    const sequenceId = projectStore.getState().snapshot?.project.sequences[0]?.id;
+    const sequenceId = resolveSequence(
+      projectStore.getState().snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId,
+    )?.id;
     const revision = projectStore.getState().revision;
     if (!sequenceId || revision === null) return;
     setExportStarting(true);
@@ -345,7 +406,8 @@ export function AppShell({
       if (!outputPath) return;
       const current = projectStore.getState();
       if (current.revision !== revision ||
-          current.snapshot?.project.sequences[0]?.id !== sequenceId) {
+          resolveSequence(current.snapshot?.project.sequences ?? [],
+            transientStore.getState().selectedSequenceId)?.id !== sequenceId) {
         projectStore.setError("Проект изменился. Повторите экспорт.");
         return;
       }
@@ -457,7 +519,9 @@ export function AppShell({
 
       const transientState = transientStore.getState();
       if (transientState.drag) return;
-      const sequence = state.snapshot?.project.sequences[0];
+      const sequence = resolveSequence(
+        state.snapshot?.project.sequences ?? [], transientState.selectedSequenceId,
+      );
       if (!sequence) return;
 
       // Match the physical M key also on a Russian keyboard layout (KeyM = ь).
@@ -542,6 +606,31 @@ export function AppShell({
         exportDisabled={exportStarting}
       />
 
+      <div className="sequence-switcher" role="group" aria-label="Работа с последовательностями">
+        <label htmlFor="active-sequence">Последовательность</label>
+        <select id="active-sequence" aria-label="Последовательность"
+          value={activeSequence?.id ?? ""}
+          disabled={!activeSequence || creatingSequence}
+          onChange={(event) => transientStore.selectSequence(event.target.value)}>
+          {!activeSequence ? <option value="">Нет проекта</option> : null}
+          {project?.sequences.map((sequence) => (
+            <option key={sequence.id} value={sequence.id}>{sequence.name}</option>
+          ))}
+        </select>
+        <label htmlFor="new-sequence-format">Формат</label>
+        <select id="new-sequence-format" aria-label="Формат новой последовательности"
+          value={portraitSequence ? "portrait" : "landscape"}
+          disabled={!activeSequence || creatingSequence}
+          onChange={(event) => setPortraitSequence(event.target.value === "portrait")}>
+          <option value="landscape">16:9 · 1920×1080</option>
+          <option value="portrait">9:16 · 1080×1920</option>
+        </select>
+        <button type="button" onClick={() => void handleCreateSequence()}
+          disabled={!activeSequence || creatingSequence || projectState.syncStatus !== "synced"}>
+          {creatingSequence ? "Создание…" : "+ Последовательность"}
+        </button>
+      </div>
+
       <div className="workspace-grid">
         <LeftPanel
           media={project?.media ?? []}
@@ -565,6 +654,7 @@ export function AppShell({
           }
         />
         <PreviewPanel
+          key={`preview:${activeSequence?.id ?? "no-project"}`}
           sequence={activeSequence}
           projectId={project?.id ?? null}
           revision={projectState.revision}
@@ -584,6 +674,7 @@ export function AppShell({
           onCommit={handleEditCommand}
         />
         <TimelinePanel
+          key={`timeline:${activeSequence?.id ?? "no-project"}`}
           sequence={activeSequence}
           projectStore={projectStore}
           transientStore={transientStore}
