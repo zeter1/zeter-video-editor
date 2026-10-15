@@ -371,12 +371,16 @@ pub fn build_preview_chunk_spec(
             reason: "window exceeds timeline duration",
         });
     }
-    Ok(build_export_spec_with_window(
+    // Preview caches require the exact legacy export graph and PTS
+    // semantics for parity with existing generated preview chunks. Only
+    // user-requested MP4 range exports use fast input seeking.
+    Ok(build_window_spec_impl(
         runtime,
         plan,
         encoder,
         output,
         Some((start, end)),
+        false,
     ))
 }
 
@@ -527,6 +531,17 @@ pub(crate) fn build_export_spec_with_window(
     output: &Path,
     window: Option<(TimeUs, TimeUs)>,
 ) -> ProcessSpec {
+    build_window_spec_impl(runtime, plan, encoder, output, window, true)
+}
+
+fn build_window_spec_impl(
+    runtime: &ManagedRuntime,
+    plan: &RenderPlan,
+    encoder: EncoderKind,
+    output: &Path,
+    window: Option<(TimeUs, TimeUs)>,
+    fast_seek: bool,
+) -> ProcessSpec {
     let mut spec = ProcessSpec::new(&runtime.ffmpeg_path)
         .arg("-y")
         .arg("-hide_banner")
@@ -536,7 +551,11 @@ pub(crate) fn build_export_spec_with_window(
         .arg("-progress")
         .arg("pipe:2");
 
-    let localized = window.and_then(|range| localized_export_plan(plan, range));
+    let localized = if fast_seek {
+        window.and_then(|range| localized_export_plan(plan, range))
+    } else {
+        None
+    };
     let effective_plan = localized.as_ref().map(|(plan, _)| plan).unwrap_or(plan);
     let input_seeks = localized.as_ref().map(|(_, seeks)| seeks);
 
