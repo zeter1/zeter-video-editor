@@ -336,6 +336,11 @@ export function PreviewPlayer({
     }),
     [pictureSelection, media],
   );
+  const titleClips = sequence.tracks
+    .filter((track) => !track.hidden)
+    .flatMap((track) => track.clips)
+    .filter((clip) => clip.kind === "Text" && clip.text &&
+      clip.timeline_start <= playheadTimeUs && playheadTimeUs < clip.timeline_end);
   // A still over a video must not replace the foreground transport decoder.
   // Readiness, embedded sound and rVFC continue to follow that same video.
   const movingLayer = pictureLayers.filter(({ clip }) => clip.kind === "Video").at(-1);
@@ -689,6 +694,32 @@ export function PreviewPlayer({
               playheadTimeUs={playheadTimeUs}
               fps={sequence.fps}
             />
+          ) : null}
+          {titleClips.length > 0 &&
+              !(pictureSelection.multipleVideos && !playing && projectId && revision !== null) ? (
+            <svg className="preview-title-layer"
+              viewBox={`0 0 ${sequence.width} ${sequence.height}`}
+              aria-label="Титры предпросмотра" role="img">
+              {titleClips.map((clip) => {
+                const style = clip.text!.style;
+                const x = style.alignment === "Left" ? 20
+                  : style.alignment === "Right" ? sequence.width - 20 : sequence.width / 2;
+                const dx = clip.transform.position_x * sequence.width / 2;
+                const y = sequence.height / 2 + clip.transform.position_y * sequence.height / 2;
+                return (
+                  <text key={clip.id} x={x + dx} y={y}
+                    textAnchor={style.alignment === "Left" ? "start"
+                      : style.alignment === "Right" ? "end" : "middle"}
+                    dominantBaseline="middle" fontFamily={style.font_family}
+                    fontSize={style.font_size} fontWeight={style.weight}
+                    fill={style.color} stroke={style.stroke_color}
+                    strokeWidth={style.stroke_width} paintOrder="stroke"
+                    opacity={style.opacity * clip.transform.opacity}
+                    style={style.shadow ? { filter: "drop-shadow(3px 3px 2px #000)" } : undefined}
+                  >{clip.text!.text}</text>
+                );
+              })}
+            </svg>
           ) : null}
           {pictureSelection.multipleVideos ? (
             <span className="preview-composite-notice" role="status">

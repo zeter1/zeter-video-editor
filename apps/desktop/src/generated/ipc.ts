@@ -202,7 +202,7 @@ export type EditCommand =
   | { SetSpeed: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; speed: number } }
   | { AddTransition: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; transition: Transition } }
   | { AddText: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; timeline_start: TimeUs; timeline_end: TimeUs; text: string; style: TextStyle } }
-  | { SetTextStyle: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; style: TextStyle } }
+  | { SetTextStyle: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; style: TextStyle } }\n  | { SetTextContent: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; text: string } }
   | { AddSubtitleSegments: { sequence_id: SequenceId; segments: SubtitleSegment[] } }
   | { SetSubtitleSegments: { sequence_id: SequenceId; segments: SubtitleSegment[] } }
   | { SetSubtitleStyle: { sequence_id: SequenceId; style: SubtitleStyle } }

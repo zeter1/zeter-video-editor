@@ -388,6 +388,29 @@ impl Editor {
                 text.style = style.clone();
                 Ok(vec![ChangedEntity::Clip(*clip_id)])
             }),
+            EditCommand::SetTextContent {
+                sequence_id,
+                track_id,
+                clip_id,
+                text,
+            } => self.mutate_track_clips(*sequence_id, *track_id, |clips| {
+                if text.trim().is_empty() || text.chars().count() > 1000 {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "title must contain 1..1000 characters",
+                    });
+                }
+                let clip = find_clip_mut(clips, *clip_id)?;
+                if clip.kind != ClipKind::Text {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "text content can only be set on a text clip",
+                    });
+                }
+                let state = clip.text.as_mut().ok_or(DomainError::InvalidEdit {
+                    reason: "text clip has no text state",
+                })?;
+                state.text = text.trim().to_owned();
+                Ok(vec![ChangedEntity::Clip(*clip_id)])
+            }),
             EditCommand::AddTrack {
                 sequence_id,
                 track,
@@ -970,6 +993,36 @@ mod tests {
             expected_revision: ProjectRevision::new(revision),
             command,
         }
+    }
+
+    #[test]
+    fn title_content_edit_is_authoritative_undoable_and_rejects_non_text() {
+        let (project, sequence_id, track_id, video_id, _) = fixture();
+        let mut editor = Editor::new(project).unwrap();
+        let title_id = ClipId::new();
+        editor.execute(request(0, EditCommand::AddText {
+            sequence_id, track_id, clip_id: title_id,
+            timeline_start: time(15_000_000), timeline_end: time(19_000_000),
+            text: "Первый титр".into(), style: TextStyle::default(),
+        })).unwrap();
+        editor.execute(request(1, EditCommand::SetTextContent {
+            sequence_id, track_id, clip_id: title_id, text: "Новый титр".into(),
+        })).unwrap();
+        let title = |editor: &Editor| editor.project().sequences[0].tracks[0].clips.iter()
+            .find(|clip| clip.id == title_id).unwrap().text.as_ref().unwrap().text.clone();
+        assert_eq!(title(&editor), "Новый титр");
+        editor.undo(RequestId::new()).unwrap();
+        assert_eq!(title(&editor), "Первый титр");
+        editor.redo(RequestId::new()).unwrap();
+        assert_eq!(title(&editor), "Новый титр");
+        let current = editor.revision().get();
+        for (id, value) in [(title_id, "   "), (video_id, "Недопустимо")] {
+            assert!(editor.execute(request(current, EditCommand::SetTextContent {
+                sequence_id, track_id, clip_id: id, text: value.into(),
+            })).is_err());
+            assert_eq!(editor.revision().get(), current);
+        }
+        assert_eq!(title(&editor), "Новый титр");
     }
 
     #[test]
