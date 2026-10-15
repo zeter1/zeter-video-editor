@@ -110,7 +110,7 @@ button {
   overflow: hidden;
   font-size: 11px;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .toolbar-actions,
@@ -1337,7 +1337,9 @@ button {
   align-items: center;
   justify-content: center;
   gap: 4px;
+  width: max-content;
   max-width: min(96%, 480px);
+  flex-wrap: wrap;
   padding: 5px 7px;
   border: 1px solid #5878b4;
   border-radius: 7px;
