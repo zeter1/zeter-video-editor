@@ -273,11 +273,17 @@ export function AppShell({
   }
 
 
-  async function addToTimeline(id: string): Promise<void> {
+  async function addToTimeline(id: string, intendedSequenceId?: string | null): Promise<void> {
     const snapshot = projectStore.getState().snapshot;
-    const seq = resolveSequence(snapshot?.project.sequences ?? [], transientStore.getState().selectedSequenceId);
+    const seq = intendedSequenceId
+      ? snapshot?.project.sequences.find((item) => item.id === intendedSequenceId)
+      : resolveSequence(snapshot?.project.sequences ?? [], transientStore.getState().selectedSequenceId);
     const media = snapshot?.project.media.find((item) => item.id === id);
-    if (!seq || !media) return;
+    if (!seq) {
+      projectStore.setError("Целевая последовательность недоступна. Повторите добавление.");
+      return;
+    }
+    if (!media) return;
     const ext = media.absolute_path.split(".").pop()?.toLowerCase() ?? "";
     const kind: Clip["kind"] = ["mp3", "wav", "flac", "aac", "ogg", "m4a", "opus"].includes(ext)
       ? "Audio" : ["png", "jpg", "jpeg", "gif", "bmp", "webp"].includes(ext) ? "Image" : "Video";
@@ -304,7 +310,14 @@ export function AppShell({
     } });
   }
 
-  async function importPaths(paths: string[]): Promise<void> {
+  async function importPaths(
+    paths: string[],
+    intendedSequenceId: string | null = resolveSequence(
+      projectStore.getState().snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId,
+    )?.id ?? null,
+  ): Promise<void> {
+    const projectId = projectStore.getState().snapshot?.project.id ?? null;
     const supported = new Set(["mp4","mov","mkv","avi","webm","mp3","wav","flac","aac","m4a",
       "ogg","opus","png","jpg","jpeg","gif","bmp","webp"]);
     const selected = paths.filter((path) => supported.has(path.split(".").pop()?.toLowerCase() ?? ""));
@@ -319,14 +332,19 @@ export function AppShell({
       for (const path of selected) {
         const snapshot = projectStore.getState().snapshot;
         const prev = snapshot?.project.media.find((item) => item.absolute_path.toLowerCase() === path.toLowerCase());
-        if (prev) { await addToTimeline(prev.id); continue; }
+        if (projectId && snapshot?.project.id !== projectId) {
+          throw new Error("Проект сменился во время импорта. Повторите действие.");
+        }
+        if (prev) { await addToTimeline(prev.id, intendedSequenceId); continue; }
         const revision = projectStore.getState().revision;
         if (revision === null) throw new Error("Нет проекта.");
         const knownIds = new Set(snapshot?.project.media.map((item) => item.id) ?? []);
         const result = await client.importMediaPath(requestId(), revision, path);
         await client.reconcileCommandResult(projectStore, result);
         const media = projectStore.getState().snapshot?.project.media.find((item) => !knownIds.has(item.id));
-        if (media) await addToTimeline(media.id);
+        if (projectId && projectStore.getState().snapshot?.project.id !== projectId)
+          throw new Error("Проект сменился во время импорта. Повторите действие.");
+        if (media) await addToTimeline(media.id, intendedSequenceId);
       }
     } catch (error) {
       projectStore.setError(appError(error)?.message ?? (error instanceof Error ? error.message : "Ошибка импорта."));
@@ -345,11 +363,15 @@ export function AppShell({
   }, [client, projectStore]);
 
   async function handleImport(): Promise<void> {
+    const intendedSequenceId = resolveSequence(
+      projectStore.getState().snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId,
+    )?.id ?? null;
     try {
       const files = await openDialog({ title: "Импорт файлов", multiple: true,
         filters: [{ name: "Медиа", extensions: ["mp4","mov","mkv","avi","webm",
           "mp3","wav","flac","aac","m4a","ogg","opus","png","jpg","jpeg","gif","bmp","webp"] }] });
-      if (files) await importPaths(Array.isArray(files) ? files : [files]);
+      if (files) await importPaths(Array.isArray(files) ? files : [files], intendedSequenceId);
     } catch { projectStore.setError("Не удалось выбрать файлы."); }
   }
 
