@@ -994,6 +994,58 @@ test("shows the real export queue UI in a second native Windows WebView2 window"
   await expect(page.getByRole("banner", { name: "Editor toolbar" })).toBeVisible();
 });
 
+test("exports late timeline selection without rendering the preceding hundred seconds", async () => {
+  test.setTimeout(120_000);
+  const { page, state } = await connectTauri();
+  const fixture = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as {
+    revision: number;
+    project: { sequences: Array<{
+      tracks: Array<{ clips: Array<{ timeline_start: number; timeline_end: number }> }>;
+      subtitle_segments: Array<{ start: number; end: number }>;
+    }> };
+  };
+  const sequence = fixture.project.sequences[0];
+  if (!sequence) throw new Error("missing fixture sequence");
+  for (const track of sequence.tracks) {
+    for (const clip of track.clips) {
+      clip.timeline_start += 100_000_000;
+      clip.timeline_end += 100_000_000;
+    }
+  }
+  for (const subtitle of sequence.subtitle_segments) {
+    subtitle.start += 100_000_000;
+    subtitle.end += 100_000_000;
+  }
+  const lateProject = path.join(path.dirname(state.workflowProjectPath), "late-window-project.vcut");
+  writeFileSync(lateProject, JSON.stringify(fixture, null, 2));
+  await openProject(page, lateProject);
+  await expectRevision(page, 0);
+
+  const destination = path.join(path.dirname(lateProject), "late-window-result.mp4");
+  const startTime = Date.now();
+  const started = await invokeTauri<ExportJobView>(page, "start_export_mp4", {
+    sequenceId: SEQUENCE,
+    outputPath: destination,
+    rangeStartUs: 101_000_000,
+    rangeEndUs: 103_000_000,
+  });
+  const result = await waitForJob(page, started.job_id, 85_000);
+  expect(result.state, result.failure?.technical_detail).toBe("Completed");
+  // The selected two seconds should not evaluate 100 seconds of full HD
+  // overlay and video effects. Keep allowance for shared CI runner load.
+  expect(Date.now() - startTime).toBeLessThan(85_000);
+  const metadata = JSON.parse(execFileSync(path.join(state.runtimeDir, "ffprobe.exe"),
+    ["-v", "error", "-show_entries", "stream=codec_name:format=duration",
+      "-of", "json", destination],
+    { encoding: "utf8", windowsHide: true },
+  )) as { streams: Array<{ codec_name: string }>; format: { duration: string } };
+  expect(metadata.streams.some((stream) => stream.codec_name === "h264")).toBe(true);
+  expect(metadata.streams.some((stream) => stream.codec_name === "aac")).toBe(true);
+  expect(Number(metadata.format.duration)).toBeGreaterThan(1.85);
+  expect(Number(metadata.format.duration)).toBeLessThan(2.2);
+  await expectRevision(page, 0);
+});
+
 test("exports MP4 H264 through the real desktop job boundary and cancels without publishing partial output", async () => {
   // Real 1080p software export duration varies on shared Windows runners.
   // Keep the acceptance bounded while avoiding a runner-speed timing contract.
