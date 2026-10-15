@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "Main Zeter Video Editor desktop capability",
   "windows": [
-    "main"
+    "main",
+    "export-queue"
   ],
   "permissions": [
     "core:default",

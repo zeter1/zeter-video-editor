@@ -968,6 +968,84 @@ async function waitForJob(
   return latest;
 }
 
+test("shows the real export queue UI in a second native Windows WebView2 window", async () => {
+  const { page, browser } = await connectTauri();
+  const context = browser.contexts()[0];
+  if (!context) throw new Error("missing Windows WebView2 CDP context");
+
+  // A successfully created native window is NOT proof that its React UI
+  // loaded. The previous synchronous window command returned success while
+  // displaying only a blank white background on the owner's Windows PC.
+  const appeared = context.waitForEvent("page", { timeout: 20_000 });
+  await invokeTauri(page, "open_export_window");
+  const queueWindow = await appeared;
+  try {
+    await expect(queueWindow.getByRole("heading", { name: "Задачи экспорта" }))
+      .toBeVisible({ timeout: 20_000 });
+    await expect(queueWindow.getByRole("button", { name: "Обновить" })).toBeVisible();
+    await expect(queueWindow.locator(".export-tasks-page")).toHaveCSS(
+      "background-color", "rgb(9, 12, 17)",
+    );
+    // Closing the queue UI must not close the editor or unload its project.
+    await expect(page.getByRole("banner", { name: "Editor toolbar" })).toBeVisible();
+  } finally {
+    await queueWindow.close();
+  }
+  await expect(page.getByRole("banner", { name: "Editor toolbar" })).toBeVisible();
+});
+
+test("exports late timeline selection without rendering the preceding hundred seconds", async () => {
+  test.setTimeout(120_000);
+  const { page, state } = await connectTauri();
+  const fixture = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as {
+    revision: number;
+    project: { sequences: Array<{
+      tracks: Array<{ clips: Array<{ timeline_start: number; timeline_end: number }> }>;
+      subtitle_segments: Array<{ start: number; end: number }>;
+    }> };
+  };
+  const sequence = fixture.project.sequences[0];
+  if (!sequence) throw new Error("missing fixture sequence");
+  for (const track of sequence.tracks) {
+    for (const clip of track.clips) {
+      clip.timeline_start += 100_000_000;
+      clip.timeline_end += 100_000_000;
+    }
+  }
+  for (const subtitle of sequence.subtitle_segments) {
+    subtitle.start += 100_000_000;
+    subtitle.end += 100_000_000;
+  }
+  const lateProject = path.join(path.dirname(state.workflowProjectPath), "late-window-project.vcut");
+  writeFileSync(lateProject, JSON.stringify(fixture, null, 2));
+  await openProject(page, lateProject);
+  await expectRevision(page, 0);
+
+  const destination = path.join(path.dirname(lateProject), "late-window-result.mp4");
+  const startTime = Date.now();
+  const started = await invokeTauri<ExportJobView>(page, "start_export_mp4", {
+    sequenceId: SEQUENCE,
+    outputPath: destination,
+    rangeStartUs: 101_000_000,
+    rangeEndUs: 103_000_000,
+  });
+  const result = await waitForJob(page, started.job_id, 85_000);
+  expect(result.state, result.failure?.technical_detail).toBe("Completed");
+  // The selected two seconds should not evaluate 100 seconds of full HD
+  // overlay and video effects. Keep allowance for shared CI runner load.
+  expect(Date.now() - startTime).toBeLessThan(85_000);
+  const metadata = JSON.parse(execFileSync(path.join(state.runtimeDir, "ffprobe.exe"),
+    ["-v", "error", "-show_entries", "stream=codec_name:format=duration",
+      "-of", "json", destination],
+    { encoding: "utf8", windowsHide: true },
+  )) as { streams: Array<{ codec_name: string }>; format: { duration: string } };
+  expect(metadata.streams.some((stream) => stream.codec_name === "h264")).toBe(true);
+  expect(metadata.streams.some((stream) => stream.codec_name === "aac")).toBe(true);
+  expect(Number(metadata.format.duration)).toBeGreaterThan(1.85);
+  expect(Number(metadata.format.duration)).toBeLessThan(2.2);
+  await expectRevision(page, 0);
+});
+
 test("exports MP4 H264 through the real desktop job boundary and cancels without publishing partial output", async () => {
   // Real 1080p software export duration varies on shared Windows runners.
   // Keep the acceptance bounded while avoiding a runner-speed timing contract.
@@ -987,13 +1065,29 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
   });
   expect(started).toMatchObject({
     kind: "Export",
-    state: "Running",
     source_revision: 0,
   });
+
+  expect(["Queued", "Running"]).toContain(started.state);
+  const enqueued = await invokeTauri<Array<{
+    job: ExportJobView; output_path: string;
+  }>>(page, "list_export_tasks", {});
+  expect(enqueued.some((task) => task.job.job_id === started.job_id
+    && task.output_path === exportPath)).toBe(true);
 
   const completed = await waitForJob(page, started.job_id, 90_000);
   expect(completed.state, completed.failure?.technical_detail).toBe("Completed");
   expect(existsSync(exportPath)).toBe(true);
+  await expect(page.getByRole("button", { name: "Экспорт MP4" })).toBeEnabled();
+  // Reusing the destination must report a useful failure without erasing it.
+  const bytesBefore = readFileSync(exportPath);
+  const duplicate = await invokeTauri<ExportJobView>(page, "start_export_mp4", {
+    sequenceId: SEQUENCE, outputPath: exportPath,
+  });
+  const refused = await waitForJob(page, duplicate.job_id, 15_000);
+  expect(refused.state).toBe("Failed");
+  expect(refused.failure?.code).toBe("export_destination_exists");
+  expect(readFileSync(exportPath).equals(bytesBefore)).toBe(true);
 
   const probe = JSON.parse(
     execFileSync(
@@ -1017,6 +1111,33 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
     width: 1920,
     height: 1080,
   });
+
+  const rangePath = path.join(path.dirname(state.workflowProjectPath), "task19-range.mp4");
+  const ranged = await invokeTauri<ExportJobView>(page, "start_export_mp4", {
+    sequenceId: SEQUENCE,
+    outputPath: rangePath,
+    rangeStartUs: 500_000,
+    rangeEndUs: 1_500_000,
+  });
+  const queueWithRange = await invokeTauri<Array<{
+    job: ExportJobView; output_path: string;
+    range_start_us: number | null; range_end_us: number | null;
+  }>>(page, "list_export_tasks", {});
+  expect(queueWithRange.find((task) => task.job.job_id === ranged.job_id))
+    .toMatchObject({
+      output_path: rangePath,
+      range_start_us: 500_000,
+      range_end_us: 1_500_000,
+    });
+  const rangedResult = await waitForJob(page, ranged.job_id, 90_000);
+  expect(rangedResult.state, rangedResult.failure?.technical_detail).toBe("Completed");
+  const rangeProbe = JSON.parse(execFileSync(path.join(state.runtimeDir, "ffprobe.exe"),
+    ["-v", "error", "-show_entries", "format=duration", "-of", "json", rangePath],
+    { encoding: "utf8", windowsHide: true },
+  )) as { format: { duration: string } };
+  expect(Number(rangeProbe.format.duration)).toBeGreaterThan(0.8);
+  expect(Number(rangeProbe.format.duration)).toBeLessThan(1.25);
+  await expectRevision(page, 0);
 
   const cancelledPath = path.join(
     path.dirname(state.workflowProjectPath),

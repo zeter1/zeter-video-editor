@@ -1,3 +1,33 @@
+# ACTIVE ZVE-006c — fast bounded-window export / alpha.24 candidate (2026-10-15)
+
+- **USER QA:** previous white-background bug confirmed FIXED in owner's Windows screenshot from artifact #11957731813. Screenshot shows two selected MP4 ranges marked Completed (100%) and one Running at 0%, with editing view still available. User reports exporting short late ranges (77–108 s) takes too long. Do not claim a time benchmark from screenshots alone.
+- **ROOT CAUSE:** FFmpeg backend `build_export_spec_with_window` used output-side `-ss` after a full timeline `filter_complex` and 1080p black base duration; rendering a 105–108 s range still generated/filtered first 105 s. This also made perceived progress sit at 0% while processing the skipped part.
+- **CANDIDATE FIX IN DRAFT PR #87:** slice immutable RenderPlan for the selected interval, open only overlapping clip media, use per-input accurate source seek `-ss` before `-i`, rebase clip and subtitle/text offsets, preserve audio gain and timing, and set canvas/output duration to selection length. Do not use localized path when window intersects a partially elapsed audio fade or visual transition; retain old full-graph path to preserve semantics. Rust unit tests assert late seek and fade fallback. Source version remains alpha.24, main alpha.23 until merge; no new product task.
+- **GATES:** exact-HEAD Windows cargo fmt + cargo test workspace, frontend TS/Vitest, real MP4/FFprobe WebView2 E2E on selection, NSIS debug artifact, user verification with original long project and any audio/fades; remain DRAFT until owner confirms.
+- **NEXT:** check CI and iterate; furnish new test installer only after exact-HEAD success.
+
+---
+
+# ACTIVE ZVE-006b — Windows white export queue window repair — 2026-10-15
+
+- **USER REPORT:** screenshot from `0.1.0-alpha.24` shows that the native queue window exists but renders entirely white/blank. Prior exact-HEAD CI green proved render/export but DID NOT test the *second native window content*.
+- **ROOT-CAUSE FIX CANDIDATE:** Windows WebView2 + Tauri `WebviewWindowBuilder` in a synchronous Tauri command is a documented deadlock/blank-window path, and the new CDP test exposed HRESULT 0x8007139F from mismatched second-window WebView2 environment. Keep `open_export_window` `async fn`; clone the *actual main WindowConfig* via `WebviewWindowBuilder::from_config` to preserve `dataDirectory` and `additionalBrowserArgs` (including CI CDP port); load plain `index.html` for both windows and choose React view via `getCurrentWebview().label === "export-queue"`. Native E2E must open the queue Webview2 target and assert visible heading + task controls + dark page; browserless Vitest routing test added.
+- **DELIVERY:** PR #87 stays DRAFT, branch `feat/zve-006-export-mp4-ui-20261015`, source `alpha.24`. No main merge until the updated exact-HEAD Windows CI including native second-window E2E, DEBUG NSIS and manual owner acceptance are all verified.
+- **NEXT:** run CI and repair any failures, provide a **new** installer artifact for owner to verify that the queue is dark and populated, can queue several segments, and reports real FFmpeg progress. Prior artifact #11956311797 is OBSOLETE for the blank-window fix.
+ 
+---
+
+# ACTIVE ZVE-006b — 2026-10-15 — detachable MP4 task window, timeline I/O range, FFmpeg progress
+
+- **USER REQUEST:** On Windows a separate export-queue window shows every MP4 task and real progress; while editing select a timeline interval (Shift + drag ruler or I/O buttons), enqueue it, and continue working. Use a native Rust job queue rather than a frontend-only list.
+- **IMPLEMENTED IN DRAFT:** PR #87 https://github.com/zeter1/zeter-video-editor/pull/87, branch `feat/zve-006-export-mp4-ui-20261015`; app version remains `0.1.0-alpha.24` because the original MP4 UI is not yet merged. Backend stores immutable RenderPlan + range and destination per task, queues serial FFmpeg via Tokio async Mutex, supports queued/running cancellation, reports actual FFmpeg `out_time_us` progress via JobManager. Tauri `export-queue` detached window polls authoritative task list with permissions and per-task cancel; frontend selects non-destructive time range and permits additional MP4s while first renders.
+- **TESTS IN BRANCH:** React/Vitest interval UI + task list + multi-queue; Windows Tauri E2E checks queue state, task-list IPC, actual exported range duration via FFprobe, no-clobber and cancellation. Running exact-HEAD CI; only call successful when exact SHA is COMPLETED SUCCESS including Rust, WebView2 E2E and DEBUG NSIS. Latest development code HEAD will change during CI repairs; always re-fetch. Main remains `0.1.0-alpha.23` until verified merge.
+- **RESTRICTIONS:** Queue contents are process-local, not persisted across editor restarts. Windows debug installer unsigned; do not label a signed/public release. Manual PC QA still required, especially opening independent window, compiling range with A/V, selecting two distinct intervals mid-edit, cancellation, FFmpeg percentages, and verifying neither originals nor existing outputs change. Do not merge until owner verifies.
+- **NEXT IN THIS DIALOGUE:** fix exact-HEAD Windows CI, review diff and ask owner to install/test DEBUG preview artifact. After explicit successful manual QA finish PR #87; do not start a different product task.
+
+---
+
+
 # VERIFIED ZVE-005 MERGE — 2026-10-14 — UI video/audio lanes / alpha.23
 
 - **PRODUCT:** [PR #86](https://github.com/zeter1/zeter-video-editor/pull/86) adds “+ Видео” / “+ Аудио” with Rust-authoritative `EditCommand::AddTrack`, selection and media-library AddClip targeting, Undo/Redo, numbered lanes and unchanged source media/project format. Prior dialogue's user said “всё работает” after manual UI checks; separate save/reopen and long export evidence is not claimed.
@@ -848,7 +878,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.23` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.24` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

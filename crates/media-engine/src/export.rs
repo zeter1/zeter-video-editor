@@ -1,14 +1,15 @@
 use std::{
     fs,
-    io::{self, Read},
+    io::{self, BufRead, BufReader},
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::Arc,
     thread,
     time::Duration,
 };
 
 use editor_core::{
-    ClipKind, ProjectRevision, RenderClip, TextAlignment, TextStyle, TimeUs, TransitionKind,
+    ClipId, ClipKind, ProjectRevision, RenderClip, TextAlignment, TextStyle, TimeUs, TransitionKind,
 };
 use job_system::JobFailure;
 use tokio_util::sync::CancellationToken;
@@ -26,6 +27,16 @@ pub trait ExportRunner: Clone {
         spec: &ProcessSpec,
         cancel: &CancellationToken,
     ) -> Result<ProcessOutput, MediaError>;
+
+    fn run_with_progress(
+        &self,
+        spec: &ProcessSpec,
+        cancel: &CancellationToken,
+        _duration_us: i64,
+        _progress: Arc<dyn Fn(f32) + Send + Sync>,
+    ) -> Result<ProcessOutput, MediaError> {
+        self.run(spec, cancel)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -36,6 +47,16 @@ impl ExportRunner for ManagedExportRunner {
         &self,
         spec: &ProcessSpec,
         cancel: &CancellationToken,
+    ) -> Result<ProcessOutput, MediaError> {
+        self.run_with_progress(spec, cancel, 0, Arc::new(|_| {}))
+    }
+
+    fn run_with_progress(
+        &self,
+        spec: &ProcessSpec,
+        cancel: &CancellationToken,
+        duration_us: i64,
+        progress: Arc<dyn Fn(f32) + Send + Sync>,
     ) -> Result<ProcessOutput, MediaError> {
         if cancel.is_cancelled() {
             return Err(MediaError::Cancelled);
@@ -56,9 +77,38 @@ impl ExportRunner for ManagedExportRunner {
             operation: "stderr capture",
             source: io::Error::other("stderr pipe unavailable"),
         })?;
-        let stderr_reader = thread::spawn(move || {
+        let stderr_reader = thread::spawn(move || -> io::Result<Vec<u8>> {
             let mut bytes = Vec::new();
-            stderr.read_to_end(&mut bytes).map(|_| bytes)
+            let mut last_progress = 0.0_f32;
+            for line in BufReader::new(stderr).lines() {
+                let line = line?;
+                if let Some(time) = line
+                    .strip_prefix("out_time_us=")
+                    .and_then(|value| value.parse::<i64>().ok())
+                {
+                    if duration_us > 0 {
+                        let next = (time as f32 / duration_us as f32).clamp(0.0, 0.99);
+                        if next > last_progress {
+                            last_progress = next;
+                            progress(next);
+                        }
+                    }
+                } else if !line.starts_with("frame=")
+                    && !line.starts_with("fps=")
+                    && !line.starts_with("bitrate=")
+                    && !line.starts_with("total_size=")
+                    && !line.starts_with("out_time_ms=")
+                    && !line.starts_with("out_time=")
+                    && !line.starts_with("dup_frames=")
+                    && !line.starts_with("drop_frames=")
+                    && !line.starts_with("speed=")
+                    && !line.starts_with("progress=")
+                {
+                    bytes.extend_from_slice(line.as_bytes());
+                    bytes.push(b'\n');
+                }
+            }
+            Ok(bytes)
         });
 
         let status = loop {
@@ -151,10 +201,36 @@ impl<R: ExportRunner> ExportJob<R> {
         output: &Path,
         cancel: CancellationToken,
     ) -> Result<ExportReceipt, JobFailure> {
+        self.run_with_progress(plan, output, cancel, None, Arc::new(|_| {}))
+    }
+
+    pub fn run_with_progress(
+        &self,
+        plan: RenderPlan,
+        output: &Path,
+        cancel: CancellationToken,
+        range: Option<(TimeUs, TimeUs)>,
+        progress: Arc<dyn Fn(f32) + Send + Sync>,
+    ) -> Result<ExportReceipt, JobFailure> {
+        let total_us = (plan.duration_seconds().unwrap_or(0.0) * 1_000_000.0).round() as i64;
+        if let Some((start, end)) = range {
+            if start >= end || end.get() > total_us {
+                return Err(export_failure(MediaError::InvalidExportSettings {
+                    reason: "export range outside sequence or empty",
+                }));
+            }
+        }
+        let expected_duration_us = range.map(|(s, e)| e.get() - s.get()).unwrap_or(total_us);
         if export_destination_is_source(&plan, output) {
             return Err(export_failure(MediaError::InvalidExportSettings {
                 reason: "export destination must not replace source media",
             }));
+        }
+
+        // An export must never overwrite an existing user file, including a
+        // prior successful render. Re-check atomically during publication.
+        if output.exists() {
+            return Err(destination_exists_failure());
         }
 
         let temp_output = temporary_output_path(output, plan.settings.container.extension());
@@ -169,8 +245,14 @@ impl<R: ExportRunner> ExportJob<R> {
         let mut encoder = selection.primary;
         let mut used_software_fallback = false;
 
-        let first_spec = build_export_spec(&self.runtime, &plan, encoder, &temp_output);
-        match self.runner.run(&first_spec, &cancel) {
+        let first_spec =
+            build_export_spec_with_window(&self.runtime, &plan, encoder, &temp_output, range);
+        match self.runner.run_with_progress(
+            &first_spec,
+            &cancel,
+            expected_duration_us,
+            progress.clone(),
+        ) {
             Ok(_) => {}
             Err(error)
                 if encoder.is_hardware()
@@ -184,8 +266,19 @@ impl<R: ExportRunner> ExportJob<R> {
 
                 encoder = selection.software_fallback.expect("checked fallback");
                 used_software_fallback = true;
-                let fallback_spec = build_export_spec(&self.runtime, &plan, encoder, &temp_output);
-                if let Err(error) = self.runner.run(&fallback_spec, &cancel) {
+                let fallback_spec = build_export_spec_with_window(
+                    &self.runtime,
+                    &plan,
+                    encoder,
+                    &temp_output,
+                    range,
+                );
+                if let Err(error) = self.runner.run_with_progress(
+                    &fallback_spec,
+                    &cancel,
+                    expected_duration_us,
+                    progress,
+                ) {
                     cleanup_file(&temp_output);
                     return Err(map_runner_failure(error));
                 }
@@ -215,23 +308,19 @@ impl<R: ExportRunner> ExportJob<R> {
             }));
         }
 
-        if output.exists() {
-            fs::remove_file(output).map_err(|source| {
-                cleanup_file(&temp_output);
-                export_failure(MediaError::ExportIo {
-                    path: output.to_path_buf(),
-                    source,
-                })
-            })?;
-        }
-
-        fs::rename(&temp_output, output).map_err(|source| {
+        // A no-replace hard link is atomic on the same filesystem (the temp
+        // file is next to the destination). Never unlink the user's target.
+        fs::hard_link(&temp_output, output).map_err(|source| {
             cleanup_file(&temp_output);
+            if source.kind() == io::ErrorKind::AlreadyExists {
+                return destination_exists_failure();
+            }
             export_failure(MediaError::ExportIo {
                 path: output.to_path_buf(),
                 source,
             })
         })?;
+        cleanup_file(&temp_output);
 
         Ok(ExportReceipt {
             output_path: output.to_path_buf(),
@@ -282,34 +371,198 @@ pub fn build_preview_chunk_spec(
             reason: "window exceeds timeline duration",
         });
     }
-    Ok(build_export_spec_with_window(
+    // Preview caches require the exact legacy export graph and PTS
+    // semantics for parity with existing generated preview chunks. Only
+    // user-requested MP4 range exports use fast input seeking.
+    Ok(build_window_spec_impl(
         runtime,
         plan,
         encoder,
         output,
         Some((start, end)),
+        false,
     ))
 }
 
-fn build_export_spec_with_window(
+/// Convert a bounded region into a new 0-based render plan, seeking each
+/// source before decoding. Output-side -ss alone still executes the *entire*
+/// timeline graph, including black frames before a late selection (e.g. 105s
+/// of 1080p overlays for a two-second highlight).
+///
+/// Conservatively return None for partially intersected audio fades or visual
+/// transitions. The legacy output-side seek remains the correctness fallback.
+fn localized_export_plan(
+    plan: &RenderPlan,
+    window: (TimeUs, TimeUs),
+) -> Option<(RenderPlan, Vec<(ClipId, i64)>)> {
+    let (start, end) = (window.0.get(), window.1.get());
+    if start < 0 || end <= start {
+        return None;
+    }
+    let mut localized = plan.clone();
+    localized.clips.clear();
+    localized.texts.clear();
+    localized.subtitles.clear();
+    localized.transitions.clear();
+    let mut input_seeks = Vec::new();
+
+    for original in &plan.clips {
+        let from = original.timeline_start.get().max(start);
+        let to = original.timeline_end.get().min(end);
+        if from >= to {
+            continue;
+        }
+        // Keep the exact original effect envelope. A fade already finished
+        // before the selection is omitted; an intersected envelope uses the
+        // old full-timeline graph to avoid restarting the fade at zero.
+        if let Some(transition) = plan
+            .transitions
+            .iter()
+            .find(|t| t.clip_id == original.clip_id)
+        {
+            let fade_end = original
+                .timeline_start
+                .get()
+                .saturating_add(transition.duration.get());
+            if start > original.timeline_start.get() && start < fade_end {
+                return None;
+            }
+            if from == original.timeline_start.get() {
+                localized.transitions.push(transition.clone());
+            }
+        }
+        if let Some(audio) = localized
+            .audio
+            .iter_mut()
+            .find(|a| a.clip_id == original.clip_id)
+        {
+            let fade_in_end = original
+                .timeline_start
+                .get()
+                .saturating_add(audio.fade_in.get());
+            let fade_out_start = original
+                .timeline_end
+                .get()
+                .saturating_sub(audio.fade_out.get());
+            if (start > original.timeline_start.get() && start < fade_in_end)
+                || (start > fade_out_start && start < original.timeline_end.get())
+                || (end > fade_out_start && end < original.timeline_end.get())
+            {
+                return None;
+            }
+            if from > original.timeline_start.get() {
+                audio.fade_in = TimeUs::new(0).ok()?;
+            }
+            if to < original.timeline_end.get() {
+                audio.fade_out = TimeUs::new(0).ok()?;
+            }
+        }
+
+        let mut clip = original.clone();
+        if clip.media_id.is_some() && clip.kind != ClipKind::Image {
+            let elapsed = (from - original.timeline_start.get()) as f64 * original.speed;
+            if !elapsed.is_finite() || elapsed < 0.0 {
+                return None;
+            }
+            let input_start = original
+                .source_in
+                .get()
+                .checked_add(elapsed.round() as i64)?;
+            let input_length = ((to - from) as f64 * original.speed).round() as i64;
+            let input_end = input_start.checked_add(input_length)?;
+            // Do not seek outside the authored source span or silently
+            // truncate an audio/video stream. The old path handles that case.
+            if input_end > original.source_out.get() || input_length <= 0 {
+                return None;
+            }
+            input_seeks.push((clip.clip_id, input_start));
+            clip.source_in = TimeUs::new(0).ok()?;
+            clip.source_out = TimeUs::new(input_length).ok()?;
+        }
+        clip.timeline_start = TimeUs::new(from - start).ok()?;
+        clip.timeline_end = TimeUs::new(to - start).ok()?;
+        localized.clips.push(clip);
+    }
+
+    // Titles and subtitles depend on sequence time, not source media PTS.
+    // Rebase their interval with the same fixed offset as all timeline clips.
+    for original in &plan.texts {
+        if let Some((from, to)) =
+            clipped_relative_interval(original.timeline_start, original.timeline_end, window)
+        {
+            let mut text = original.clone();
+            text.timeline_start = from;
+            text.timeline_end = to;
+            localized.texts.push(text);
+        }
+    }
+    for original in &plan.subtitles {
+        if let Some((from, to)) = clipped_relative_interval(original.start, original.end, window) {
+            let mut subtitle = original.clone();
+            subtitle.start = from;
+            subtitle.end = to;
+            localized.subtitles.push(subtitle);
+        }
+    }
+
+    Some((localized, input_seeks))
+}
+
+fn clipped_relative_interval(
+    original_start: TimeUs,
+    original_end: TimeUs,
+    window: (TimeUs, TimeUs),
+) -> Option<(TimeUs, TimeUs)> {
+    let from = original_start.get().max(window.0.get());
+    let to = original_end.get().min(window.1.get());
+    if from >= to {
+        return None;
+    }
+    Some((
+        TimeUs::new(from - window.0.get()).ok()?,
+        TimeUs::new(to - window.0.get()).ok()?,
+    ))
+}
+
+pub(crate) fn build_export_spec_with_window(
     runtime: &ManagedRuntime,
     plan: &RenderPlan,
     encoder: EncoderKind,
     output: &Path,
     window: Option<(TimeUs, TimeUs)>,
 ) -> ProcessSpec {
+    build_window_spec_impl(runtime, plan, encoder, output, window, true)
+}
+
+fn build_window_spec_impl(
+    runtime: &ManagedRuntime,
+    plan: &RenderPlan,
+    encoder: EncoderKind,
+    output: &Path,
+    window: Option<(TimeUs, TimeUs)>,
+    fast_seek: bool,
+) -> ProcessSpec {
     let mut spec = ProcessSpec::new(&runtime.ffmpeg_path)
         .arg("-y")
         .arg("-hide_banner")
         .arg("-loglevel")
-        .arg("error");
+        .arg("error")
+        .arg("-nostats")
+        .arg("-progress")
+        .arg("pipe:2");
 
-    // Use one FFmpeg input per media-backed clip. This intentionally trades some
-    // decode efficiency for a much simpler and deterministic filtergraph: every
-    // clip can trim/retime the same source independently without hidden split
-    // state or mutable source ownership.
+    let localized = if fast_seek {
+        window.and_then(|range| localized_export_plan(plan, range))
+    } else {
+        None
+    };
+    let effective_plan = localized.as_ref().map(|(plan, _)| plan).unwrap_or(plan);
+    let input_seeks = localized.as_ref().map(|(_, seeks)| seeks);
+
+    // Only sources active in the selection are opened; for non-image streams
+    // input-side -ss avoids decoding unused preceding media frames.
     let mut input_clips = Vec::new();
-    for clip in &plan.clips {
+    for clip in &effective_plan.clips {
         let Some(media_id) = clip.media_id else {
             continue;
         };
@@ -319,13 +572,24 @@ fn build_export_spec_with_window(
         if clip.kind == ClipKind::Image {
             spec = spec.arg("-loop").arg("1");
         }
+        if let Some(seek) =
+            input_seeks.and_then(|seeks| seeks.iter().find(|(id, _)| *id == clip.clip_id))
+        {
+            spec = spec.arg("-ss").arg(format!("{:.6}", seconds(seek.1)));
+        }
         let input_index = input_clips.len();
         spec = spec.arg("-i").arg(&media.absolute_path);
         input_clips.push((input_index, clip));
     }
 
-    let duration = plan.duration_seconds().unwrap_or(0.001).max(0.001);
-    let (filtergraph, has_audio) = compile_timeline_filtergraph(plan, &input_clips, duration);
+    let duration = if localized.is_some() {
+        let (start, end) = window.expect("localized plan requires export window");
+        seconds(end.get() - start.get())
+    } else {
+        plan.duration_seconds().unwrap_or(0.001).max(0.001)
+    };
+    let (filtergraph, has_audio) =
+        compile_timeline_filtergraph(effective_plan, &input_clips, duration);
     spec = spec
         .arg("-filter_complex")
         .arg(filtergraph)
@@ -361,15 +625,16 @@ fn build_export_spec_with_window(
             .arg("192k");
     }
 
-    // Output-side clipping keeps the complete timeline filtergraph identical
-    // to export; FFmpeg may still evaluate frames before the requested window.
+    // The localized graph starts at zero, so no slow output-side seek is
+    // needed. If exact partial fade semantics prevent localization, retain
+    // the previous filtergraph and output seek unchanged for correctness.
     spec = match window {
-        Some((start, end)) => spec
+        Some((start, end)) if localized.is_none() => spec
             .arg("-ss")
             .arg(format!("{:.6}", seconds(start.get())))
             .arg("-t")
             .arg(format!("{:.6}", seconds(end.get() - start.get()))),
-        None => spec.arg("-t").arg(format!("{duration:.6}")),
+        _ => spec.arg("-t").arg(format!("{duration:.6}")),
     };
     spec.arg("-movflags")
         .arg("+faststart")
@@ -750,6 +1015,16 @@ fn map_runner_failure(error: MediaError) -> JobFailure {
         cancelled_failure()
     } else {
         export_failure(error)
+    }
+}
+
+fn destination_exists_failure() -> JobFailure {
+    JobFailure {
+        code: "export_destination_exists".into(),
+        stage: "publish".into(),
+        retryable: true,
+        safe_message: "Файл уже существует. Выберите другое имя для MP4.".into(),
+        technical_detail: "export destination already exists (no-clobber)".into(),
     }
 }
 

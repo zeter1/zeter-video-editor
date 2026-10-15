@@ -5232,7 +5232,7 @@ dependencies = [
 
 [[package]]
 name = "zeter-desktop-tauri"
-version = "0.1.0-alpha.23"
+version = "0.1.0-alpha.24"
 dependencies = [
  "ai-engine",
  "editor-core",
@@ -5247,6 +5247,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tempfile",
  "thiserror 2.0.21",
+ "tokio",
  "tracing",
  "tracing-subscriber",
  "uuid",

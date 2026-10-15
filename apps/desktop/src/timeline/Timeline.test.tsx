@@ -628,3 +628,38 @@ describe("Timeline", () => {
   });
 
 });
+
+describe("Export I/O range", () => {
+  it("selects frame-bound range without issuing project mutations", () => {
+    const fixture = sequence();
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const executeEditCommand = vi.fn();
+    render(<Timeline sequence={fixture} projectStore={projectStore}
+      transientStore={transientStore} executeEditCommand={executeEditCommand}
+      reconcileCommandResult={vi.fn()} />);
+    act(() => transientStore.setPlayheadTime(1_000_000));
+    fireEvent.click(screen.getByRole("button", { name: "Начало (I)" }));
+    expect(transientStore.getState().exportRangeStartUs).toBe(1_000_000);
+    act(() => transientStore.setPlayheadTime(2_000_000));
+    fireEvent.click(screen.getByRole("button", { name: "Конец (O)" }));
+    expect(transientStore.getState().exportRangeEndUs).toBe(2_000_000);
+    expect(screen.getByLabelText("Выделенный диапазон экспорта")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Сбросить диапазон" }));
+    expect(transientStore.getState().exportRangeStartUs).toBeNull();
+    expect(executeEditCommand).not.toHaveBeenCalled();
+  });
+  it("selects an export interval by Shift+dragging the ruler", () => {
+    const transientStore = createTransientStore();
+    render(<Timeline sequence={sequence()} projectStore={createProjectStore()}
+      transientStore={transientStore} executeEditCommand={vi.fn()}
+      reconcileCommandResult={vi.fn()} />);
+    const ruler = screen.getByRole("slider", { name: "Timeline playhead" });
+    fireEvent.pointerDown(ruler, { pointerId: 2, clientX: 232, button: 0,
+      isPrimary: true, shiftKey: true });
+    fireEvent.pointerMove(ruler, { pointerId: 2, clientX: 332, buttons: 1 });
+    fireEvent.pointerUp(ruler, { pointerId: 2, clientX: 332 });
+    expect(transientStore.getState().exportRangeStartUs).toBe(1_000_000);
+    expect(transientStore.getState().exportRangeEndUs).toBe(2_000_000);
+  });
+});

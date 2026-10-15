@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 use ai_engine::HighlightCandidate;
 use editor_core::{
@@ -12,8 +12,10 @@ use media_engine::{
 use tauri::{Manager, State};
 
 use crate::{
-    app::AppState,
-    contracts::{CommandResultDto, JobEventDto, ProjectSnapshotDto, RecoveryCandidateDto},
+    app::{AppState, export_queue::ExportTaskMeta},
+    contracts::{
+        CommandResultDto, ExportTaskDto, JobEventDto, ProjectSnapshotDto, RecoveryCandidateDto,
+    },
     diagnostics::{
         DiagnosticsError,
         bundle::{
@@ -416,6 +418,8 @@ pub fn start_export_mp4(
     app: tauri::AppHandle,
     sequence_id: SequenceId,
     output_path: String,
+    range_start_us: Option<TimeUs>,
+    range_end_us: Option<TimeUs>,
 ) -> Result<JobEventDto, AppErrorDto> {
     let state = app.state::<AppState>();
     let snapshot = {
@@ -448,34 +452,99 @@ pub fn start_export_mp4(
         .map_err(AppError::from)
         .map_err(|error| diagnostic_error(error, None, None))?;
 
+    let selected_range = match (range_start_us, range_end_us) {
+        (None, None) => None,
+        (Some(start), Some(end))
+            if start < end
+                && end.get()
+                    <= (plan.duration_seconds().unwrap_or(0.0) * 1_000_000.0).round() as i64 =>
+        {
+            Some((start, end))
+        }
+        _ => {
+            return Err(diagnostic_error(
+                AppError::InvalidMediaMetadata(
+                    "export range must be within sequence and start before end",
+                ),
+                None,
+                None,
+            ));
+        }
+    };
+
     let request_id = RequestId::new();
-    let job_id = state
-        .jobs
-        .start_job(JobSpec {
-            kind: JobKind::Export,
-            request_id,
-            project_id: snapshot.project_id,
-            sequence_id,
-            source_revision: snapshot.revision,
-            cancellable: true,
-        })
-        .map_err(AppError::from)
-        .map_err(|error| diagnostic_error(error, Some(request_id), None))?;
+    let job_id = state.jobs.enqueue_job(JobSpec {
+        kind: JobKind::Export,
+        request_id,
+        project_id: snapshot.project_id,
+        sequence_id,
+        source_revision: snapshot.revision,
+        cancellable: true,
+    });
     let cancellation = state
         .jobs
         .cancellation_token(job_id)
         .map_err(AppError::from)
         .map_err(|error| diagnostic_error(error, Some(request_id), Some(job_id)))?;
     let jobs = state.jobs.clone();
+    let gate = state.export_gate.clone();
+    state
+        .export_tasks
+        .lock()
+        .map_err(|_| state_error(Some(request_id), Some(job_id)))?
+        .push(ExportTaskMeta {
+            job_id,
+            output_path: output_path.clone(),
+            range_start_us: selected_range.map(|(start, _)| start.get()),
+            range_end_us: selected_range.map(|(_, end)| end.get()),
+        });
     let output = PathBuf::from(output_path);
 
-    tauri::async_runtime::spawn_blocking(move || {
-        match ExportJob::new(runtime, capabilities).run(plan, &output, cancellation) {
-            Ok(_) => {
+    // Serial FFmpeg exports; the editor and queue window stay responsive.
+    tauri::async_runtime::spawn(async move {
+        let _permit = gate.lock().await;
+        if jobs
+            .get_job_state(job_id)
+            .map(|j| j.state != job_system::JobState::Queued)
+            .unwrap_or(true)
+        {
+            return;
+        }
+        if jobs.begin_job(job_id).is_err() {
+            return;
+        }
+        let progress_jobs = jobs.clone();
+        let progress = Arc::new(move |fraction: f32| {
+            let _ = progress_jobs.set_progress(job_id, fraction);
+        });
+        let outcome = tauri::async_runtime::spawn_blocking(move || {
+            ExportJob::new(runtime, capabilities).run_with_progress(
+                plan,
+                &output,
+                cancellation,
+                selected_range,
+                progress,
+            )
+        })
+        .await;
+        match outcome {
+            Ok(Ok(_)) => {
                 let _ = jobs.mark_completed(job_id);
             }
-            Err(failure) => {
+            Ok(Err(failure)) => {
                 let _ = jobs.mark_failed(job_id, failure);
+            }
+            Err(_) => {
+                let _ = jobs.mark_failed(
+                    job_id,
+                    job_system::JobFailure {
+                        code: "export_worker_panicked".into(),
+                        stage: "export".into(),
+                        retryable: true,
+                        safe_message: "Ошибка рабочего процесса экспорта.".into(),
+                        technical_detail: "export worker join failed".into(),
+                    },
+                );
             }
         }
     });
@@ -486,6 +555,80 @@ pub fn start_export_mp4(
         .map(JobEventDto::from)
         .map_err(AppError::from)
         .map_err(|error| diagnostic_error(error, Some(request_id), Some(job_id)))
+}
+
+#[tauri::command]
+pub fn list_export_tasks(state: State<'_, AppState>) -> Result<Vec<ExportTaskDto>, AppErrorDto> {
+    let tasks = state
+        .export_tasks
+        .lock()
+        .map_err(|_| state_error(None, None))?
+        .clone();
+    tasks
+        .into_iter()
+        .map(|task| {
+            let snapshot = state
+                .jobs
+                .get_job_state(task.job_id)
+                .map_err(AppError::from)
+                .map_err(|error| diagnostic_error(error, None, Some(task.job_id)))?;
+            Ok(ExportTaskDto {
+                job: JobEventDto::from(snapshot),
+                output_path: task.output_path,
+                range_start_us: task.range_start_us,
+                range_end_us: task.range_end_us,
+            })
+        })
+        .collect()
+}
+
+// Webview2 must not be created in a synchronous Tauri command on Windows:
+// it can leave a second window white/frozen even if build and IPC succeeded.
+#[tauri::command]
+pub async fn open_export_window(app: tauri::AppHandle) -> Result<(), AppErrorDto> {
+    if let Some(window) = app.get_webview_window("export-queue") {
+        window
+            .show()
+            .and_then(|_| window.set_focus())
+            .map_err(|error| {
+                diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None)
+            })?;
+        return Ok(());
+    }
+    // The main window can have custom WebView2 dataDirectory and browser
+    // arguments (in native Windows CDP tests, these include the debugging port).
+    // Creating this webview with default settings gives it DIFFERENT
+    // WebView2 EnvironmentOptions for the same process and can fail with
+    // HRESULT 0x8007139F. Start from the *actual* main window config so
+    // profile, arguments and HTTPS/custom-protocol options all agree.
+    let mut config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == "main")
+        .cloned()
+        .ok_or_else(|| state_error(None, None))?;
+    config.label = "export-queue".into();
+    config.url = tauri::WebviewUrl::App("index.html".into());
+    config.title = "Zeter — Очередь экспорта".into();
+    config.width = 1020.0;
+    config.height = 700.0;
+    config.min_width = Some(980.0);
+    config.min_height = Some(570.0);
+    config.max_width = None;
+    config.max_height = None;
+    config.maximized = false;
+    config.visible = true;
+    tauri::WebviewWindowBuilder::from_config(&app, &config)
+        .map_err(|error| {
+            diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None)
+        })?
+        .build()
+        .map_err(|error| {
+            diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None)
+        })?;
+    Ok(())
 }
 
 #[tauri::command]

@@ -25,6 +25,8 @@ export interface TransientUiState {
   drag: ClipDragState | null;
   timelineZoom: number;
   playheadTimeUs: number;
+  exportRangeStartUs: number | null;
+  exportRangeEndUs: number | null;
   timelineScrollLeftPx: number;
 }
 
@@ -37,6 +39,8 @@ const initialState = (): TransientUiState => ({
   drag: null,
   timelineZoom: 1,
   playheadTimeUs: 0,
+  exportRangeStartUs: null,
+  exportRangeEndUs: null,
   timelineScrollLeftPx: 0,
 });
 
@@ -105,6 +109,13 @@ export class TransientStore {
 
   setPlayheadTime(timeUs: number): void {
     this.patch({ playheadTimeUs: Math.max(0, Math.round(timeUs)) });
+  }
+
+  setExportRange(startUs: number | null, endUs: number | null): void {
+    this.patch({
+      exportRangeStartUs: startUs === null ? null : Math.max(0, Math.round(startUs)),
+      exportRangeEndUs: endUs === null ? null : Math.max(0, Math.round(endUs)),
+    });
   }
 
   setTimelineScrollLeft(scrollLeftPx: number): void {

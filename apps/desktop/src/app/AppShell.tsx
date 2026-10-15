@@ -7,7 +7,7 @@ import { AiWorkspace } from "../ai/AiWorkspace";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { ErrorDialog } from "../errors/ErrorDialog";
 import type { RecoveryAction } from "../errors/actions";
-import { JobStatus } from "../components/JobStatus";
+import { JobStatus, type ExportJobView } from "../components/JobStatus";
 import { LeftPanel } from "../components/LeftPanel";
 import { PreviewPanel } from "../components/PreviewPanel";
 import { TimelinePanel } from "../components/TimelinePanel";
@@ -101,6 +101,8 @@ export function AppShell({
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null);
   const [openError, setOpenError] = useState<AppErrorDto | null>(null);
   const [busy, setBusy] = useState(false);
+  const [exportStarting, setExportStarting] = useState(false);
+  const [exportJob, setExportJob] = useState<ExportJobView | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const markerShortcutPending = useRef(false);
 
@@ -328,6 +330,57 @@ export function AppShell({
     }
   }
 
+  async function handleExportMp4(): Promise<void> {
+    if (exportStarting) return;
+    const sequenceId = projectStore.getState().snapshot?.project.sequences[0]?.id;
+    const revision = projectStore.getState().revision;
+    if (!sequenceId || revision === null) return;
+    setExportStarting(true);
+    try {
+      const outputPath = await saveDialog({
+        title: "Экспорт видео MP4 (H.264)",
+        defaultPath: "Видео.mp4",
+        filters: [{ name: "MP4 (H.264)", extensions: ["mp4"] }],
+      });
+      if (!outputPath) return;
+      const current = projectStore.getState();
+      if (current.revision !== revision ||
+          current.snapshot?.project.sequences[0]?.id !== sequenceId) {
+        projectStore.setError("Проект изменился. Повторите экспорт.");
+        return;
+      }
+      const rangeStart = transientStore.getState().exportRangeStartUs;
+      const rangeEnd = transientStore.getState().exportRangeEndUs;
+      // Partial I/O marks are intentionally not treated as an export range.
+      if ((rangeStart === null) !== (rangeEnd === null) ||
+          (rangeStart !== null && rangeEnd !== null && rangeStart >= rangeEnd)) {
+        projectStore.setError("Задайте начало и конец диапазона или сбросьте выделение.");
+        return;
+      }
+      const initial = await client.startExportMp4(sequenceId, outputPath, rangeStart, rangeEnd);
+      setExportJob({ initial, outputPath });
+      if (isTauri()) {
+        try { await client.openExportWindow(); }
+        catch { projectStore.setError("Экспорт запущен. Откройте окно «Задачи экспорта» отдельно."); }
+      }
+    } catch (error) {
+      projectStore.setError(appError(error)?.message ??
+        (error instanceof Error ? error.message : "Не удалось запустить экспорт MP4."));
+    } finally {
+      setExportStarting(false);
+    }
+  }
+
+  async function handleExportQueue(): Promise<void> {
+    try {
+      if (isTauri()) await client.openExportWindow();
+      else projectStore.setError("Окно задач доступно в установленном приложении Windows.");
+    } catch (error) {
+      projectStore.setError(appError(error)?.message ??
+        (error instanceof Error ? error.message : "Не удалось открыть очередь экспорта."));
+    }
+  }
+
   async function handleExportSupportBundle(): Promise<void> {
     const outputPath = await saveDialog({ title: "Сохранить диагностику", defaultPath: "zeter-support.zip", filters: [{ name: "ZIP", extensions: ["zip"] }] });
     if (!outputPath) {
@@ -484,6 +537,9 @@ export function AppShell({
         onUndo={handleUndo}
         onRedo={handleRedo}
         onExportSupportBundle={() => void handleExportSupportBundle()}
+        onExportMp4={() => void handleExportMp4()}
+        onExportQueue={() => void handleExportQueue()}
+        exportDisabled={exportStarting}
       />
 
       <div className="workspace-grid">
@@ -535,7 +591,8 @@ export function AppShell({
         />
       </div>
 
-      <JobStatus />
+      <JobStatus job={exportJob} client={client} onDismiss={() => setExportJob(null)}
+        onOpenQueue={() => void handleExportQueue()} />
 
       {openError ? (
         <ErrorDialog

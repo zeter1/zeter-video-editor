@@ -116,6 +116,8 @@ export function Timeline({
   const transient = useTransientStore(transientStore);
   const scrollRef = useRef<HTMLDivElement>(null);
   const rulerPointerIdRef = useRef<number | null>(null);
+  const exportRangeAnchorRef = useRef<number | null>(null);
+  const suppressClickRef = useRef(false);
   const [addingTrack, setAddingTrack] = useState(false);
   const addingTrackRef = useRef(false);
   const sequenceIdRef = useRef(sequence.id);
@@ -125,7 +127,9 @@ export function Timeline({
   // A pointer from a previous sequence must not continue scrubbing this one.
   useEffect(() => {
     rulerPointerIdRef.current = null;
-  }, [sequence.id]);
+    exportRangeAnchorRef.current = null;
+    transientStore.setExportRange(null, null);
+  }, [sequence.id, transientStore]);
 
   // The timeline zoom shortcut is global while a sequence is mounted, but
   // never captures typing or native input controls.
@@ -152,7 +156,21 @@ export function Timeline({
         return;
       }
       if (event.ctrlKey) return;
-      const key = event.key;
+      const key = event.key.toLowerCase();
+      if (!event.shiftKey && !event.repeat && (key === "i" || event.code === "KeyB")) {
+        event.preventDefault();
+        const end = transientStore.getState().exportRangeEndUs;
+        const start = transientStore.getState().playheadTimeUs;
+        transientStore.setExportRange(start, end !== null && end > start ? end : null);
+        return;
+      }
+      if (!event.shiftKey && !event.repeat && (key === "o" || event.code === "KeyJ")) {
+        event.preventDefault();
+        const start = transientStore.getState().exportRangeStartUs;
+        const end = transientStore.getState().playheadTimeUs;
+        transientStore.setExportRange(start !== null && start < end ? start : null, end);
+        return;
+      }
       const delta = key === "+" || key === "=" || event.code === "NumpadAdd"
         ? 1
         : key === "-" || key === "_" || event.code === "NumpadSubtract"
@@ -260,22 +278,23 @@ export function Timeline({
       requestIdFactory,
     });
 
-  function seekFromClientX(clientX: number, ruler: HTMLDivElement): void {
-    // All pointer positions use the same integer frame grid as keyboard seeks.
-    if (transientStore.getState().drag) return;
+  function pointerTime(clientX: number, ruler: HTMLDivElement): number {
     const contentPixel = clientX - ruler.getBoundingClientRect().left;
-    const pointerTimeUs = contentPixelToTimeUs(
+    return seekByFrames(contentPixelToTimeUs(
       contentPixel,
       TIMELINE_TRACK_HEADER_WIDTH_PX,
       TIMELINE_PIXELS_PER_SECOND,
-      transient.timelineZoom,
-    );
-    // The seek boundary comes from authored content, not from the playhead
-    // itself: otherwise repeated off-ruler drags grow the DOM ruler forever.
-    transientStore.setPlayheadTime(seekByFrames(pointerTimeUs, sequence.fps, 0, seekLimitUs));
+      transientStore.getState().timelineZoom,
+    ), sequence.fps, 0, seekLimitUs);
+  }
+
+  function seekFromClientX(clientX: number, ruler: HTMLDivElement): void {
+    if (transientStore.getState().drag) return;
+    transientStore.setPlayheadTime(pointerTime(clientX, ruler));
   }
 
   function seekFromPointer(event: ReactMouseEvent<HTMLDivElement>): void {
+    if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     seekFromClientX(event.clientX, event.currentTarget);
   }
 
@@ -283,9 +302,17 @@ export function Timeline({
     if (event.button !== 0 || event.isPrimary === false ||
         transientStore.getState().drag || rulerPointerIdRef.current !== null) return;
     rulerPointerIdRef.current = event.pointerId;
+    if (event.shiftKey) {
+      const anchor = pointerTime(event.clientX, event.currentTarget);
+      exportRangeAnchorRef.current = anchor;
+      suppressClickRef.current = true;
+      transientStore.setExportRange(anchor, anchor);
+    }
     // Keep receiving moves when the pointer leaves the visible ruler.
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    seekFromClientX(event.clientX, event.currentTarget);
+    if (exportRangeAnchorRef.current === null) {
+      seekFromClientX(event.clientX, event.currentTarget);
+    }
   }
 
   function handleRulerPointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
@@ -294,12 +321,27 @@ export function Timeline({
       rulerPointerIdRef.current = null;
       return;
     }
-    seekFromClientX(event.clientX, event.currentTarget);
+    if (exportRangeAnchorRef.current !== null) {
+      const current = pointerTime(event.clientX, event.currentTarget);
+      transientStore.setExportRange(
+        Math.min(exportRangeAnchorRef.current, current),
+        Math.max(exportRangeAnchorRef.current, current),
+      );
+    } else {
+      seekFromClientX(event.clientX, event.currentTarget);
+    }
   }
 
   function endRulerPointer(event: ReactPointerEvent<HTMLDivElement>): void {
     if (rulerPointerIdRef.current !== event.pointerId) return;
     rulerPointerIdRef.current = null;
+    if (exportRangeAnchorRef.current !== null) {
+      const current = pointerTime(event.clientX, event.currentTarget);
+      const start = Math.min(exportRangeAnchorRef.current, current);
+      const end = Math.max(exportRangeAnchorRef.current, current);
+      transientStore.setExportRange(start < end ? start : null, start < end ? end : null);
+      exportRangeAnchorRef.current = null;
+    }
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -423,6 +465,21 @@ export function Timeline({
         >
           + Аудио
         </button>
+        <button type="button" title="I" onClick={() =>
+          transientStore.setExportRange(
+            transient.playheadTimeUs,
+            transient.exportRangeEndUs !== null && transient.exportRangeEndUs > transient.playheadTimeUs
+              ? transient.exportRangeEndUs : null,
+          )}>Начало (I)</button>
+        <button type="button" title="O" onClick={() =>
+          transientStore.setExportRange(
+            transient.exportRangeStartUs !== null && transient.exportRangeStartUs < transient.playheadTimeUs
+              ? transient.exportRangeStartUs : null,
+            transient.playheadTimeUs,
+          )}>Конец (O)</button>
+        <button type="button" onClick={() => transientStore.setExportRange(null, null)}
+          disabled={transient.exportRangeStartUs === null && transient.exportRangeEndUs === null}
+        >Сбросить диапазон</button>
         <TimecodeInput
           key={sequence.id}
           fps={sequence.fps}
@@ -496,6 +553,18 @@ export function Timeline({
               </span>
             ))}
           </div>
+
+          {transient.exportRangeStartUs !== null && transient.exportRangeEndUs !== null &&
+              transient.exportRangeStartUs < transient.exportRangeEndUs ? (
+            <div className="timeline-export-selection" aria-label="Выделенный диапазон экспорта"
+              style={{
+                left: TIMELINE_TRACK_HEADER_WIDTH_PX +
+                  timeUsToPixel(transient.exportRangeStartUs, TIMELINE_PIXELS_PER_SECOND, transient.timelineZoom, 0),
+                width: timeUsToPixel(transient.exportRangeEndUs - transient.exportRangeStartUs,
+                  TIMELINE_PIXELS_PER_SECOND, transient.timelineZoom, 0),
+              }}
+            />
+          ) : null}
 
           <MarkerLayer
             markers={sequence.markers}
