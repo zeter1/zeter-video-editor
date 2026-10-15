@@ -1,3 +1,13 @@
+# ACTIVE ZVE-006c — fast bounded-window export / alpha.24 candidate (2026-10-15)
+
+- **USER QA:** previous white-background bug confirmed FIXED in owner's Windows screenshot from artifact #11957731813. Screenshot shows two selected MP4 ranges marked Completed (100%) and one Running at 0%, with editing view still available. User reports exporting short late ranges (77–108 s) takes too long. Do not claim a time benchmark from screenshots alone.
+- **ROOT CAUSE:** FFmpeg backend `build_export_spec_with_window` used output-side `-ss` after a full timeline `filter_complex` and 1080p black base duration; rendering a 105–108 s range still generated/filtered first 105 s. This also made perceived progress sit at 0% while processing the skipped part.
+- **CANDIDATE FIX IN DRAFT PR #87:** slice immutable RenderPlan for the selected interval, open only overlapping clip media, use per-input accurate source seek `-ss` before `-i`, rebase clip and subtitle/text offsets, preserve audio gain and timing, and set canvas/output duration to selection length. Do not use localized path when window intersects a partially elapsed audio fade or visual transition; retain old full-graph path to preserve semantics. Rust unit tests assert late seek and fade fallback. Source version remains alpha.24, main alpha.23 until merge; no new product task.
+- **GATES:** exact-HEAD Windows cargo fmt + cargo test workspace, frontend TS/Vitest, real MP4/FFprobe WebView2 E2E on selection, NSIS debug artifact, user verification with original long project and any audio/fades; remain DRAFT until owner confirms.
+- **NEXT:** check CI and iterate; furnish new test installer only after exact-HEAD success.
+
+---
+
 # ACTIVE ZVE-006b — Windows white export queue window repair — 2026-10-15
 
 - **USER REPORT:** screenshot from `0.1.0-alpha.24` shows that the native queue window exists but renders entirely white/blank. Prior exact-HEAD CI green proved render/export but DID NOT test the *second native window content*.

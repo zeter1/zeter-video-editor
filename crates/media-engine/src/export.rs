@@ -9,7 +9,7 @@ use std::{
 };
 
 use editor_core::{
-    ClipKind, ProjectRevision, RenderClip, TextAlignment, TextStyle, TimeUs, TransitionKind,
+    ClipId, ClipKind, ProjectRevision, RenderClip, TextAlignment, TextStyle, TimeUs, TransitionKind,
 };
 use job_system::JobFailure;
 use tokio_util::sync::CancellationToken;
@@ -380,6 +380,126 @@ pub fn build_preview_chunk_spec(
     ))
 }
 
+/// Convert a bounded region into a new 0-based render plan, seeking each
+/// source before decoding. Output-side -ss alone still executes the *entire*
+/// timeline graph, including black frames before a late selection (e.g. 105s
+/// of 1080p overlays for a two-second highlight).
+///
+/// Conservatively return None for partially intersected audio fades or visual
+/// transitions. The legacy output-side seek remains the correctness fallback.
+fn localized_export_plan(
+    plan: &RenderPlan,
+    window: (TimeUs, TimeUs),
+) -> Option<(RenderPlan, Vec<(ClipId, i64)>)> {
+    let (start, end) = (window.0.get(), window.1.get());
+    if start < 0 || end <= start {
+        return None;
+    }
+    let mut localized = plan.clone();
+    localized.clips.clear();
+    localized.texts.clear();
+    localized.subtitles.clear();
+    localized.transitions.clear();
+    let mut input_seeks = Vec::new();
+
+    for original in &plan.clips {
+        let from = original.timeline_start.get().max(start);
+        let to = original.timeline_end.get().min(end);
+        if from >= to {
+            continue;
+        }
+        // Keep the exact original effect envelope. A fade already finished
+        // before the selection is omitted; an intersected envelope uses the
+        // old full-timeline graph to avoid restarting the fade at zero.
+        if let Some(transition) = plan.transitions.iter().find(|t| t.clip_id == original.clip_id) {
+            let fade_end = original.timeline_start.get().saturating_add(transition.duration.get());
+            if start > original.timeline_start.get() && start < fade_end {
+                return None;
+            }
+            if from == original.timeline_start.get() {
+                localized.transitions.push(transition.clone());
+            }
+        }
+        if let Some(audio) = localized.audio.iter_mut().find(|a| a.clip_id == original.clip_id) {
+            let fade_in_end = original.timeline_start.get().saturating_add(audio.fade_in.get());
+            let fade_out_start = original.timeline_end.get().saturating_sub(audio.fade_out.get());
+            if (start > original.timeline_start.get() && start < fade_in_end)
+                || (start > fade_out_start && start < original.timeline_end.get())
+                || (end > fade_out_start && end < original.timeline_end.get())
+            {
+                return None;
+            }
+            if from > original.timeline_start.get() {
+                audio.fade_in = TimeUs::new(0).ok()?;
+            }
+            if to < original.timeline_end.get() {
+                audio.fade_out = TimeUs::new(0).ok()?;
+            }
+        }
+
+        let mut clip = original.clone();
+        if clip.media_id.is_some() && clip.kind != ClipKind::Image {
+            let elapsed = (from - original.timeline_start.get()) as f64 * original.speed;
+            if !elapsed.is_finite() || elapsed < 0.0 {
+                return None;
+            }
+            let input_start = original.source_in.get().checked_add(elapsed.round() as i64)?;
+            let input_length = ((to - from) as f64 * original.speed).round() as i64;
+            let input_end = input_start.checked_add(input_length)?;
+            // Do not seek outside the authored source span or silently
+            // truncate an audio/video stream. The old path handles that case.
+            if input_end > original.source_out.get() || input_length <= 0 {
+                return None;
+            }
+            input_seeks.push((clip.clip_id, input_start));
+            clip.source_in = TimeUs::new(0).ok()?;
+            clip.source_out = TimeUs::new(input_length).ok()?;
+        }
+        clip.timeline_start = TimeUs::new(from - start).ok()?;
+        clip.timeline_end = TimeUs::new(to - start).ok()?;
+        localized.clips.push(clip);
+    }
+
+    // Titles and subtitles depend on sequence time, not source media PTS.
+    // Rebase their interval with the same fixed offset as all timeline clips.
+    for original in &plan.texts {
+        if let Some((from, to)) =
+            clipped_relative_interval(original.timeline_start, original.timeline_end, window)
+        {
+            let mut text = original.clone();
+            text.timeline_start = from;
+            text.timeline_end = to;
+            localized.texts.push(text);
+        }
+    }
+    for original in &plan.subtitles {
+        if let Some((from, to)) = clipped_relative_interval(original.start, original.end, window) {
+            let mut subtitle = original.clone();
+            subtitle.start = from;
+            subtitle.end = to;
+            localized.subtitles.push(subtitle);
+        }
+    }
+
+    Some((localized, input_seeks))
+}
+
+fn clipped_relative_interval(
+    original_start: TimeUs,
+    original_end: TimeUs,
+    window: (TimeUs, TimeUs),
+) -> Option<(TimeUs, TimeUs)> {
+    let from = original_start.get().max(window.0.get());
+    let to = original_end.get().min(window.1.get());
+    if from >= to {
+        return None;
+    }
+    Some((
+        TimeUs::new(from - window.0.get()).ok()?,
+        TimeUs::new(to - window.0.get()).ok()?,
+    ))
+}
+
 fn build_export_spec_with_window(
     runtime: &ManagedRuntime,
     plan: &RenderPlan,
@@ -396,12 +516,14 @@ fn build_export_spec_with_window(
         .arg("-progress")
         .arg("pipe:2");
 
-    // Use one FFmpeg input per media-backed clip. This intentionally trades some
-    // decode efficiency for a much simpler and deterministic filtergraph: every
-    // clip can trim/retime the same source independently without hidden split
-    // state or mutable source ownership.
+    let localized = window.and_then(|range| localized_export_plan(plan, range));
+    let effective_plan = localized.as_ref().map(|(plan, _)| plan).unwrap_or(plan);
+    let input_seeks = localized.as_ref().map(|(_, seeks)| seeks);
+
+    // Only sources active in the selection are opened; for non-image streams
+    // input-side -ss avoids decoding unused preceding media frames.
     let mut input_clips = Vec::new();
-    for clip in &plan.clips {
+    for clip in &effective_plan.clips {
         let Some(media_id) = clip.media_id else {
             continue;
         };
@@ -411,13 +533,24 @@ fn build_export_spec_with_window(
         if clip.kind == ClipKind::Image {
             spec = spec.arg("-loop").arg("1");
         }
+        if let Some(seek) = input_seeks
+            .and_then(|seeks| seeks.iter().find(|(id, _)| *id == clip.clip_id))
+        {
+            spec = spec.arg("-ss").arg(format!("{:.6}", seconds(seek.1)));
+        }
         let input_index = input_clips.len();
         spec = spec.arg("-i").arg(&media.absolute_path);
         input_clips.push((input_index, clip));
     }
 
-    let duration = plan.duration_seconds().unwrap_or(0.001).max(0.001);
-    let (filtergraph, has_audio) = compile_timeline_filtergraph(plan, &input_clips, duration);
+    let duration = if localized.is_some() {
+        let (start, end) = window.expect("localized plan requires export window");
+        seconds(end.get() - start.get())
+    } else {
+        plan.duration_seconds().unwrap_or(0.001).max(0.001)
+    };
+    let (filtergraph, has_audio) =
+        compile_timeline_filtergraph(effective_plan, &input_clips, duration);
     spec = spec
         .arg("-filter_complex")
         .arg(filtergraph)
@@ -453,15 +586,16 @@ fn build_export_spec_with_window(
             .arg("192k");
     }
 
-    // Output-side clipping keeps the complete timeline filtergraph identical
-    // to export; FFmpeg may still evaluate frames before the requested window.
+    // The localized graph starts at zero, so no slow output-side seek is
+    // needed. If exact partial fade semantics prevent localization, retain
+    // the previous filtergraph and output seek unchanged for correctness.
     spec = match window {
-        Some((start, end)) => spec
+        Some((start, end)) if localized.is_none() => spec
             .arg("-ss")
             .arg(format!("{:.6}", seconds(start.get())))
             .arg("-t")
             .arg(format!("{:.6}", seconds(end.get() - start.get()))),
-        None => spec.arg("-t").arg(format!("{duration:.6}")),
+        _ => spec.arg("-t").arg(format!("{duration:.6}")),
     };
     spec.arg("-movflags")
         .arg("+faststart")

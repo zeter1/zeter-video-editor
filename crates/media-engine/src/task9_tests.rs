@@ -425,3 +425,129 @@ fn export_trims_retimed_audio_at_the_timeline_clip_end_before_delay() {
     );
     assert!(graph.contains("adelay=500:all=1"));
 }
+
+
+#[test]
+fn late_window_seeks_only_active_media_and_generates_short_graph() {
+    // A 2.4 s selection near the 105-second mark must not need to render the
+    // first 105 seconds of blank 1080p canvas and full-length effects.
+    let id = ClipId::new();
+    let media_id = MediaId::new();
+    let mut original = snapshot(49);
+    original.media.push(MediaRef {
+        id: media_id,
+        absolute_path: r"D:\video\long.mp4".into(),
+        project_relative_path: None,
+        file_size: 1024,
+        duration: Some(time(120_000_000)),
+        width: Some(1920),
+        height: Some(1080),
+    });
+    original.clips.push(RenderClip {
+        clip_id: id,
+        track_id: TrackId::new(),
+        track_index: 0,
+        clip_index: 0,
+        kind: ClipKind::Video,
+        media_id: Some(media_id),
+        source_in: time(0),
+        source_out: time(120_000_000),
+        timeline_start: time(0),
+        timeline_end: time(120_000_000),
+        transform: Transform::default(),
+        color: ColorAdjustments::default(),
+        speed: 1.0,
+        track_hidden: false,
+    });
+    original.audio.push(RenderAudio {
+        clip_id: id,
+        volume: 1.0,
+        gain_db: 0.0,
+        muted: false,
+        fade_in: time(0),
+        fade_out: time(0),
+    });
+
+    let plan = RenderPlan::compile(&original, settings()).unwrap();
+    let spec = crate::export::build_export_spec_with_window(
+        &runtime(), &plan, EncoderKind::Libx264,
+        std::path::Path::new(r"D:\exports\selected.mp4"),
+        Some((time(105_000_000), time(107_400_000))),
+    );
+    let args = spec.args.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<_>>();
+    let positions = args.windows(2).collect::<Vec<_>>();
+    assert!(positions.iter().any(|pair| pair == &["-ss", "105.000000"]));
+    assert!(!args.windows(2).any(|pair| pair == ["-ss", "105.000000"]
+        && args.iter().position(|arg| arg == "-ss") >
+        args.iter().position(|arg| arg == "-filter_complex")),
+        "late window must use input seek instead of output seek");
+    let graph = &args[args.iter().position(|arg| arg == "-filter_complex").unwrap() + 1];
+    assert!(graph.contains("d=2.400000[vbase0]"), "{graph}");
+    assert!(graph.contains("trim=start=0.000000:end=2.400000"), "{graph}");
+    assert!(args.windows(2).any(|pair| pair == ["-t", "2.400000"]));
+}
+
+#[test]
+fn sliced_window_preserves_clip_offsets_and_does_not_restart_fades() {
+    let clip_id = ClipId::new();
+    let media_id = MediaId::new();
+    let mut original = snapshot(50);
+    original.media.push(MediaRef {
+        id: media_id,
+        absolute_path: r"D:\media\tone.wav".into(),
+        project_relative_path: None,
+        file_size: 1024,
+        duration: Some(time(9_000_000)),
+        width: None,
+        height: None,
+    });
+    original.clips.push(RenderClip {
+        clip_id,
+        track_id: TrackId::new(),
+        track_index: 0,
+        clip_index: 0,
+        kind: ClipKind::Audio,
+        media_id: Some(media_id),
+        source_in: time(1_000_000),
+        source_out: time(8_000_000),
+        timeline_start: time(100_000_000),
+        timeline_end: time(107_000_000),
+        transform: Transform::default(),
+        color: ColorAdjustments::default(),
+        speed: 1.0,
+        track_hidden: false,
+    });
+    original.audio.push(RenderAudio {
+        clip_id,
+        volume: 1.0,
+        gain_db: 0.0,
+        muted: false,
+        fade_in: time(250_000),
+        fade_out: time(500_000),
+    });
+
+    let plan = RenderPlan::compile(&original, settings()).unwrap();
+    let spec = crate::export::build_export_spec_with_window(
+        &runtime(), &plan, EncoderKind::Libx264,
+        std::path::Path::new(r"D:\exports\audio-segment.mp4"),
+        Some((time(102_000_000), time(105_000_000))),
+    );
+    let args = spec.args.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<_>>();
+    assert!(args.windows(2).any(|pair| pair == ["-ss", "3.000000"]));
+    let graph = &args[args.iter().position(|arg| arg == "-filter_complex").unwrap() + 1];
+    assert!(!graph.contains("afade="), "fades from outside selection must not restart: {graph}");
+    assert!(!graph.contains("adelay="), "clip beginning before selected range must start at t=0");
+    assert!(graph.contains("atrim=start=0.000000:end=3.000000"), "{graph}");
+
+    // Selecting inside the originally-authored fade must use exact legacy
+    // output seeking instead of creating a false 0% fade.
+    let fade_spec = crate::export::build_export_spec_with_window(
+        &runtime(), &plan, EncoderKind::Libx264,
+        std::path::Path::new(r"D:\exports\fade-segment.mp4"),
+        Some((time(100_100_000), time(101_000_000))),
+    );
+    let fade_args = fade_spec.args.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<_>>();
+    let graph_position = fade_args.iter().position(|arg| arg == "-filter_complex").unwrap();
+    assert!(fade_args[graph_position + 1].contains("d=107.000000[vbase0]"));
+    assert!(fade_args.windows(2).any(|pair| pair == ["-ss", "100.100000"]));
+}
