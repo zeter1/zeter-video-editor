@@ -39,7 +39,7 @@ function mount(onCommit = vi.fn(async () => true), onSelect = vi.fn(), locked = 
   return { ...renderResult, glyph, svg, onCommit, onSelect };
 }
 const down = { pointerId: 1, isPrimary: true, button: 0, clientX: 300, clientY: 120 };
-const motion = { pointerId: 1, isPrimary: true, button: 0, clientX: 360, clientY: 150 };
+const motion = { pointerId: 1, isPrimary: true, button: 0, clientX: 360, clientY: 153.75 };
 
 describe("title drag in Preview", () => {
   it("converts movement based on actual preview size, not a fixed 240px constant", () => {
