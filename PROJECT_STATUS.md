@@ -1,3 +1,14 @@
+# VERIFIED ZVE-007 — multi-sequence YouTube + Shorts merged, alpha.25 (2026-10-15)
+
+- **ПРОДУКТ:** в одном .vcut доступны самостоятельные последовательности 16:9 / 1920×1080 и 9:16 / 1080×1920, переключение Timeline/Preview/Inspector/AI, раздельный монтаж при общей медиатеке, AddSequence через Rust, Undo/Redo, сохранение/переоткрытие, MP4 экспорт активного sequence_id. React selection и экспортный I/O сбрасываются при смене монтажа, асинхронные импорт/диалоги экспорта привязаны к исходному ID.
+- **ИНТЕГРАЦИЯ:** PR #88 https://github.com/zeter1/zeter-video-editor/pull/88 CLOSED/MERGED (squash), PR HEAD `6b58a3a6059787b06e4dbd14a4025555cea0c3bd`, merge SHA `9325734aaa1bfef2f43841cdfc45e94066177c45` в main. Source version `0.1.0-alpha.25`; неподписанный DEBUG installer, не public release/tag.
+- **ПРИЁМКА:** Windows exact-HEAD CI https://github.com/zeter1/zeter-video-editor/actions/runs/38733442402 COMPLETED SUCCESS — version scripts, rustfmt, Rust workspace, TypeScript/Vite, 200/200 Vitest, native Tauri/WebView2 E2E 31/31 и debug NSIS. Windows artifact #11972275059 предоставлен владельцу; 15.10.2026 он сообщил «всё норм ! продолжай», что принято как ручная QA по данному срезу. Отдельного протокола измерения времени/проверки стороннего оборудования нет.
+- **POST-MERGE CI:** push run https://github.com/zeter1/zeter-video-editor/actions/runs/38736362364 запущен на точном squash SHA `9325734aaa1bfef2f43841cdfc45e94066177c45`, был IN_PROGRESS при первичной проверке. Данный docs-only checkpoint создаёт последующий main SHA и может запустить новую CI; проверить терминальный результат для актуального HEAD, не выдавать незавершённую проверку за SUCCESS.
+- **СЛЕДУЮЩИЙ ПРОДУКТОВЫЙ СРЕЗ (НОВЫЙ ДИАЛОГ):** UI добавления редактируемых титров: `apps/desktop/src/components/LeftPanel.tsx` показывает отключённый «Текст», при уже существующем Rust `AddText`. Подключить кнопку/создание на активной текстовой дорожке к Rust EditCommand и поддержать реальное редактирование, Preview и MP4, Undo/Redo, save/reopen .vcut. Перед кодом сверить текущую спецификацию, Text/Inspector и timeline wiring, не расширять без согласования. UI «Субтитры» проверить отдельно и не смешивать с первым срезом титров.
+- **АРХИВ:** все предыдущие записи «ACTIVE ZVE-007 draft» ниже являются историческими на момент merge; исходные факты/ссылки сохранены. Не продолжать ZVE-007 заново и не повышать prerelease второй раз за этот срез.
+
+---
+
 # ACTIVE ZVE-007 — несколько независимых последовательностей / alpha.25 draft (2026-10-15)
 
 - **ЦЕЛЬ И ПРИЁМКА:** выбираем YouTube или другой Short в одном .vcut; кнопка «+ Последовательность» создаёт отдельный 16:9 или 9:16 монтаж (без исходных клипов) через авторитетный Rust AddSequence; после переключения Preview/Inspector/Timeline, медиатека, горячие клавиши и MP4 работают с новым ID. Undo/Redo, сохранение/переоткрытие и native Windows WebView2 обязательны.
