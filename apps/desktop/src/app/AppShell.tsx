@@ -4,6 +4,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 
 import { AiWorkspace } from "../ai/AiWorkspace";
+import { createEmptySequence, resolveSequence } from "./sequenceWorkspace";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { ErrorDialog } from "../errors/ErrorDialog";
 import type { RecoveryAction } from "../errors/actions";
@@ -104,10 +105,12 @@ export function AppShell({
   const [exportStarting, setExportStarting] = useState(false);
   const [exportJob, setExportJob] = useState<ExportJobView | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [creatingSequence, setCreatingSequence] = useState(false);
+  const [portraitSequence, setPortraitSequence] = useState(false);
   const markerShortcutPending = useRef(false);
 
   const project = projectState.snapshot?.project ?? null;
-  const activeSequence = project?.sequences[0] ?? null;
+  const activeSequence = resolveSequence(project?.sequences ?? [], transient.selectedSequenceId);
   const selectedClipContext = useMemo(
     () => findSelectedClipContext(activeSequence, transient.selectedClipId),
     [activeSequence, transient.selectedClipId],
@@ -148,6 +151,39 @@ export function AppShell({
         error instanceof Error ? error.message : "Edit operation failed.",
       );
       return false;
+    }
+  }
+
+  async function handleCreateSequence(): Promise<void> {
+    const snapshot = projectStore.getState().snapshot;
+    const source = resolveSequence(
+      snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId,
+    );
+    if (creatingSequence || !snapshot || !source ||
+        projectStore.getState().syncStatus !== "synced") return;
+
+    const name = window.prompt("Название новой последовательности", `Монтаж ${snapshot.project.sequences.length + 1}`)?.trim();
+    if (!name) return;
+    // Do not apply a delayed confirmation to a different open project.
+    if (projectStore.getState().snapshot?.project.id !== snapshot.project.id ||
+        resolveSequence(projectStore.getState().snapshot?.project.sequences ?? [],
+          transientStore.getState().selectedSequenceId)?.id !== source.id) {
+      projectStore.setError("Проект или последовательность изменились. Повторите создание.");
+      return;
+    }
+
+    const sequence = createEmptySequence(source, name, portraitSequence);
+    setCreatingSequence(true);
+    try {
+      if (await handleEditCommand({ AddSequence: { sequence, index: null } })) {
+        // The reconciliation must include the authoritative new sequence.
+        if (projectStore.getState().snapshot?.project.sequences.some((item) => item.id === sequence.id))
+          transientStore.selectSequence(sequence.id);
+        else projectStore.setError("Не удалось получить новую последовательность. Обновите проект.");
+      }
+    } finally {
+      setCreatingSequence(false);
     }
   }
 
@@ -239,7 +275,7 @@ export function AppShell({
 
   async function addToTimeline(id: string): Promise<void> {
     const snapshot = projectStore.getState().snapshot;
-    const seq = snapshot?.project.sequences[0];
+    const seq = resolveSequence(snapshot?.project.sequences ?? [], transientStore.getState().selectedSequenceId);
     const media = snapshot?.project.media.find((item) => item.id === id);
     if (!seq || !media) return;
     const ext = media.absolute_path.split(".").pop()?.toLowerCase() ?? "";
@@ -332,7 +368,10 @@ export function AppShell({
 
   async function handleExportMp4(): Promise<void> {
     if (exportStarting) return;
-    const sequenceId = projectStore.getState().snapshot?.project.sequences[0]?.id;
+    const sequenceId = resolveSequence(
+      projectStore.getState().snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId,
+    )?.id;
     const revision = projectStore.getState().revision;
     if (!sequenceId || revision === null) return;
     setExportStarting(true);
@@ -345,7 +384,8 @@ export function AppShell({
       if (!outputPath) return;
       const current = projectStore.getState();
       if (current.revision !== revision ||
-          current.snapshot?.project.sequences[0]?.id !== sequenceId) {
+          resolveSequence(current.snapshot?.project.sequences ?? [],
+            transientStore.getState().selectedSequenceId)?.id !== sequenceId) {
         projectStore.setError("Проект изменился. Повторите экспорт.");
         return;
       }
@@ -457,7 +497,9 @@ export function AppShell({
 
       const transientState = transientStore.getState();
       if (transientState.drag) return;
-      const sequence = state.snapshot?.project.sequences[0];
+      const sequence = resolveSequence(
+        state.snapshot?.project.sequences ?? [], transientState.selectedSequenceId,
+      );
       if (!sequence) return;
 
       // Match the physical M key also on a Russian keyboard layout (KeyM = ь).
@@ -542,6 +584,31 @@ export function AppShell({
         exportDisabled={exportStarting}
       />
 
+      <div className="sequence-switcher" role="group" aria-label="Работа с последовательностями">
+        <label htmlFor="active-sequence">Последовательность</label>
+        <select id="active-sequence" aria-label="Последовательность"
+          value={activeSequence?.id ?? ""}
+          disabled={!activeSequence || creatingSequence}
+          onChange={(event) => transientStore.selectSequence(event.target.value)}>
+          {!activeSequence ? <option value="">Нет проекта</option> : null}
+          {project?.sequences.map((sequence) => (
+            <option key={sequence.id} value={sequence.id}>{sequence.name}</option>
+          ))}
+        </select>
+        <label htmlFor="new-sequence-format">Формат</label>
+        <select id="new-sequence-format" aria-label="Формат новой последовательности"
+          value={portraitSequence ? "portrait" : "landscape"}
+          disabled={!activeSequence || creatingSequence}
+          onChange={(event) => setPortraitSequence(event.target.value === "portrait")}>
+          <option value="landscape">16:9 · 1920×1080</option>
+          <option value="portrait">9:16 · 1080×1920</option>
+        </select>
+        <button type="button" onClick={() => void handleCreateSequence()}
+          disabled={!activeSequence || creatingSequence || projectState.syncStatus !== "synced"}>
+          {creatingSequence ? "Создание…" : "+ Последовательность"}
+        </button>
+      </div>
+
       <div className="workspace-grid">
         <LeftPanel
           media={project?.media ?? []}
@@ -565,6 +632,7 @@ export function AppShell({
           }
         />
         <PreviewPanel
+          key={activeSequence?.id ?? "no-project"}
           sequence={activeSequence}
           projectId={project?.id ?? null}
           revision={projectState.revision}
@@ -584,6 +652,7 @@ export function AppShell({
           onCommit={handleEditCommand}
         />
         <TimelinePanel
+          key={activeSequence?.id ?? "no-project"}
           sequence={activeSequence}
           projectStore={projectStore}
           transientStore={transientStore}
