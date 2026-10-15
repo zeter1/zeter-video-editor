@@ -1,3 +1,5 @@
+ZVE-008 QA UPDATE 15.10.2026: пользователь попросил после drag ещё рамку вокруг титра с маркерами пропорционального увеличения/уменьшения и мини-форматирование прямо над титром. Добавлен SVG getBBox selection rect/4 угловых handles + contextual HTML toolbar font-family/size/bold/color/align/shadow в TitleOverlay.tsx, CSS and Vitest/native WebView2 E2E; изменение размера направляется Rust SetTextStyle.font_size (используется экспортным FFmpeg drawtext), без нового IPC и без изменения schema. Ограничение: пропорциональный размер шрифта 8..300, а не независимый box warp/stretch. CI и NSIS должны быть повторно проверены по НОВОМУ exact HEAD; предыдущий артефакт #11982318090 НЕ содержит рамку/toolbar; PR #89 остаётся DRAFT, main не менять до Windows manual QA.
+
 # ACTIVE ZVE-008 — редактируемые титры / alpha.26 DRAFT (2026-10-15)
 
 - **ЗАДАЧА:** нажать «Текст» → добавить титр от курсора в активной последовательности → видеть на Preview и дорожке → менять содержание/стиль в Inspector → Undo/Redo → сохранить и повторно открыть .vcut → экспорт MP4. Субтитры — отдельная задача.

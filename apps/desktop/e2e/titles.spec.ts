@@ -10,7 +10,9 @@ interface TitleSnapshot {
     sequences: Array<{
       id: string;
       tracks: Array<{ id: string; kind: string; clips: Array<{
-        id: string; kind: string; text: { text: string } | null;
+        id: string; kind: string; text: {
+          text: string; style: { font_family: string; font_size: number; weight: number };
+        } | null;
         transform: { position_x: number; position_y: number };
       }> }>;
     }>;
@@ -94,6 +96,46 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
     await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
   ).find((title) => title.id === created.id)?.transform).toEqual(moved);
 
+  // Selecting the title exposes an on-canvas selection frame, draggable
+  // resize handles, and a toolbar above the text.
+  await titleGlyph.click();
+  await expect(page.getByTestId("title-selection-frame")).toBeVisible();
+  const toolbar = page.getByRole("toolbar", { name: "Быстрое форматирование титра" });
+  await expect(toolbar).toBeVisible();
+  await toolbar.getByRole("combobox", { name: "Шрифт титра" }).selectOption("Tahoma");
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.text?.style.font_family).toBe("Tahoma");
+
+  const beforeResize = titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
+    .find((title) => title.id === created.id)!.text!.style.font_size;
+  const resize = page.getByTestId("title-resize-se");
+  const handle = await resize.boundingBox();
+  if (!handle) throw new Error("Title resize handle is missing in WebView2");
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2 + 24,
+    handle.y + handle.height / 2 + 18, { steps: 5 });
+  const duringResize = titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
+    .find((title) => title.id === created.id)!.text!.style.font_size;
+  expect(duringResize).toBe(beforeResize);
+  await page.mouse.up();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.text?.style.font_size ?? 0)
+    .toBeGreaterThan(beforeResize + 1);
+  const afterResize = titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
+    .find((title) => title.id === created.id)!.text!.style.font_size;
+
+  await page.getByRole("button", { name: "Отменить", exact: true }).click();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.text?.style.font_size).toBe(beforeResize);
+  await page.getByRole("button", { name: "Повторить", exact: true }).click();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.text?.style.font_size).toBe(afterResize);
+
   const savePath = path.join(state.mediaDir, "zve-008-title-" + randomUUID() + ".vcut");
   await invokeTauri(page, "project_save", { path: savePath });
   await invokeTauri(page, "project_open", { path: savePath });
@@ -101,4 +143,7 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
   expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.text?.text)
     .toBe("Титр после правки");
   expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.transform).toEqual(moved);
+  const reopenedStyle = titles(reopened, sequenceId).find((title) => title.id === created.id)?.text?.style;
+  expect(reopenedStyle?.font_family).toBe("Tahoma");
+  expect(reopenedStyle?.font_size).toBe(afterResize);
 });
