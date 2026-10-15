@@ -595,19 +595,35 @@ pub async fn open_export_window(app: tauri::AppHandle) -> Result<(), AppErrorDto
             })?;
         return Ok(());
     }
-    tauri::WebviewWindowBuilder::new(
-        &app,
-        "export-queue",
-        // Use the standard packaged entry page and route by the native webview
-        // label in React. Query-bearing App paths can behave differently
-        // between Windows production custom-protocol and Vite dev URLs.
-        tauri::WebviewUrl::App("index.html".into()),
-    )
-    .title("Zeter — Очередь экспорта")
-    .inner_size(1020.0, 700.0)
-    .min_inner_size(980.0, 570.0)
-    .build()
-    .map_err(|error| diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None))?;
+    // The main window can have custom WebView2 dataDirectory and browser
+    // arguments (in native Windows CDP tests, these include the debugging port).
+    // Creating this webview with default settings gives it DIFFERENT
+    // WebView2 EnvironmentOptions for the same process and can fail with
+    // HRESULT 0x8007139F. Start from the *actual* main window config so
+    // profile, arguments and HTTPS/custom-protocol options all agree.
+    let mut config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == "main")
+        .cloned()
+        .ok_or_else(|| state_error(None, None))?;
+    config.label = "export-queue".into();
+    config.url = tauri::WebviewUrl::App("index.html".into());
+    config.title = "Zeter — Очередь экспорта".into();
+    config.width = 1020.0;
+    config.height = 700.0;
+    config.min_width = Some(980.0);
+    config.min_height = Some(570.0);
+    config.max_width = None;
+    config.max_height = None;
+    config.maximized = false;
+    config.visible = true;
+    tauri::WebviewWindowBuilder::from_config(&app, &config)
+        .map_err(|error| diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None))?
+        .build()
+        .map_err(|error| diagnostic_error(AppError::MediaFilesystem(error.to_string()), None, None))?;
     Ok(())
 }
 
