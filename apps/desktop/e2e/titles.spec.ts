@@ -11,6 +11,7 @@ interface TitleSnapshot {
       id: string;
       tracks: Array<{ id: string; kind: string; clips: Array<{
         id: string; kind: string; text: { text: string } | null;
+        transform: { position_x: number; position_y: number };
       }> }>;
     }>;
   };
@@ -60,10 +61,44 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
     await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
   ).find((title) => title.id === created.id)?.text?.text).toBe("Титр после правки");
 
+  // Drag the glyph in the actual WebView2 compositor. The Rust project must
+  // remain unchanged until pointer up, then record exactly one SetTransform.
+  const titleGlyph = page.getByTestId(`preview-title-${created.id}`);
+  await expect(titleGlyph).toBeVisible();
+  const bbox = await titleGlyph.boundingBox();
+  if (!bbox) throw new Error("The title glyph is missing from Preview");
+  const original = titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
+    .find((title) => title.id === created.id)!.transform;
+  await page.mouse.move(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bbox.x + bbox.width / 2 + 48,
+    bbox.y + bbox.height / 2 + 24, { steps: 5 });
+  const duringDrag = titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
+    .find((title) => title.id === created.id)!.transform;
+  expect(duringDrag).toEqual(original);
+  await page.mouse.up();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.transform.position_x ?? 0)
+    .toBeGreaterThan(original.position_x + 0.05);
+  const moved = titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
+    .find((title) => title.id === created.id)!.transform;
+  expect(moved.position_y).toBeGreaterThan(original.position_y);
+
+  await page.getByRole("button", { name: "Отменить", exact: true }).click();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.transform).toEqual(original);
+  await page.getByRole("button", { name: "Повторить", exact: true }).click();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.transform).toEqual(moved);
+
   const savePath = path.join(state.mediaDir, "zve-008-title-" + randomUUID() + ".vcut");
   await invokeTauri(page, "project_save", { path: savePath });
   await invokeTauri(page, "project_open", { path: savePath });
   const reopened = await invokeTauri<TitleSnapshot>(page, "project_snapshot");
   expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.text?.text)
     .toBe("Титр после правки");
+  expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.transform).toEqual(moved);
 });
