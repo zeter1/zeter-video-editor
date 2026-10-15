@@ -38,7 +38,7 @@ test("native WebView2 creates a separate portrait sequence and preserves it thro
     .not.toContain(original.tracks[0].id);
   expect(short.tracks.every((track) => track.clips.length === 0)).toBe(true);
   await expect(page.getByRole("combobox", { name: "Последовательность" })).toHaveValue(short.id);
-  await expect(page.getByTestId("preview-panel")).toContainText("1080×1920");
+  await expect(page.getByTestId("preview-panel").last()).toContainText("1080×1920");
 
   // Existing media library is shared across independent montages.
   await invokeTauri(page, "import_media_path", {
