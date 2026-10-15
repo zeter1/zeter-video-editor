@@ -277,7 +277,7 @@ export function TitleOverlay({
                   role="button" aria-label={`Изменить размер титра: ${corner}`}
                   aria-disabled={selectedLocked}
                   className="preview-title-resize"
-                  x={x - 9} y={y - 9} width={18} height={18} rx={2}
+                  x={x - 19} y={y - 19} width={38} height={38} rx={3}
                   onPointerDown={(event) => start(event, selected, "resize", corner)}
                   onPointerMove={move} onPointerUp={stop}
                   onPointerCancel={cancel} onLostPointerCapture={cancel} />
@@ -304,7 +304,7 @@ export function TitleOverlay({
               const value = Number(fontDraft);
               if (Number.isFinite(value) && value >= 8 && value <= 300) {
                 void commitStyle({ font_size: value });
-              } else setFontDraft(String(selectedStyle.font_size));
+              } else setFontDraft(String(selectedStyle?.font_size ?? 48));
             }}
             onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
           <button type="button" aria-label="Жирный титр"
