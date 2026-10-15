@@ -385,36 +385,43 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
       };
     }),
   }));
-  // Browser video scaling can place the seam at a fractional CSS pixel.
-  // On WebView2 the two neighbouring pixels need NOT each be a 50/50 blend
-  // (recorded native fractions were ~0.69 and ~0.37 at this fixture size).
-  // Keep the strict <=35/channel parity oracle, but compare each native edge
-  // pixel to its CLOSEST physical interpolation of the TWO actual FFmpeg
-  // export colours. Also require a real oriented colour transition: a flat
-  // stale frame or reversed seam cannot pass on interpolation alone.
+  // A new 44px workspace switcher changes the native Preview's fractional
+  // CSS scale: WebView2's actual two-colour seam can move a pixel or two
+  // within the image centre. Scan an 8-pixel LOCAL strip, not just the
+  // arbitrarily centred 2-pixel screenshot crop. Retain the strict 35/channel
+  // real-FFmpeg parity, >0.15 gradient between ADJACENT native pixels and
+  // correctly oriented colour endpoints; do not relax acceptance thresholds.
+  const strip = execFileSync(ffmpeg, [
+    "-hide_banner", "-loglevel", "error",
+    "-i", "pipe:0", "-vf", "crop=8:2,format=rgb24",
+    "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
+  ], { input: boundaryScreenshot, windowsHide: true, maxBuffer: 4_000_000 });
+  expect(strip.length, "8-pixel native centre strip").toBe(8 * 2 * 3);
   const left = [0, 1, 2].map((channel) => boundaryExportRgb[channel]);
   const right = [0, 1, 2].map((channel) => boundaryExportRgb[3 + channel]);
   const delta = left.map((value, channel) => value - right[channel]);
   const denominator = delta.reduce((sum, value) => sum + value * value, 0);
   expect(denominator, "two-colour export seam must not be flat").toBeGreaterThan(0);
   const weights: number[] = [];
-  for (const pixelOffset of [0, 3]) {
+  for (let pixel = 0; pixel < 8; pixel++) {
+    const offset = pixel * 3;
     const numerator = delta.reduce((sum, value, channel) =>
-      sum + (boundaryRgb[pixelOffset + channel] - right[channel]) * value, 0);
+      sum + (strip[offset + channel] - right[channel]) * value, 0);
     const weight = Math.max(0, Math.min(1, numerator / denominator));
     weights.push(weight);
     for (let channel = 0; channel < 3; channel++) {
       const physicalBlend = Math.round(right[channel] + weight * delta[channel]);
-      expect(Math.abs(boundaryRgb[pixelOffset + channel] - physicalBlend),
-        `native CSS seam closest FFmpeg blend pixel ${pixelOffset / 3} RGB ${channel}`,
+      expect(Math.abs(strip[offset + channel] - physicalBlend),
+        `native CSS seam closest FFmpeg blend pixel ${pixel} RGB ${channel}`,
       ).toBeLessThanOrEqual(35);
     }
   }
-  expect(weights[0] - weights[1],
+  const adjacentGradients = weights.slice(0, -1).map((weight, i) => weight - weights[i + 1]);
+  expect(Math.max(...adjacentGradients),
     "native FFmpeg seam must transition across neighbouring pixels",
   ).toBeGreaterThan(0.15);
   expect(weights[0]).toBeGreaterThan(0.55);
-  expect(weights[1]).toBeLessThan(0.45);
+  expect(weights[weights.length - 1]).toBeLessThan(0.45);
   // Two independently sampled interior regions assert BOTH colors of the
   // 4.2s FFmpeg frame, away from a one-pixel discontinuity. They catch a
   // stale native texture even when time/rVFC metadata reports success.
