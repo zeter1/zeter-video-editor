@@ -1000,16 +1000,43 @@ mod tests {
         let (project, sequence_id, track_id, video_id, _) = fixture();
         let mut editor = Editor::new(project).unwrap();
         let title_id = ClipId::new();
-        editor.execute(request(0, EditCommand::AddText {
-            sequence_id, track_id, clip_id: title_id,
-            timeline_start: time(15_000_000), timeline_end: time(19_000_000),
-            text: "Первый титр".into(), style: TextStyle::default(),
-        })).unwrap();
-        editor.execute(request(1, EditCommand::SetTextContent {
-            sequence_id, track_id, clip_id: title_id, text: "Новый титр".into(),
-        })).unwrap();
-        let title = |editor: &Editor| editor.project().sequences[0].tracks[0].clips.iter()
-            .find(|clip| clip.id == title_id).unwrap().text.as_ref().unwrap().text.clone();
+        editor
+            .execute(request(
+                0,
+                EditCommand::AddText {
+                    sequence_id,
+                    track_id,
+                    clip_id: title_id,
+                    timeline_start: time(15_000_000),
+                    timeline_end: time(19_000_000),
+                    text: "Первый титр".into(),
+                    style: TextStyle::default(),
+                },
+            ))
+            .unwrap();
+        editor
+            .execute(request(
+                1,
+                EditCommand::SetTextContent {
+                    sequence_id,
+                    track_id,
+                    clip_id: title_id,
+                    text: "Новый титр".into(),
+                },
+            ))
+            .unwrap();
+        let title = |editor: &Editor| {
+            editor.project().sequences[0].tracks[0]
+                .clips
+                .iter()
+                .find(|clip| clip.id == title_id)
+                .unwrap()
+                .text
+                .as_ref()
+                .unwrap()
+                .text
+                .clone()
+        };
         assert_eq!(title(&editor), "Новый титр");
         editor.undo(RequestId::new()).unwrap();
         assert_eq!(title(&editor), "Первый титр");
@@ -1017,9 +1044,19 @@ mod tests {
         assert_eq!(title(&editor), "Новый титр");
         let current = editor.revision().get();
         for (id, value) in [(title_id, "   "), (video_id, "Недопустимо")] {
-            assert!(editor.execute(request(current, EditCommand::SetTextContent {
-                sequence_id, track_id, clip_id: id, text: value.into(),
-            })).is_err());
+            assert!(
+                editor
+                    .execute(request(
+                        current,
+                        EditCommand::SetTextContent {
+                            sequence_id,
+                            track_id,
+                            clip_id: id,
+                            text: value.into(),
+                        }
+                    ))
+                    .is_err()
+            );
             assert_eq!(editor.revision().get(), current);
         }
         assert_eq!(title(&editor), "Новый титр");
