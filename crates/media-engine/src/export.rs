@@ -82,7 +82,8 @@ impl ExportRunner for ManagedExportRunner {
             let mut last_progress = 0.0_f32;
             for line in BufReader::new(stderr).lines() {
                 let line = line?;
-                if let Some(time) = line.strip_prefix("out_time_us=")
+                if let Some(time) = line
+                    .strip_prefix("out_time_us=")
                     .and_then(|value| value.parse::<i64>().ok())
                 {
                     if duration_us > 0 {
@@ -244,8 +245,14 @@ impl<R: ExportRunner> ExportJob<R> {
         let mut encoder = selection.primary;
         let mut used_software_fallback = false;
 
-        let first_spec = build_export_spec_with_window(&self.runtime, &plan, encoder, &temp_output, range);
-        match self.runner.run_with_progress(&first_spec, &cancel, expected_duration_us, progress.clone()) {
+        let first_spec =
+            build_export_spec_with_window(&self.runtime, &plan, encoder, &temp_output, range);
+        match self.runner.run_with_progress(
+            &first_spec,
+            &cancel,
+            expected_duration_us,
+            progress.clone(),
+        ) {
             Ok(_) => {}
             Err(error)
                 if encoder.is_hardware()
@@ -259,8 +266,19 @@ impl<R: ExportRunner> ExportJob<R> {
 
                 encoder = selection.software_fallback.expect("checked fallback");
                 used_software_fallback = true;
-                let fallback_spec = build_export_spec_with_window(&self.runtime, &plan, encoder, &temp_output, range);
-                if let Err(error) = self.runner.run_with_progress(&fallback_spec, &cancel, expected_duration_us, progress) {
+                let fallback_spec = build_export_spec_with_window(
+                    &self.runtime,
+                    &plan,
+                    encoder,
+                    &temp_output,
+                    range,
+                );
+                if let Err(error) = self.runner.run_with_progress(
+                    &fallback_spec,
+                    &cancel,
+                    expected_duration_us,
+                    progress,
+                ) {
                     cleanup_file(&temp_output);
                     return Err(map_runner_failure(error));
                 }

@@ -3,9 +3,9 @@ pub mod job_service;
 pub mod project_service;
 pub mod transcription_service;
 
+use export_queue::ExportTaskMeta;
 use std::sync::{Arc, Mutex};
 use tokio::sync::Mutex as AsyncMutex;
-use export_queue::ExportTaskMeta;
 
 use crate::preview_composite::PreviewService;
 
