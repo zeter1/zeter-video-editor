@@ -968,6 +968,32 @@ async function waitForJob(
   return latest;
 }
 
+test("shows the real export queue UI in a second native Windows WebView2 window", async () => {
+  const { page, browser } = await connectTauri();
+  const context = browser.contexts()[0];
+  if (!context) throw new Error("missing Windows WebView2 CDP context");
+
+  // A successfully created native window is NOT proof that its React UI
+  // loaded. The previous synchronous window command returned success while
+  // displaying only a blank white background on the owner's Windows PC.
+  const appeared = context.waitForEvent("page", { timeout: 20_000 });
+  await invokeTauri(page, "open_export_window");
+  const queueWindow = await appeared;
+  try {
+    await expect(queueWindow.getByRole("heading", { name: "Задачи экспорта" }))
+      .toBeVisible({ timeout: 20_000 });
+    await expect(queueWindow.getByRole("button", { name: "Обновить" })).toBeVisible();
+    await expect(queueWindow.locator(".export-tasks-page")).toHaveCSS(
+      "background-color", "rgb(9, 12, 17)",
+    );
+    // Closing the queue UI must not close the editor or unload its project.
+    await expect(page.getByRole("banner", { name: "Editor toolbar" })).toBeVisible();
+  } finally {
+    await queueWindow.close();
+  }
+  await expect(page.getByRole("banner", { name: "Editor toolbar" })).toBeVisible();
+});
+
 test("exports MP4 H264 through the real desktop job boundary and cancels without publishing partial output", async () => {
   // Real 1080p software export duration varies on shared Windows runners.
   // Keep the acceptance bounded while avoiding a runner-speed timing contract.

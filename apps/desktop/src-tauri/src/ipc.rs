@@ -582,8 +582,10 @@ pub fn list_export_tasks(state: State<'_, AppState>) -> Result<Vec<ExportTaskDto
         .collect()
 }
 
+// Webview2 must not be created in a synchronous Tauri command on Windows:
+// it can leave a second window white/frozen even if build and IPC succeeded.
 #[tauri::command]
-pub fn open_export_window(app: tauri::AppHandle) -> Result<(), AppErrorDto> {
+pub async fn open_export_window(app: tauri::AppHandle) -> Result<(), AppErrorDto> {
     if let Some(window) = app.get_webview_window("export-queue") {
         window
             .show()
@@ -596,7 +598,10 @@ pub fn open_export_window(app: tauri::AppHandle) -> Result<(), AppErrorDto> {
     tauri::WebviewWindowBuilder::new(
         &app,
         "export-queue",
-        tauri::WebviewUrl::App("index.html?export-queue=1".into()),
+        // Use the standard packaged entry page and route by the native webview
+        // label in React. Query-bearing App paths can behave differently
+        // between Windows production custom-protocol and Vite dev URLs.
+        tauri::WebviewUrl::App("index.html".into()),
     )
     .title("Zeter — Очередь экспорта")
     .inner_size(1020.0, 700.0)

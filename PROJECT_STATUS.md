@@ -1,3 +1,12 @@
+# ACTIVE ZVE-006b — Windows white export queue window repair — 2026-10-15
+
+- **USER REPORT:** screenshot from `0.1.0-alpha.24` shows that the native queue window exists but renders entirely white/blank. Prior exact-HEAD CI green proved render/export but DID NOT test the *second native window content*.
+- **ROOT-CAUSE FIX CANDIDATE:** Windows WebView2 + Tauri `WebviewWindowBuilder` in a synchronous Tauri command is a documented deadlock/blank-window path. Make `open_export_window` `async fn`; load plain `index.html` for both Windows and choose React view via `getCurrentWebview().label === "export-queue"`. Native E2E must open the queue Webview2 target and assert visible heading + task controls + dark page; browserless Vitest routing test added.
+- **DELIVERY:** PR #87 stays DRAFT, branch `feat/zve-006-export-mp4-ui-20261015`, source `alpha.24`. No main merge until the updated exact-HEAD Windows CI including native second-window E2E, DEBUG NSIS and manual owner acceptance are all verified.
+- **NEXT:** run CI and repair any failures, provide a **new** installer artifact for owner to verify that the queue is dark and populated, can queue several segments, and reports real FFmpeg progress. Prior artifact #11956311797 is OBSOLETE for the blank-window fix.
+ 
+---
+
 # ACTIVE ZVE-006b — 2026-10-15 — detachable MP4 task window, timeline I/O range, FFmpeg progress
 
 - **USER REQUEST:** On Windows a separate export-queue window shows every MP4 task and real progress; while editing select a timeline interval (Shift + drag ruler or I/O buttons), enqueue it, and continue working. Use a native Rust job queue rather than a frontend-only list.
