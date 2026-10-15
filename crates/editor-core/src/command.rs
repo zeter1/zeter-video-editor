@@ -172,6 +172,12 @@ pub enum EditCommand {
         clip_id: ClipId,
         style: TextStyle,
     },
+    SetTextContent {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        clip_id: ClipId,
+        text: String,
+    },
     AddSubtitleSegments {
         sequence_id: SequenceId,
         segments: Vec<SubtitleSegment>,

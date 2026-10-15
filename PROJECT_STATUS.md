@@ -1,3 +1,15 @@
+ZVE-008 QA UPDATE 15.10.2026: пользователь попросил после drag ещё рамку вокруг титра с маркерами пропорционального увеличения/уменьшения и мини-форматирование прямо над титром. Добавлен SVG getBBox selection rect/4 угловых handles + contextual HTML toolbar font-family/size/bold/color/align/shadow в TitleOverlay.tsx, CSS and Vitest/native WebView2 E2E; изменение размера направляется Rust SetTextStyle.font_size (используется экспортным FFmpeg drawtext), без нового IPC и без изменения schema. Ограничение: пропорциональный размер шрифта 8..300, а не независимый box warp/stretch. CI и NSIS должны быть повторно проверены по НОВОМУ exact HEAD; предыдущий артефакт #11982318090 НЕ содержит рамку/toolbar; PR #89 остаётся DRAFT, main не менять до Windows manual QA.
+
+# ACTIVE ZVE-008 — редактируемые титры / alpha.26 DRAFT (2026-10-15)
+
+- **ЗАДАЧА:** нажать «Текст» → добавить титр от курсора в активной последовательности → видеть на Preview и дорожке → менять содержание/стиль в Inspector → Undo/Redo → сохранить и повторно открыть .vcut → экспорт MP4. Субтитры — отдельная задача.
+- **КОД:** draft PR #89 https://github.com/zeter1/zeter-video-editor/pull/89, ветка `feat/zve-008-editable-titles-20261015` от исходного main `6f74e7c113abf4b5cd60d2242bf1a2916d159566` / alpha.25. В PR source candidate `0.1.0-alpha.26`. LeftPanel/AppShell подключают Rust AddTrack + AddText, добавлен Rust EditCommand::SetTextContent и контракт IPC, Inspector редактирует текст, Preview SVG отображает титры в тайминге, данные хранятся в прежнем Clip.text и попадают в FFmpeg RenderSnapshot. Добавлены Rust/Vitest и Windows native E2E тесты; изменения исходного медиа или схемы .vcut не требуются.
+- **ДОПОЛНЕНИЕ ПО ЗАПРОСУ ВЛАДЕЛЬЦА:** добавлен drag титра прямо в Preview по удержанию мыши. Новый `TitleOverlay.tsx` ловит pointer events на самой SVG-надписи, учитывает размер рендер-окна и редактирует transient preview в процессе, при отпускании отправляет одну Rust SetTransform. Клик выделяет и открывает Inspector; locked track не изменяется; pointer cancel сбрасывается. Дополнены Vitest/native WebView2 с проверкой Undo/Redo и save/reopen. Из-за изменения PR exact-HEAD Windows CI #38740261951 успешен только для ПРЕДЫДУЩЕГО SHA a1f7d154 и не является gate для нового HEAD. Отправить новый CI, затем Windows QA.
+- **ПРИЁМКА И ОГРАНИЧЕНИЯ:** exact HEAD Windows CI (version/scripts, rustfmt, Rust workspace, TypeScript/Vitest, native WebView2, FFmpeg/NSIS) и user-PC ручная QA пока обязательны и НЕ ПОДТВЕРЖДЕНЫ. PR DRAFT / НЕ MERGED. Windows DEBUG installer нельзя выдавать как подписанный публичный релиз. Две последовательные команды при автоматическом добавлении текстовой дорожки создают две Undo-записи, SVG-preview не обещает полного пиксельного совпадения с FFmpeg для всех стилей. Не проводить merge без проверки, review и ручного подтверждения.
+- **NEXT ИМЕННО ЭТОЙ ЗАДАЧИ:** проверить exact-HEAD CI, исправить сбои и обеспечить native E2E/NSIS, дать пользователю Windows бинарник для создания/редактирования/Undo/Redo/save–reopen/export титра и принять QA. При успешной приёмке выполнить review/merge и обновить Google журнал. Не переходить к следующей задаче, пока этот срез не закрыт.
+
+---
+
 # VERIFIED ZVE-007 — multi-sequence YouTube + Shorts merged, alpha.25 (2026-10-15)
 
 - **ПРОДУКТ:** в одном .vcut доступны самостоятельные последовательности 16:9 / 1920×1080 и 9:16 / 1080×1920, переключение Timeline/Preview/Inspector/AI, раздельный монтаж при общей медиатеке, AddSequence через Rust, Undo/Redo, сохранение/переоткрытие, MP4 экспорт активного sequence_id. React selection и экспортный I/O сбрасываются при смене монтажа, асинхронные импорт/диалоги экспорта привязаны к исходному ID.
@@ -901,7 +913,7 @@
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.25` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.26` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

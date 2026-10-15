@@ -3,6 +3,7 @@ import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react"
 import type { Clip, MediaRef, ProjectId, ProjectRevision, Sequence, Track, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
+import { TitleOverlay } from "./TitleOverlay";
 import { PausedCompositeFrame } from "./PausedCompositeFrame";
 import { PreviewAudioTracks, previewAudioVolume, synchronizeAudioClock } from "./PreviewAudioTracks";
 import { adjacentEditBoundaryUs, collectEditBoundariesUs } from "./editNavigation";
@@ -30,6 +31,7 @@ interface PreviewPlayerProps {
   playheadTimeUs: number;
   onSeek: (timeUs: number) => void;
   onCommit: EditCommit;
+  onSelectTitle?: (clipId: string, trackId: string) => void;
 }
 
 function findVisibleClip(sequence: Sequence, timeUs: number): { clip: Clip; track: Track } | null {
@@ -207,6 +209,7 @@ export function PreviewPlayer({
   playheadTimeUs,
   onSeek,
   onCommit,
+  onSelectTitle,
 }: PreviewPlayerProps) {
   const [quality, setQuality] = useState<PreviewQuality>("Full");
   const [scale, setScale] = useState<PreviewScale>("Fit");
@@ -336,6 +339,15 @@ export function PreviewPlayer({
     }),
     [pictureSelection, media],
   );
+  const [draggingTitle, setDraggingTitle] = useState(false);
+  const visibleTitles = sequence.tracks
+    .filter((track) => !track.hidden)
+    .flatMap((track) => track.clips
+      .filter((clip) => clip.kind === "Text" && clip.text &&
+        clip.timeline_start <= playheadTimeUs && playheadTimeUs < clip.timeline_end)
+      .map((clip) => ({ clip, track })));
+  const pausedComposite = pictureSelection.multipleVideos &&
+    !playing && projectId !== null && revision !== null && !draggingTitle;
   // A still over a video must not replace the foreground transport decoder.
   // Readiness, embedded sound and rVFC continue to follow that same video.
   const movingLayer = pictureLayers.filter(({ clip }) => clip.kind === "Video").at(-1);
@@ -680,7 +692,7 @@ export function PreviewPlayer({
           ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
           ) : null}
-          {pictureSelection.multipleVideos && !playing && projectId && revision !== null ? (
+          {pausedComposite && projectId && revision !== null ? (
             <PausedCompositeFrame
               key={`${projectId}:${revision}:${sequence.id}`}
               projectId={projectId}
@@ -689,6 +701,14 @@ export function PreviewPlayer({
               playheadTimeUs={playheadTimeUs}
               fps={sequence.fps}
             />
+          ) : null}
+          {visibleTitles.length > 0 ? (
+            <TitleOverlay key={sequence.id} sequenceId={sequence.id}
+              width={sequence.width} height={sequence.height}
+              titles={visibleTitles} selectedClipId={selectedClip?.id ?? null}
+              onSelect={onSelectTitle} onCommit={onCommit}
+              hideGlyphs={pausedComposite}
+              onDraggingChange={setDraggingTitle} />
           ) : null}
           {pictureSelection.multipleVideos ? (
             <span className="preview-composite-notice" role="status">
