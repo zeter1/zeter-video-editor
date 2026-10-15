@@ -17,6 +17,7 @@ describe("TopToolbar version", () => {
         onUndo={noop}
         onRedo={noop}
         onExportSupportBundle={noop}
+        onExportMp4={noop}
       />,
     );
     expect(screen.getByLabelText("Версия приложения").textContent).toBe(`v${packageInfo.version}`);

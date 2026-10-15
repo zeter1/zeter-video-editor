@@ -78,7 +78,7 @@ describe("ZVE-006 MP4 export UI", () => {
     expect(dialogs.save).toHaveBeenCalledWith(expect.objectContaining({
       filters: [{ name: "MP4 (H.264)", extensions: ["mp4"] }],
     }));
-    await waitFor(() => expect(button).toBeDisabled());
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(true));
     expect(screen.getByText(/final.mp4 · Кодирование/)).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Прогресс экспорта" })).toBeTruthy();
     fireEvent.click(button);
@@ -87,7 +87,7 @@ describe("ZVE-006 MP4 export UI", () => {
     await waitFor(() => expect(client.cancelJob).toHaveBeenCalledWith("export-job"));
     expect(screen.getByText(/final.mp4 · Отменено/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Закрыть" }));
-    await waitFor(() => expect(button).toBeEnabled());
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
   });
 
   it("shows native completion from polling without inventing a running percentage", async () => {
@@ -106,19 +106,19 @@ describe("ZVE-006 MP4 export UI", () => {
     const button = screen.getByRole("button", { name: "Экспорт MP4" });
     fireEvent.click(button);
     await waitFor(() => expect(dialogs.save).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(button).toBeEnabled());
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
     expect(client.startExportMp4).not.toHaveBeenCalled();
 
     client.startExportMp4.mockRejectedValueOnce(new Error("Нельзя экспортировать"));
     fireEvent.click(button);
     await waitFor(() => expect(screen.getByRole("alert").textContent)
       .toContain("Нельзя экспортировать"));
-    expect(button).toBeEnabled();
+    expect((button as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("disables MP4 export while there is no active project", () => {
     render(<AppShell client={createIpcClient()}
       projectStore={createProjectStore()} transientStore={createTransientStore()} />);
-    expect(screen.getByRole("button", { name: "Экспорт MP4" })).toBeDisabled();
+    expect((screen.getByRole("button", { name: "Экспорт MP4" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

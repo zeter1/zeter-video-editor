@@ -809,15 +809,37 @@ button {
 }
 
 .job-status {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   padding: 0 14px;
   border-top: 1px solid var(--border);
   color: #aeb9c8;
   background: #0a0f15;
   font-size: 11px;
+}
+
+.job-status .job-state {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-status progress {
+  flex: 1;
+  max-width: 180px;
+  min-width: 80px;
+  height: 8px;
+}
+
+.job-status button {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 8px;
+  color: var(--text);
+  background: var(--surface-raised);
+  cursor: pointer;
 }
 
 .status-dot {
