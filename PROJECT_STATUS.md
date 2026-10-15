@@ -1,3 +1,15 @@
+# ACTIVE ZVE-007 — несколько независимых последовательностей / alpha.25 draft (2026-10-15)
+
+- **ЦЕЛЬ И ПРИЁМКА:** выбираем YouTube или другой Short в одном .vcut; кнопка «+ Последовательность» создаёт отдельный 16:9 или 9:16 монтаж (без исходных клипов) через авторитетный Rust AddSequence; после переключения Preview/Inspector/Timeline, медиатека, горячие клавиши и MP4 работают с новым ID. Undo/Redo, сохранение/переоткрытие и native Windows WebView2 обязательны.
+- **БАЗА / ДОСТАВКА:** начальный main `abe1f9e06507df9c74753c7afe9381d1141e5550` / `0.1.0-alpha.24`. Ветка `feat/zve-007-multi-sequence-workspace-20261015`, [DRAFT PR #88](https://github.com/zeter1/zeter-video-editor/pull/88); версия исходников PR `0.1.0-alpha.25` создана каноническим `node scripts/set-version.mjs` в одноразовом workflow GitHub Actions и проверена `check-version.mjs`, временный workflow нужно удалить из final diff.
+- **КОД:** `apps/desktop/src/app/sequenceWorkspace.ts`, `AppShell.tsx`, `state/transientStore.ts`, CSS. Смена последовательности обнуляет чужие playhead, выделение, drag, scroll и экспортный диапазон. Диалог Save As защищён от переключения во время ожидания. Фронтенд не меняет project напрямую: AddSequence идёт через Rust `EditCommand` и `reconcileCommandResult`.
+- **ТЕСТЫ В PR:** Vitest `sequenceWorkspace.test.ts` и `AppShell.sequences.test.tsx`; real Windows `e2e/sequence-workspace.spec.ts` на Rust AddSequence, портретный размер, импорт, Undo/Redo, сохранение .vcut. Это наличие проверок в коде, не свидетельство их успешного прохождения.
+- **ОТКРЫТЫЕ GATES:** exact-final-HEAD Windows CI Rust/TS/Vitest/Tauri/WebView2/FFmpeg/NSIS; затем ручной тест пользователя на Windows; review и merge при отсутствии блокеров. Пока PR DRAFT, main остаётся alpha.24, публичного релиза/подписи нет. Не сливать без итогового gate и реальной QA.
+- **NEXT ИМЕННО ЭТОЙ ЗАДАЧИ:** удалить одноразовый workflow, запустить/проверить точный Windows CI, исправить failures; дать DEBUG installer и проверить Short vs YouTube, импорт/экспорт, Undo/Redo и save/reopen. Внешний CORS PR #85 не менять.
+- **NEXT PRODUCT-CODE TASK ПОСЛЕ ЗАВЕРШЕНИЯ:** подтверждённый пробел MVP — кнопки «Текст» и «Субтитры» в `apps/desktop/src/components/LeftPanel.tsx` отключены при наличии Rust `AddText` и `AddSubtitleSegments`; новый отдельный срез должен обеспечить добавление редактируемого титра из UI через Undo/Redo, Preview/экспорт и save–reopen без копирования состояния в React. Требования сверить с действующей спецификацией.
+
+---
+
 # ACTIVE ZVE-006c — fast bounded-window export / alpha.24 candidate (2026-10-15)
 
 - **USER QA:** previous white-background bug confirmed FIXED in owner's Windows screenshot from artifact #11957731813. Screenshot shows two selected MP4 ranges marked Completed (100%) and one Running at 0%, with editing view still available. User reports exporting short late ranges (77–108 s) takes too long. Do not claim a time benchmark from screenshots alone.
