@@ -102,6 +102,8 @@ function clientFixture() {
     cancelJob: vi.fn(),
     getJobState: vi.fn(),
     startExportMp4: vi.fn(),
+    listExportTasks: vi.fn(),
+    openExportWindow: vi.fn(),
     exportSupportBundle: vi.fn(),
     reconcileCommandResult: vi.fn().mockResolvedValue("refreshed"),
   };

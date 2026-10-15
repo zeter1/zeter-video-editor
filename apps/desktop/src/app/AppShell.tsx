@@ -359,7 +359,10 @@ export function AppShell({
       }
       const initial = await client.startExportMp4(sequenceId, outputPath, rangeStart, rangeEnd);
       setExportJob({ initial, outputPath });
-      if (isTauri()) await client.openExportWindow();
+      if (isTauri()) {
+        try { await client.openExportWindow(); }
+        catch { projectStore.setError("Экспорт запущен. Откройте окно «Задачи экспорта» отдельно."); }
+      }
     } catch (error) {
       projectStore.setError(appError(error)?.message ??
         (error instanceof Error ? error.message : "Не удалось запустить экспорт MP4."));

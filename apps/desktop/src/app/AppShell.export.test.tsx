@@ -61,9 +61,10 @@ function setup() {
     getJobState: vi.fn().mockResolvedValue(running),
     cancelJob: vi.fn().mockResolvedValue({ ...running, state: "Cancelled" }),
   };
+  const transientStore = createTransientStore();
   render(<AppShell client={client} projectStore={projectStore}
-    transientStore={createTransientStore()} />);
-  return { projectStore, client };
+    transientStore={transientStore} />);
+  return { projectStore, transientStore, client };
 }
 
 describe("ZVE-006 MP4 export UI", () => {
@@ -79,13 +80,41 @@ describe("ZVE-006 MP4 export UI", () => {
       filters: [{ name: "MP4 (H.264)", extensions: ["mp4"] }],
     }));
     await waitFor(() => expect(screen.getByText(/final.mp4 · Кодирование/)).toBeTruthy());
-    expect(screen.getByText(/final.mp4 · Кодирование/)).toBeTruthy();
     expect(screen.getByRole("progressbar", { name: "Прогресс экспорта" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Отменить экспорт" }));
     await waitFor(() => expect(client.cancelJob).toHaveBeenCalledWith("export-job"));
     expect(screen.getByText(/final.mp4 · Отменено/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Закрыть" }));
     await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it("queues a frame-bounded export and allows a second job while the first still runs", async () => {
+    dialogs.save.mockResolvedValueOnce("D:/renders/first.mp4")
+      .mockResolvedValueOnce("D:/renders/second.mp4");
+    const { client, transientStore } = setup();
+    transientStore.setExportRange(1_000_000, 2_500_000);
+    const button = screen.getByRole("button", { name: "Экспорт MP4" });
+    fireEvent.click(button);
+    await waitFor(() => expect(client.startExportMp4).toHaveBeenCalledWith(
+      "sequence-export", "D:/renders/first.mp4", 1_000_000, 2_500_000,
+    ));
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    transientStore.setExportRange(null, null);
+    fireEvent.click(button);
+    await waitFor(() => expect(client.startExportMp4).toHaveBeenCalledWith(
+      "sequence-export", "D:/renders/second.mp4", null, null,
+    ));
+    expect(client.startExportMp4).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not submit a partial export range", async () => {
+    dialogs.save.mockResolvedValue("D:/renders/invalid.mp4");
+    const { client, transientStore } = setup();
+    transientStore.setExportRange(1_000_000, null);
+    fireEvent.click(screen.getByRole("button", { name: "Экспорт MP4" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent)
+      .toContain("Задайте начало и конец диапазона"));
+    expect(client.startExportMp4).not.toHaveBeenCalled();
   });
 
   it("shows native completion from polling without inventing a running percentage", async () => {
