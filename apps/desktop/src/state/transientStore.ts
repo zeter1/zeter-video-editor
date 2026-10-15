@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-import type { ClipId, TrackId } from "../generated/ipc";
+import type { ClipId, SequenceId, TrackId } from "../generated/ipc";
 
 export interface ClipDragState {
   kind: "clip";
@@ -19,6 +19,7 @@ export interface ClipDragInput {
 }
 
 export interface TransientUiState {
+  selectedSequenceId: SequenceId | null;
   selectedClipId: ClipId | null;
   selectedTrackId: TrackId | null;
   hoveredClipId: ClipId | null;
@@ -33,6 +34,7 @@ export interface TransientUiState {
 type Listener = () => void;
 
 const initialState = (): TransientUiState => ({
+  selectedSequenceId: null,
   selectedClipId: null,
   selectedTrackId: null,
   hoveredClipId: null,
@@ -54,6 +56,14 @@ export class TransientStore {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   };
+
+  selectSequence(sequenceId: SequenceId): void {
+    if (this.state.selectedSequenceId === sequenceId) return;
+    // A playhead, edit selection, drag or I/O range from another sequence
+    // must never be interpreted in the newly active sequence.
+    this.state = { ...initialState(), selectedSequenceId: sequenceId };
+    this.emit();
+  }
 
   selectClip(clipId: ClipId | null): void {
     this.patch({ selectedClipId: clipId });
