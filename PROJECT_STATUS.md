@@ -1,3 +1,12 @@
+# ACTIVE ZVE-008 — редактируемые титры / alpha.26 DRAFT (2026-10-15)
+
+- **ЗАДАЧА:** нажать «Текст» → добавить титр от курсора в активной последовательности → видеть на Preview и дорожке → менять содержание/стиль в Inspector → Undo/Redo → сохранить и повторно открыть .vcut → экспорт MP4. Субтитры — отдельная задача.
+- **КОД:** draft PR #89 https://github.com/zeter1/zeter-video-editor/pull/89, ветка `feat/zve-008-editable-titles-20261015` от исходного main `6f74e7c113abf4b5cd60d2242bf1a2916d159566` / alpha.25. В PR source candidate `0.1.0-alpha.26`. LeftPanel/AppShell подключают Rust AddTrack + AddText, добавлен Rust EditCommand::SetTextContent и контракт IPC, Inspector редактирует текст, Preview SVG отображает титры в тайминге, данные хранятся в прежнем Clip.text и попадают в FFmpeg RenderSnapshot. Добавлены Rust/Vitest и Windows native E2E тесты; изменения исходного медиа или схемы .vcut не требуются.
+- **ПРИЁМКА И ОГРАНИЧЕНИЯ:** exact HEAD Windows CI (version/scripts, rustfmt, Rust workspace, TypeScript/Vitest, native WebView2, FFmpeg/NSIS) и user-PC ручная QA пока обязательны и НЕ ПОДТВЕРЖДЕНЫ. PR DRAFT / НЕ MERGED. Windows DEBUG installer нельзя выдавать как подписанный публичный релиз. Две последовательные команды при автоматическом добавлении текстовой дорожки создают две Undo-записи, SVG-preview не обещает полного пиксельного совпадения с FFmpeg для всех стилей. Не проводить merge без проверки, review и ручного подтверждения.
+- **NEXT ИМЕННО ЭТОЙ ЗАДАЧИ:** проверить exact-HEAD CI, исправить сбои и обеспечить native E2E/NSIS, дать пользователю Windows бинарник для создания/редактирования/Undo/Redo/save–reopen/export титра и принять QA. При успешной приёмке выполнить review/merge и обновить Google журнал. Не переходить к следующей задаче, пока этот срез не закрыт.
+
+---
+
 # VERIFIED ZVE-007 — multi-sequence YouTube + Shorts merged, alpha.25 (2026-10-15)
 
 - **ПРОДУКТ:** в одном .vcut доступны самостоятельные последовательности 16:9 / 1920×1080 и 9:16 / 1080×1920, переключение Timeline/Preview/Inspector/AI, раздельный монтаж при общей медиатеке, AddSequence через Rust, Undo/Redo, сохранение/переоткрытие, MP4 экспорт активного sequence_id. React selection и экспортный I/O сбрасываются при смене монтажа, асинхронные импорт/диалоги экспорта привязаны к исходному ID.
