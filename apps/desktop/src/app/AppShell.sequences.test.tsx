@@ -86,7 +86,9 @@ describe("multi-sequence editor", () => {
       selectedTrackId: null, playheadTimeUs: 0,
       exportRangeStartUs: null, exportRangeEndUs: null,
     });
-    expect(screen.getByTestId("preview-panel").textContent).toContain("1080×1920");
+    expect(screen.getByRole("combobox", { name: "Последовательность" })).toHaveProperty("value", "short");
+    const panels = screen.getAllByTestId("preview-panel");
+    expect(panels.at(-1)?.textContent).toContain("1080×1920");
     expect(store.getState().revision).toBe(4);
     expect(vi.mocked(client.executeEditCommand)).not.toHaveBeenCalled();
   });
