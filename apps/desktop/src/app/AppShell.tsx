@@ -654,7 +654,7 @@ export function AppShell({
           }
         />
         <PreviewPanel
-          key={activeSequence?.id ?? "no-project"}
+          key={`preview:${activeSequence?.id ?? "no-project"}`}
           sequence={activeSequence}
           projectId={project?.id ?? null}
           revision={projectState.revision}
@@ -674,7 +674,7 @@ export function AppShell({
           onCommit={handleEditCommand}
         />
         <TimelinePanel
-          key={activeSequence?.id ?? "no-project"}
+          key={`timeline:${activeSequence?.id ?? "no-project"}`}
           sequence={activeSequence}
           projectStore={projectStore}
           transientStore={transientStore}

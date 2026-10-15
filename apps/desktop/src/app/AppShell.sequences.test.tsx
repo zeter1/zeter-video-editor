@@ -67,6 +67,21 @@ afterEach(() => {
 });
 
 describe("multi-sequence editor", () => {
+
+  it("keeps Preview and Timeline sibling identities distinct through hydration and switching", () => {
+    const store = createProjectStore();
+    const transient = createTransientStore();
+    const client = clientStub();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(<AppShell client={client} projectStore={store} transientStore={transient} />);
+    store.applySnapshot(snapshot());
+    fireEvent.change(screen.getByRole("combobox", { name: "Последовательность" }), {
+      target: { value: "short" },
+    });
+    expect(screen.getByTestId("preview-panel").textContent).toContain("1080×1920");
+    expect(screen.getByTestId("timeline-panel")).toBeTruthy();
+    expect(errors.mock.calls.flat().join(" ")).not.toMatch(/two children with the same key/i);
+  });
   it("switches the preview and clears clip, playhead and export marks without mutating the project", () => {
     const store = createProjectStore();
     const transient = createTransientStore();
