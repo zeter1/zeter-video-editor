@@ -164,4 +164,43 @@ describe("multi-sequence editor", () => {
     await waitFor(() => expect(transient.getState().selectedSequenceId).toBe(created.id));
     expect(screen.getByRole("combobox", { name: "Последовательность" })).toHaveProperty("value", created.id);
   });
+
+  it("pins a file dialog import to the sequence where the action started", async () => {
+    const store = createProjectStore();
+    const transient = createTransientStore();
+    store.applySnapshot(snapshot());
+    const client = clientStub();
+    let finishOpen: (value: string) => void = () => {};
+    dialogs.open.mockImplementation(() => new Promise<string>((resolve) => { finishOpen = resolve; }));
+    render(<AppShell client={client} projectStore={store} transientStore={transient} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Импорт" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Последовательность" }), {
+      target: { value: "short" },
+    });
+    finishOpen("C:\\media\\audio.wav");
+    await waitFor(() => expect(client.executeEditCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: { AddClip: expect.objectContaining({
+          sequence_id: "main", track_id: "main-audio",
+        }) },
+      }),
+    ));
+  });
+
+  it("enqueues MP4 using the selected Short ID when selection stays unchanged", async () => {
+    const store = createProjectStore();
+    const transient = createTransientStore();
+    store.applySnapshot(snapshot());
+    const client = clientStub();
+    dialogs.save.mockResolvedValue("C:\\out\\short.mp4");
+    render(<AppShell client={client} projectStore={store} transientStore={transient} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Последовательность" }), {
+      target: { value: "short" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Экспорт MP4" }));
+    await waitFor(() => expect(client.startExportMp4).toHaveBeenCalledWith(
+      "short", "C:\\out\\short.mp4", null, null,
+    ));
+  });
 });
