@@ -411,8 +411,15 @@ fn localized_export_plan(
         // Keep the exact original effect envelope. A fade already finished
         // before the selection is omitted; an intersected envelope uses the
         // old full-timeline graph to avoid restarting the fade at zero.
-        if let Some(transition) = plan.transitions.iter().find(|t| t.clip_id == original.clip_id) {
-            let fade_end = original.timeline_start.get().saturating_add(transition.duration.get());
+        if let Some(transition) = plan
+            .transitions
+            .iter()
+            .find(|t| t.clip_id == original.clip_id)
+        {
+            let fade_end = original
+                .timeline_start
+                .get()
+                .saturating_add(transition.duration.get());
             if start > original.timeline_start.get() && start < fade_end {
                 return None;
             }
@@ -420,9 +427,19 @@ fn localized_export_plan(
                 localized.transitions.push(transition.clone());
             }
         }
-        if let Some(audio) = localized.audio.iter_mut().find(|a| a.clip_id == original.clip_id) {
-            let fade_in_end = original.timeline_start.get().saturating_add(audio.fade_in.get());
-            let fade_out_start = original.timeline_end.get().saturating_sub(audio.fade_out.get());
+        if let Some(audio) = localized
+            .audio
+            .iter_mut()
+            .find(|a| a.clip_id == original.clip_id)
+        {
+            let fade_in_end = original
+                .timeline_start
+                .get()
+                .saturating_add(audio.fade_in.get());
+            let fade_out_start = original
+                .timeline_end
+                .get()
+                .saturating_sub(audio.fade_out.get());
             if (start > original.timeline_start.get() && start < fade_in_end)
                 || (start > fade_out_start && start < original.timeline_end.get())
                 || (end > fade_out_start && end < original.timeline_end.get())
@@ -443,7 +460,10 @@ fn localized_export_plan(
             if !elapsed.is_finite() || elapsed < 0.0 {
                 return None;
             }
-            let input_start = original.source_in.get().checked_add(elapsed.round() as i64)?;
+            let input_start = original
+                .source_in
+                .get()
+                .checked_add(elapsed.round() as i64)?;
             let input_length = ((to - from) as f64 * original.speed).round() as i64;
             let input_end = input_start.checked_add(input_length)?;
             // Do not seek outside the authored source span or silently
@@ -500,7 +520,7 @@ fn clipped_relative_interval(
     ))
 }
 
-fn build_export_spec_with_window(
+pub(crate) fn build_export_spec_with_window(
     runtime: &ManagedRuntime,
     plan: &RenderPlan,
     encoder: EncoderKind,
@@ -533,8 +553,8 @@ fn build_export_spec_with_window(
         if clip.kind == ClipKind::Image {
             spec = spec.arg("-loop").arg("1");
         }
-        if let Some(seek) = input_seeks
-            .and_then(|seeks| seeks.iter().find(|(id, _)| *id == clip.clip_id))
+        if let Some(seek) =
+            input_seeks.and_then(|seeks| seeks.iter().find(|(id, _)| *id == clip.clip_id))
         {
             spec = spec.arg("-ss").arg(format!("{:.6}", seconds(seek.1)));
         }

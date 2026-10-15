@@ -426,7 +426,6 @@ fn export_trims_retimed_audio_at_the_timeline_clip_end_before_delay() {
     assert!(graph.contains("adelay=500:all=1"));
 }
 
-
 #[test]
 fn late_window_seeks_only_active_media_and_generates_short_graph() {
     // A 2.4 s selection near the 105-second mark must not need to render the
@@ -470,20 +469,35 @@ fn late_window_seeks_only_active_media_and_generates_short_graph() {
 
     let plan = RenderPlan::compile(&original, settings()).unwrap();
     let spec = crate::export::build_export_spec_with_window(
-        &runtime(), &plan, EncoderKind::Libx264,
+        &runtime(),
+        &plan,
+        EncoderKind::Libx264,
         std::path::Path::new(r"D:\exports\selected.mp4"),
         Some((time(105_000_000), time(107_400_000))),
     );
-    let args = spec.args.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<_>>();
+    let args = spec
+        .args
+        .iter()
+        .map(|s| s.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
     let positions = args.windows(2).collect::<Vec<_>>();
     assert!(positions.iter().any(|pair| pair == &["-ss", "105.000000"]));
-    assert!(!args.windows(2).any(|pair| pair == ["-ss", "105.000000"]
-        && args.iter().position(|arg| arg == "-ss") >
-        args.iter().position(|arg| arg == "-filter_complex")),
-        "late window must use input seek instead of output seek");
-    let graph = &args[args.iter().position(|arg| arg == "-filter_complex").unwrap() + 1];
+    assert!(
+        !args.windows(2).any(|pair| pair == ["-ss", "105.000000"]
+            && args.iter().position(|arg| arg == "-ss")
+                > args.iter().position(|arg| arg == "-filter_complex")),
+        "late window must use input seek instead of output seek"
+    );
+    let graph = &args[args
+        .iter()
+        .position(|arg| arg == "-filter_complex")
+        .unwrap()
+        + 1];
     assert!(graph.contains("d=2.400000[vbase0]"), "{graph}");
-    assert!(graph.contains("trim=start=0.000000:end=2.400000"), "{graph}");
+    assert!(
+        graph.contains("trim=start=0.000000:end=2.400000"),
+        "{graph}"
+    );
     assert!(args.windows(2).any(|pair| pair == ["-t", "2.400000"]));
 }
 
@@ -528,26 +542,58 @@ fn sliced_window_preserves_clip_offsets_and_does_not_restart_fades() {
 
     let plan = RenderPlan::compile(&original, settings()).unwrap();
     let spec = crate::export::build_export_spec_with_window(
-        &runtime(), &plan, EncoderKind::Libx264,
+        &runtime(),
+        &plan,
+        EncoderKind::Libx264,
         std::path::Path::new(r"D:\exports\audio-segment.mp4"),
         Some((time(102_000_000), time(105_000_000))),
     );
-    let args = spec.args.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<_>>();
+    let args = spec
+        .args
+        .iter()
+        .map(|s| s.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
     assert!(args.windows(2).any(|pair| pair == ["-ss", "3.000000"]));
-    let graph = &args[args.iter().position(|arg| arg == "-filter_complex").unwrap() + 1];
-    assert!(!graph.contains("afade="), "fades from outside selection must not restart: {graph}");
-    assert!(!graph.contains("adelay="), "clip beginning before selected range must start at t=0");
-    assert!(graph.contains("atrim=start=0.000000:end=3.000000"), "{graph}");
+    let graph = &args[args
+        .iter()
+        .position(|arg| arg == "-filter_complex")
+        .unwrap()
+        + 1];
+    assert!(
+        !graph.contains("afade="),
+        "fades from outside selection must not restart: {graph}"
+    );
+    assert!(
+        !graph.contains("adelay="),
+        "clip beginning before selected range must start at t=0"
+    );
+    assert!(
+        graph.contains("atrim=start=0.000000:end=3.000000"),
+        "{graph}"
+    );
 
     // Selecting inside the originally-authored fade must use exact legacy
     // output seeking instead of creating a false 0% fade.
     let fade_spec = crate::export::build_export_spec_with_window(
-        &runtime(), &plan, EncoderKind::Libx264,
+        &runtime(),
+        &plan,
+        EncoderKind::Libx264,
         std::path::Path::new(r"D:\exports\fade-segment.mp4"),
         Some((time(100_100_000), time(101_000_000))),
     );
-    let fade_args = fade_spec.args.iter().map(|s| s.to_string_lossy().into_owned()).collect::<Vec<_>>();
-    let graph_position = fade_args.iter().position(|arg| arg == "-filter_complex").unwrap();
+    let fade_args = fade_spec
+        .args
+        .iter()
+        .map(|s| s.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    let graph_position = fade_args
+        .iter()
+        .position(|arg| arg == "-filter_complex")
+        .unwrap();
     assert!(fade_args[graph_position + 1].contains("d=107.000000[vbase0]"));
-    assert!(fade_args.windows(2).any(|pair| pair == ["-ss", "100.100000"]));
+    assert!(
+        fade_args
+            .windows(2)
+            .any(|pair| pair == ["-ss", "100.100000"])
+    );
 }
