@@ -354,7 +354,9 @@ export default async function globalSetup(): Promise<void> {
               additionalBrowserArgs:
                 "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection " +
                 "--autoplay-policy=no-user-gesture-required " +
-                `--remote-debugging-port=${port}`,
+                // Keep native CDP screenshot colorimetry deterministic for FFmpeg RGB checks.
+                "--force-color-profile=srgb " +
+                `--remote-debugging-port=${port}`
             },
           ],
         },
