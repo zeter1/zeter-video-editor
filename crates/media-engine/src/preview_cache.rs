@@ -365,7 +365,9 @@ impl<R: ExportRunner, P: ChunkProbe> PreviewChunkCache<R, P> {
         range: PreviewRange,
     ) -> Result<String, MediaError> {
         let mut hash = Sha256::new();
-        hash.update(b"zeter-validated-preview-chunk-v1");
+        // V2 excludes cached untagged YUV chunks generated before explicit
+        // BT.709 signalling. Re-render lazily; never delete user media.
+        hash.update(b"zeter-validated-preview-chunk-v2-bt709");
         hash.update(plan.project_id.get().as_bytes());
         hash.update(format!("{plan:?}").as_bytes());
         let base = preview_cache_key(

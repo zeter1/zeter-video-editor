@@ -397,6 +397,20 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
     "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
   ], { input: boundaryScreenshot, windowsHide: true, maxBuffer: 4_000_000 });
   expect(strip.length, "8-pixel native centre strip").toBe(8 * 2 * 3);
+  // FFmpeg's 160x90 output pixel boundary is NOT an oracle for a CSS-sized
+  // WebView2 screenshot whose dimensions depend on the editor layout. Compare
+  // the independently scaled export and the screenshot at the same raster
+  // size, with bounded origin registration but unchanged RGB tolerance.
+  const frameSize = await page.locator(".preview-frame").evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    return { width: Math.round(box.width), height: Math.round(box.height) };
+  });
+  const referenceStrip = execFileSync(ffmpeg, [
+    "-hide_banner", "-loglevel", "error", "-ss", "4.2", "-i", outputPath,
+    "-vf", `scale=${frameSize.width}:${frameSize.height}:flags=bilinear,crop=12:2,format=rgb24`,
+    "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
+  ], { windowsHide: true, maxBuffer: 4_000_000 });
+  expect(referenceStrip.length, "12-pixel FFmpeg CSS-sized seam").toBe(12 * 2 * 3);
   const left = [0, 1, 2].map((channel) => boundaryExportRgb[channel]);
   const right = [0, 1, 2].map((channel) => boundaryExportRgb[3 + channel]);
   const delta = left.map((value, channel) => value - right[channel]);
@@ -409,13 +423,27 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
       sum + (strip[offset + channel] - right[channel]) * value, 0);
     const weight = Math.max(0, Math.min(1, numerator / denominator));
     weights.push(weight);
-    for (let channel = 0; channel < 3; channel++) {
-      const physicalBlend = Math.round(right[channel] + weight * delta[channel]);
-      expect(Math.abs(strip[offset + channel] - physicalBlend),
-        `native CSS seam closest FFmpeg blend pixel ${pixel} RGB ${channel}`,
-      ).toBeLessThanOrEqual(35);
-    }
   }
+  // CSS fractional center alignment can differ from the integer FFmpeg
+  // crop origin by up to two physical pixels. Register one consistent
+  // translation across the WHOLE two-row strip: no per-pixel best fit.
+  const registrationMaxErrors = [-2, -1, 0, 1, 2].map((shift) => {
+    let maximum = 0;
+    for (let row = 0; row < 2; row++) {
+      for (let pixel = 0; pixel < 8; pixel++) {
+        for (let channel = 0; channel < 3; channel++) {
+          const nativeIndex = (row * 8 + pixel) * 3 + channel;
+          const exportIndex = (row * 12 + pixel + shift + 2) * 3 + channel;
+          maximum = Math.max(maximum, Math.abs(strip[nativeIndex] - referenceStrip[exportIndex]));
+        }
+      }
+    }
+    return { shift, maximum };
+  });
+  console.log("[WebView2 scaled seam registration]", JSON.stringify({ frameSize, registrationMaxErrors }));
+  expect(Math.min(...registrationMaxErrors.map((sample) => sample.maximum)),
+    "native CSS seam vs independently scaled FFmpeg export RGB <=35 with at most 2px registration",
+  ).toBeLessThanOrEqual(35);
   const adjacentGradients = weights.slice(0, -1).map((weight, i) => weight - weights[i + 1]);
   expect(Math.max(...adjacentGradients),
     "native FFmpeg seam must transition across neighbouring pixels",

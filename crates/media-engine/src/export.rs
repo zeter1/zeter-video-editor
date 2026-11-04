@@ -598,7 +598,17 @@ fn build_window_spec_impl(
         .arg("-c:v")
         .arg(encoder.ffmpeg_name())
         .arg("-pix_fmt")
-        .arg("yuv420p");
+        .arg("yuv420p")
+        // Explicit SDR signalling is essential for low-resolution WebView2
+        // preview chunks: without metadata, browser and FFmpeg may choose
+        // different YUV matrices for the same encoded 160x90 frame.
+        // Keep preview and full export tagged identically.
+        .arg("-color_primaries")
+        .arg("bt709")
+        .arg("-color_trc")
+        .arg("bt709")
+        .arg("-colorspace")
+        .arg("bt709");
 
     if let Some(bitrate) = plan.settings.custom_bitrate {
         spec = spec.arg("-b:v").arg(bitrate.to_string());
@@ -801,7 +811,8 @@ fn compile_timeline_filtergraph(
     }
 
     parts.push(format!(
-        "[{base_label}]fps={:.6},format=yuv420p[vout]",
+        "[{base_label}]fps={:.6},format=yuv420p,scale=w=iw:h=ih:out_color_matrix=bt709,\
+setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709[vout]",
         plan.fps
     ));
 
