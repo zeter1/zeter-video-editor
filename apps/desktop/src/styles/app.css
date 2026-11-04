@@ -1299,7 +1299,8 @@ button {
   pointer-events: none;
 }
 .preview-title-text {
-  pointer-events: visiblePainted;
+  /* Include spaces between glyphs in the hit area, not only painted strokes. */
+  pointer-events: bounding-box;
   user-select: none;
   touch-action: none;
   cursor: grab;

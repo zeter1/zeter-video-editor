@@ -69,6 +69,13 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
   await expect(titleGlyph).toBeVisible();
   const bbox = await titleGlyph.boundingBox();
   if (!bbox) throw new Error("The title glyph is missing from Preview");
+  // A professional title is draggable from its whole text box, including
+  // whitespace between glyphs (not only from painted letter shapes).
+  const hitTarget = await page.evaluate(({ x, y }) =>
+    document.elementFromPoint(x, y)?.getAttribute("data-testid"), {
+      x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height / 2,
+    });
+  expect(hitTarget).toBe(`preview-title-${created.id}`);
   const original = titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
     .find((title) => title.id === created.id)!.transform;
   await page.mouse.move(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2);
