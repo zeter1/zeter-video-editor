@@ -1021,7 +1021,8 @@ test("exports late timeline selection without rendering the preceding hundred se
   await openProject(page, lateProject);
   await expectRevision(page, 0);
 
-  const destination = path.join(path.dirname(lateProject), "late-window-result.mp4");
+  // Each local rerun needs a fresh destination; preserve export no-clobber.
+  const destination = path.join(path.dirname(lateProject), `late-window-result-${randomUUID()}.mp4`);
   const startTime = Date.now();
   const started = await invokeTauri<ExportJobView>(page, "start_export_mp4", {
     sequenceId: SEQUENCE,
@@ -1057,7 +1058,7 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
 
   const exportPath = path.join(
     path.dirname(state.workflowProjectPath),
-    "task19-export.mp4",
+    `task19-export-${randomUUID()}.mp4`,
   );
   const started = await invokeTauri<ExportJobView>(page, "start_export_mp4", {
     sequenceId: SEQUENCE,
@@ -1112,7 +1113,7 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
     height: 1080,
   });
 
-  const rangePath = path.join(path.dirname(state.workflowProjectPath), "task19-range.mp4");
+  const rangePath = path.join(path.dirname(state.workflowProjectPath), `task19-range-${randomUUID()}.mp4`);
   const ranged = await invokeTauri<ExportJobView>(page, "start_export_mp4", {
     sequenceId: SEQUENCE,
     outputPath: rangePath,
@@ -1141,7 +1142,7 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
 
   const cancelledPath = path.join(
     path.dirname(state.workflowProjectPath),
-    "task19-cancelled.mp4",
+    `task19-cancelled-${randomUUID()}.mp4`,
   );
   const cancelling = await invokeTauri<ExportJobView>(
     page,
@@ -1160,7 +1161,7 @@ test("exports MP4 H264 through the real desktop job boundary and cancels without
   expect(existsSync(cancelledPath)).toBe(false);
   expect(
     existsSync(
-      path.join(path.dirname(cancelledPath), ".task19-cancelled.zeter-partial.mp4"),
+      path.join(path.dirname(cancelledPath), `.${path.basename(cancelledPath, ".mp4")}.zeter-partial.mp4`),
     ),
   ).toBe(false);
 });
