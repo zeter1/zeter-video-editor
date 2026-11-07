@@ -53,6 +53,17 @@ interface PointerOrigin {
   style: TextStyle;
   distance: number;
 }
+interface KeyboardNudge {
+  clipId: string;
+  trackId: string;
+  transform: Transform;
+  style: TextStyle;
+  pixelsX: number;
+  pixelsY: number;
+  width: number;
+  height: number;
+  pressed: Set<string>;
+}
 
 export function TitleOverlay({
   sequenceId, width, height, titles, selectedClipId, onSelect, onCommit,
@@ -71,6 +82,7 @@ export function TitleOverlay({
   const svg = useRef<SVGSVGElement>(null);
   const selectedNode = useRef<SVGTextElement | null>(null);
   const drag = useRef<PointerOrigin | null>(null);
+  const nudge = useRef<KeyboardNudge | null>(null);
   const latest = useRef<{ transform: Transform; style: TextStyle } | null>(null);
   const committing = useRef(false);
   const [preview, setPreview] = useState<{ clipId: string; transform: Transform; style: TextStyle } | null>(null);
@@ -84,6 +96,7 @@ export function TitleOverlay({
 
   useEffect(() => {
     drag.current = null;
+    nudge.current = null;
     latest.current = null;
     setPreview(null);
     onDraggingChange?.(false);
@@ -200,6 +213,45 @@ export function TitleOverlay({
     })();
   }
 
+  function nudgeTransform(current: KeyboardNudge): Transform {
+    return {
+      ...current.transform,
+      // Accumulate whole sequence pixels; avoid rounding drift during a held key.
+      position_x: Math.round((current.transform.position_x +
+        current.pixelsX * 2 / current.width) * 1_000_000) / 1_000_000,
+      position_y: Math.round((current.transform.position_y +
+        current.pixelsY * 2 / current.height) * 1_000_000) / 1_000_000,
+    };
+  }
+
+  function finishNudge(): void {
+    const current = nudge.current;
+    if (!current) return;
+    nudge.current = null;
+    if (!current.pixelsX && !current.pixelsY) {
+      setPreview(null);
+      return;
+    }
+    const transform = nudgeTransform(current);
+    if (transform.position_x === current.transform.position_x &&
+      transform.position_y === current.transform.position_y) {
+      setPreview(null);
+      return;
+    }
+    committing.current = true;
+    void (async () => {
+      try {
+        await requestEditCommit(onCommit, { SetTransform: {
+          sequence_id: sequenceId, track_id: current.trackId, clip_id: current.clipId,
+          transform,
+        } });
+      } finally {
+        committing.current = false;
+        setPreview(null);
+      }
+    })();
+  }
+
   function selectKey(event: ReactKeyboardEvent<SVGTextElement>, title: VisibleTitle): void {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -213,26 +265,32 @@ export function TitleOverlay({
     event.stopPropagation(); // Never seek the timeline while focus is on a title.
     onSelect?.(title.clip.id, title.track.id);
     if (title.track.locked || !title.clip.text || committing.current || drag.current ||
-      event.repeat || width <= 0 || height <= 0) return;
+      width <= 0 || height <= 0) return;
+    if (nudge.current && nudge.current.clipId !== title.clip.id) return;
+    if (!nudge.current) {
+      nudge.current = {
+        clipId: title.clip.id, trackId: title.track.id,
+        transform: title.clip.transform, style: title.clip.text.style,
+        pixelsX: 0, pixelsY: 0, width, height, pressed: new Set<string>(),
+      };
+    }
+    const current = nudge.current;
+    // A duplicate keydown without OS repeat is not another user action.
+    if (current.pressed.has(event.key) && !event.repeat) return;
+    current.pressed.add(event.key);
     const pixels = event.shiftKey ? 10 : 1;
-    const transform = {
-      ...title.clip.transform,
-      position_x: Math.round((title.clip.transform.position_x + dx * pixels * 2 / width) * 1_000_000) / 1_000_000,
-      position_y: Math.round((title.clip.transform.position_y + dy * pixels * 2 / height) * 1_000_000) / 1_000_000,
-    };
-    committing.current = true;
-    setPreview({ clipId: title.clip.id, transform, style: title.clip.text.style });
-    void (async () => {
-      try {
-        await requestEditCommit(onCommit, { SetTransform: {
-          sequence_id: sequenceId, track_id: title.track.id, clip_id: title.clip.id,
-          transform,
-        } });
-      } finally {
-        committing.current = false;
-        setPreview(null);
-      }
-    })();
+    current.pixelsX += dx * pixels;
+    current.pixelsY += dy * pixels;
+    setPreview({ clipId: current.clipId, transform: nudgeTransform(current), style: current.style });
+  }
+
+  function releaseKey(event: ReactKeyboardEvent<SVGTextElement>, clipId: string): void {
+    const current = nudge.current;
+    if (!current || current.clipId !== clipId || !current.pressed.has(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    current.pressed.delete(event.key);
+    if (current.pressed.size === 0) finishNudge();
   }
 
   async function commitStyle(patch: Partial<TextStyle>): Promise<void> {
@@ -292,6 +350,8 @@ export function TitleOverlay({
               onPointerCancel={cancel}
               onLostPointerCapture={cancel}
               onKeyDown={(event) => selectKey(event, title)}
+              onKeyUp={(event) => releaseKey(event, clip.id)}
+              onBlur={() => { if (nudge.current?.clipId === clip.id) finishNudge(); }}
             >{clip.text.text}</text>
           );
         })}

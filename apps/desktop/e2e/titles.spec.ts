@@ -119,12 +119,19 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
     await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
   ).find((title) => title.id === created.id)?.transform).toEqual(moved);
 
-  // Keyboard nudge uses sequence pixels (not Preview CSS pixels), one Rust
-  // SetTransform and one Undo/Redo; it must persist through .vcut.
+  // Held arrows update Preview continuously, but submit one authoritative
+  // Rust SetTransform on keyup (one Undo), even with OS key repeat.
   await titleGlyph.click();
   await expect(titleGlyph).toBeFocused();
-  await titleGlyph.press("ArrowRight");
-  const nudgedX = Math.round((moved.position_x + 2 / 1920) * 1_000_000) / 1_000_000;
+  const beforeHoldX = Number(await titleGlyph.getAttribute("x"));
+  await page.keyboard.down("ArrowRight");
+  await page.keyboard.down("ArrowRight");
+  await page.keyboard.down("ArrowRight");
+  expect(Number(await titleGlyph.getAttribute("x")) - beforeHoldX).toBeCloseTo(3, 2);
+  expect(titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
+    .find((title) => title.id === created.id)!.transform).toEqual(moved);
+  await page.keyboard.up("ArrowRight");
+  const nudgedX = Math.round((moved.position_x + 6 / 1920) * 1_000_000) / 1_000_000;
   await expect.poll(async () => titles(
     await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
   ).find((title) => title.id === created.id)?.transform.position_x).toBe(nudgedX);

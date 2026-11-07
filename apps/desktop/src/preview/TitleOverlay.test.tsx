@@ -81,6 +81,8 @@ describe("title drag in Preview", () => {
   it("nudges a focused title by one sequence pixel per arrow key, once in Rust history", async () => {
     const { glyph, onCommit, onSelect } = mount(undefined, undefined, false, true);
     fireEvent.keyDown(glyph, { key: "ArrowRight" });
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.keyUp(glyph, { key: "ArrowRight" });
     await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
     expect(onSelect).toHaveBeenCalledWith("title-1", "track-text");
     expect(onCommit).toHaveBeenCalledWith({ SetTransform: {
@@ -92,10 +94,41 @@ describe("title drag in Preview", () => {
   it("nudges ten sequence pixels with Shift", async () => {
     const { glyph, onCommit } = mount(undefined, undefined, false, true);
     fireEvent.keyDown(glyph, { key: "ArrowUp", shiftKey: true });
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.keyUp(glyph, { key: "ArrowUp" });
     await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
     expect(onCommit).toHaveBeenCalledWith({ SetTransform: {
       sequence_id: "seq-1", track_id: "track-text", clip_id: "title-1",
       transform: { ...clip.transform, position_y: -0.218519 },
+    } });
+  });
+
+  it("holds repeat arrows as live pixel-exact movement with one Rust commit and Undo", async () => {
+    const { glyph, onCommit } = mount(undefined, undefined, false, true);
+    fireEvent.keyDown(glyph, { key: "ArrowRight" });
+    fireEvent.keyDown(glyph, { key: "ArrowRight", repeat: true });
+    fireEvent.keyDown(glyph, { key: "ArrowRight", repeat: true });
+    expect(Number(glyph.getAttribute("x"))).toBeCloseTo(960 + 0.103125 * 960);
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.keyUp(glyph, { key: "ArrowRight" });
+    await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
+    expect(onCommit).toHaveBeenCalledWith({ SetTransform: {
+      sequence_id: "seq-1", track_id: "track-text", clip_id: "title-1",
+      transform: { ...clip.transform, position_x: 0.103125 },
+    } });
+  });
+
+  it("keeps diagonal key chords atomic and commits on blur when keyboard focus leaves", async () => {
+    const { glyph, onCommit } = mount(undefined, undefined, false, true);
+    fireEvent.keyDown(glyph, { key: "ArrowRight" });
+    fireEvent.keyDown(glyph, { key: "ArrowDown", shiftKey: true });
+    fireEvent.keyUp(glyph, { key: "ArrowRight" });
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.blur(glyph);
+    await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
+    expect(onCommit).toHaveBeenCalledWith({ SetTransform: {
+      sequence_id: "seq-1", track_id: "track-text", clip_id: "title-1",
+      transform: { ...clip.transform, position_x: 0.101042, position_y: -0.181481 },
     } });
   });
 
