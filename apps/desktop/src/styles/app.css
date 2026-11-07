@@ -1331,6 +1331,29 @@ button {
   cursor: not-allowed;
   fill: #87909f;
 }
+/* Temporary on-canvas editor: only Rust SetTextContent changes the saved project. */
+.preview-title-inline-editor {
+  position: absolute;
+  z-index: 6;
+  width: min(82%, 540px);
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 70px;
+  max-height: 70%;
+  resize: vertical;
+  transform: translate(-50%, -50%);
+  padding: 9px 12px;
+  border: 2px solid #8db8ff;
+  border-radius: 6px;
+  color: #f7faff;
+  background: rgba(15, 23, 40, .98);
+  box-shadow: 0 5px 22px #000a;
+  font: 16px/1.4 "Segoe UI", sans-serif;
+  pointer-events: auto;
+  outline: none;
+}
+.preview-title-inline-editor:focus { border-color: #c5dcff; }
+
 .preview-title-toolbar {
   position: absolute;
   z-index: 5;

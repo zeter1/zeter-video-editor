@@ -174,6 +174,54 @@ describe("title drag in Preview", () => {
 });
 
 
+describe("inline title content editing", () => {
+  it("opens editable text on double click and submits one Rust SetTextContent on Enter", async () => {
+    const { glyph, onCommit } = mount(undefined, undefined, false, true);
+    fireEvent.doubleClick(glyph);
+    const field = screen.getByRole("textbox", { name: "Редактировать титр на холсте" });
+    expect((field as HTMLTextAreaElement).value).toBe(clip.text!.text);
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.change(field, { target: { value: "Новый текст прямо на холсте" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
+    expect(onCommit).toHaveBeenCalledWith({ SetTextContent: {
+      sequence_id: "seq-1", track_id: "track-text", clip_id: "title-1",
+      text: "Новый текст прямо на холсте",
+    } });
+  });
+
+  it("Escape cancels without Rust writes; empty input does not replace the title", async () => {
+    const { glyph, onCommit } = mount(undefined, undefined, false, true);
+    fireEvent.doubleClick(glyph);
+    const field = screen.getByRole("textbox", { name: "Редактировать титр на холсте" });
+    fireEvent.change(field, { target: { value: "other" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Редактировать титр на холсте" })).toBeNull();
+    expect(onCommit).not.toHaveBeenCalled();
+
+    fireEvent.doubleClick(glyph);
+    const another = screen.getByRole("textbox", { name: "Редактировать титр на холсте" });
+    fireEvent.change(another, { target: { value: "  " } });
+    fireEvent.blur(another);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("blocks editing a locked title and restores its display on a rejected command", async () => {
+    const locked = mount(undefined, undefined, true, true);
+    fireEvent.doubleClick(locked.glyph);
+    expect(screen.queryByRole("textbox", { name: "Редактировать титр на холсте" })).toBeNull();
+    locked.unmount();
+    const onCommit = vi.fn(async () => false);
+    const { glyph } = mount(onCommit, undefined, false, true);
+    fireEvent.doubleClick(glyph);
+    const field = screen.getByRole("textbox", { name: "Редактировать титр на холсте" });
+    fireEvent.change(field, { target: { value: "Отклонено" } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(onCommit).toHaveBeenCalledOnce());
+    await waitFor(() => expect(glyph.textContent).toBe(clip.text!.text));
+  });
+});
+
 describe("selected title canvas controls", () => {
   it("shows a visible selection frame, four resize handles and quick formatting above the title", () => {
     mount(undefined, undefined, false, true);

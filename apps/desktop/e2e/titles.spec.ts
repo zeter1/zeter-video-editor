@@ -79,6 +79,33 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
     await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
   ).find((title) => title.id === created.id)?.text?.text).toBe("Титр после правки");
 
+  // Double-click the glyph to edit text directly on the preview canvas.
+  // This is one authoritative Rust SetTextContent, not an untracked SVG change.
+  const inlineGlyph = page.getByTestId(`preview-title-${created.id}`);
+  await inlineGlyph.dblclick();
+  const inlineEditor = page.getByRole("textbox", { name: "Редактировать титр на холсте" });
+  await expect(inlineEditor).toBeVisible();
+  await inlineEditor.fill("Титр прямо на холсте");
+  await inlineEditor.press("Enter");
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.text?.text).toBe("Титр прямо на холсте");
+  await page.getByRole("button", { name: "Отменить", exact: true }).click();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.text?.text).toBe("Титр после правки");
+  await page.getByRole("button", { name: "Повторить", exact: true }).click();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.text?.text).toBe("Титр прямо на холсте");
+  await inlineGlyph.dblclick();
+  const cancelEditor = page.getByRole("textbox", { name: "Редактировать титр на холсте" });
+  await cancelEditor.fill("Нельзя сохранять");
+  await cancelEditor.press("Escape");
+  await expect(cancelEditor).toHaveCount(0);
+  expect(titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
+    .find((title) => title.id === created.id)?.text?.text).toBe("Титр прямо на холсте");
+
   // Drag the glyph in the actual WebView2 compositor. The Rust project must
   // remain unchanged until pointer up, then record exactly one SetTransform.
   const titleGlyph = page.getByTestId(`preview-title-${created.id}`);
@@ -191,7 +218,7 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
   await invokeTauri(page, "project_open", { path: savePath });
   const reopened = await invokeTauri<TitleSnapshot>(page, "project_snapshot");
   expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.text?.text)
-    .toBe("Титр после правки");
+    .toBe("Титр прямо на холсте");
   expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.transform).toEqual(nudged);
   const reopenedStyle = titles(reopened, sequenceId).find((title) => title.id === created.id)?.text?.style;
   expect(reopenedStyle?.font_family).toBe("Tahoma");

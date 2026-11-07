@@ -88,6 +88,10 @@ export function TitleOverlay({
   const [preview, setPreview] = useState<{ clipId: string; transform: Transform; style: TextStyle } | null>(null);
   const [bounds, setBounds] = useState<TitleBounds | null>(null);
   const [fontDraft, setFontDraft] = useState("48");
+  const [inlineEdit, setInlineEdit] = useState<{
+    clipId: string; trackId: string; original: string; text: string;
+  } | null>(null);
+  const inlineInput = useRef<HTMLTextAreaElement>(null);
 
   const selected = titles.find(({ clip }) => clip.id === selectedClipId) ?? null;
   const selectedStyle = selected?.clip.text?.style ?? null;
@@ -99,8 +103,15 @@ export function TitleOverlay({
     nudge.current = null;
     latest.current = null;
     setPreview(null);
+    setInlineEdit(null);
     onDraggingChange?.(false);
   }, [sequenceId]);
+
+  useEffect(() => {
+    if (!inlineEdit) return;
+    inlineInput.current?.focus();
+    inlineInput.current?.select();
+  }, [inlineEdit?.clipId]);
 
   useEffect(() => {
     setFontDraft(String(selectedStyle?.font_size ?? 48));
@@ -293,6 +304,34 @@ export function TitleOverlay({
     if (current.pressed.size === 0) finishNudge();
   }
 
+  function beginInlineEdit(title: VisibleTitle): void {
+    if (title.track.locked || !title.clip.text || drag.current || nudge.current ||
+      committing.current) return;
+    onSelect?.(title.clip.id, title.track.id);
+    setInlineEdit({
+      clipId: title.clip.id, trackId: title.track.id,
+      original: title.clip.text.text, text: title.clip.text.text,
+    });
+  }
+
+  async function commitInlineEdit(): Promise<void> {
+    const draft = inlineEdit;
+    if (!draft || committing.current) return;
+    setInlineEdit(null);
+    const next = draft.text.trim();
+    // Match the authoritative Rust SetTextContent contract (Unicode scalar count).
+    if (!next || [...next].length > 1000 || next === draft.original) return;
+    committing.current = true;
+    try {
+      await requestEditCommit(onCommit, { SetTextContent: {
+        sequence_id: sequenceId, track_id: draft.trackId, clip_id: draft.clipId,
+        text: next,
+      } });
+    } finally {
+      committing.current = false;
+    }
+  }
+
   async function commitStyle(patch: Partial<TextStyle>): Promise<void> {
     if (!selected || !selectedStyle || selectedLocked || committing.current) return;
     const style = { ...selectedStyle, ...patch };
@@ -342,8 +381,9 @@ export function TitleOverlay({
               fontSize={style.font_size} fontWeight={style.weight}
               fill={style.color} stroke={style.stroke_color}
               strokeWidth={style.stroke_width} paintOrder="stroke"
-              opacity={hideGlyphs ? 0 : style.opacity * transform.opacity}
+              opacity={hideGlyphs || inlineEdit?.clipId === clip.id ? 0 : style.opacity * transform.opacity}
               style={style.shadow ? { filter: "drop-shadow(3px 3px 2px #000)" } : undefined}
+              onDoubleClick={(event) => { event.stopPropagation(); beginInlineEdit(title); }}
               onPointerDown={(event) => start(event, title, "move")}
               onPointerMove={move}
               onPointerUp={stop}
@@ -355,7 +395,7 @@ export function TitleOverlay({
             >{clip.text.text}</text>
           );
         })}
-        {selected && bounds && (
+        {selected && bounds && !inlineEdit && (
           <g className="preview-title-selection" data-testid="title-selection-frame">
             <rect className="preview-title-bounds" x={bounds.x - 8} y={bounds.y - 8}
               width={bounds.width + 16} height={bounds.height + 16} />
@@ -376,7 +416,32 @@ export function TitleOverlay({
           </g>
         )}
       </svg>
-      {selected && effectiveStyle && bounds && barPosition && (
+      {inlineEdit && (
+        <textarea ref={inlineInput} aria-label="Редактировать титр на холсте"
+          className="preview-title-inline-editor" value={inlineEdit.text}
+          maxLength={2000} rows={2}
+          style={{
+            left: `${Math.max(10, Math.min(90,
+              ((bounds?.x ?? width * .3) + (bounds?.width ?? width * .4) / 2) / width * 100))}%`,
+            top: `${Math.max(10, Math.min(90,
+              ((bounds?.y ?? height * .4) + (bounds?.height ?? height * .2) / 2) / height * 100))}%`,
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onChange={(event) => setInlineEdit((draft) =>
+            draft ? { ...draft, text: event.target.value } : null)}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setInlineEdit(null);
+            } else if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void commitInlineEdit();
+            }
+          }}
+          onBlur={() => void commitInlineEdit()} />
+      )}
+      {selected && effectiveStyle && bounds && barPosition && !inlineEdit && (
         <div className={`preview-title-toolbar${barBelow ? " is-below" : ""}`}
           data-testid="title-quick-toolbar" role="toolbar" aria-label="Быстрое форматирование титра"
           style={barPosition} onPointerDown={(event) => event.stopPropagation()}>
