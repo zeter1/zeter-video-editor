@@ -6,7 +6,7 @@ describe("subtitle presets", () => {
   it("pins the exact MVP clean, bold short-form, and active-word values", () => {
     expect(SUBTITLE_PRESETS).toEqual({
       clean: {
-        label: "Clean",
+        label: "Чистый стиль",
         style: {
           text_style: {
             font_family: "Arial",
@@ -24,7 +24,7 @@ describe("subtitle presets", () => {
         },
       },
       bold: {
-        label: "Bold short-form",
+        label: "Яркий для Shorts",
         style: {
           text_style: {
             font_family: "Arial",
@@ -42,7 +42,7 @@ describe("subtitle presets", () => {
         },
       },
       activeWord: {
-        label: "Active-word highlight",
+        label: "Подсветка слова",
         style: {
           text_style: {
             font_family: "Arial",

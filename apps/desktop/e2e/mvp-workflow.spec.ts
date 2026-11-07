@@ -290,7 +290,7 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   await expect(page.getByTestId(`clip-${IMAGE_CLIP}`)).toBeVisible();
   await expect(page.getByTestId(`clip-${TEXT_CLIP}`)).toBeVisible();
   await expect(
-    page.getByRole("textbox", { name: "Subtitle 1 text" }),
+    page.getByRole("textbox", { name: "Текст субтитра 1" }),
   ).toHaveValue("Task 19 subtitle");
 
   revision = await edit(page, 8, {
@@ -352,7 +352,7 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   await textSize.press("Tab");
   await expectRevision(page, 18);
 
-  const subtitle = page.getByRole("textbox", { name: "Subtitle 1 text" });
+  const subtitle = page.getByRole("textbox", { name: "Текст субтитра 1" });
   await subtitle.fill("Task 19 subtitle edited");
   await subtitle.press("Tab");
   await expectRevision(page, 19);
@@ -499,7 +499,7 @@ test("runs the real MVP import edit save and reopen workflow in Tauri", async ()
   await expectRevision(page, 22);
   await expect(page.locator(".timeline-clip-video")).toHaveCount(2);
   await expect(
-    page.getByRole("textbox", { name: "Subtitle 1 text" }),
+    page.getByRole("textbox", { name: "Текст субтитра 1" }),
   ).toHaveValue("Task 19 subtitle edited");
 });
 
@@ -603,7 +603,7 @@ test("reviews and applies a real subtitle from AI workspace in Windows WebView2"
   await page.getByRole("button", { name: "AI-инструменты" }).click();
   await expect(page.getByRole("region", { name: "AI-инструменты" })).toBeVisible();
   await expect(page.getByText(/Автосубтитры работают локально/)).toBeVisible();
-  await page.getByRole("textbox", { name: "Текст субтитра" }).fill("Создан в редакторе");
+  await page.getByRole("textbox", { name: "Текст субтитра", exact: true }).fill("Создан в редакторе");
   await page.getByRole("spinbutton", { name: "Начало (с)" }).fill("5");
   await page.getByRole("spinbutton", { name: "Конец (с)" }).fill("6");
   await expect(page.getByText(/Предпросмотр: 5.00–6.00 с/)).toBeVisible();
@@ -613,7 +613,7 @@ test("reviews and applies a real subtitle from AI workspace in Windows WebView2"
   expect(unchanged.revision).toBe(0);
   expect(unchanged.project.sequences[0].subtitle_segments).toHaveLength(beforeCount);
 
-  await page.getByRole("button", { name: "Добавить субтитр" }).click();
+  await page.getByTestId("left-panel").getByRole("button", { name: "Добавить субтитр", exact: true }).click();
   await expectRevision(page, 1);
   const applied = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");
   expect(applied.project.sequences[0].subtitle_segments).toHaveLength(beforeCount + 1);
@@ -777,7 +777,7 @@ test("drops real Whisper review between duplicate timeline clips of the same sou
   expect(reviewed.project.sequences[0].subtitle_segments)
     .toEqual(initial.project.sequences[0].subtitle_segments);
 
-  await page.getByRole("textbox", { name: "Текст субтитра" })
+  await page.getByRole("textbox", { name: "Текст субтитра", exact: true })
     .fill("Keep this manual draft");
   await page.getByTestId(`clip-${duplicateId}`).click();
   await expect(transcription.getByRole("button", { name: "Apply subtitles" })).toHaveCount(0);
@@ -785,7 +785,7 @@ test("drops real Whisper review between duplicate timeline clips of the same sou
     .toHaveCount(0);
   await expect(transcription.getByRole("button", { name: "Generate subtitles" }))
     .toBeEnabled();
-  await expect(page.getByRole("textbox", { name: "Текст субтитра" }))
+  await expect(page.getByRole("textbox", { name: "Текст субтитра", exact: true }))
     .toHaveValue("Keep this manual draft");
 
   const afterSwitch = await invokeTauri<AiWorkflowSnapshot>(page, "project_snapshot");

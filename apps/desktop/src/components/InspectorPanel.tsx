@@ -14,6 +14,7 @@ interface InspectorPanelProps {
   selectedTrackId: TrackId | null;
   selectedClip: Clip | null;
   onSeek: (timeUs: number) => void;
+  playheadTimeUs?: number;
   onCommit: EditCommit;
 }
 
@@ -23,6 +24,7 @@ export function InspectorPanel({
   selectedTrackId,
   selectedClip,
   onSeek,
+  playheadTimeUs = 0,
   onCommit,
 }: InspectorPanelProps) {
   const hasClipContext =
@@ -96,7 +98,8 @@ export function InspectorPanel({
         )}
 
         {sequence ? (
-          <SubtitlePanel sequence={sequence} onSeek={onSeek} onCommit={onCommit} />
+          <SubtitlePanel key={sequence.id} sequence={sequence}
+            playheadTimeUs={playheadTimeUs} onSeek={onSeek} onCommit={onCommit} />
         ) : null}
       </div>
     </aside>

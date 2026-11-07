@@ -1,3 +1,14 @@
+# CURRENT DEVELOPMENT — ZVE-009 manual timed subtitle editor (2026-11-07)
+
+- **Base:** GitHub `main` `7bb197024098c4502f42c0064d0e455dcc164ab2`; its post-merge Actions #42371458135 COMPLETED SUCCESS. ZVE-008/PR #89 is already merged; do not replay it.
+- **Branch:** `feat/zve-009-manual-subtitle-editor-20261107` from that clean main; desktop `0.1.0-alpha.27` (source-only prerelease, no publication).
+- **Product work:** active `Субтитры` tool focuses the existing Inspector subtitle editor; create a two-second caption at current playhead, edit start/end (seconds) and text, delete, choose existing style presets. Add uses Rust `AddSubtitleSegments`; edit/delete use `SetSubtitleSegments`, authoritative history Undo/Redo. Inconsistent or invalid ranges/blank text are rejected before IPC and unsuccessful edit restores confirmed state. Existing .vcut schema/FFmpeg/source media/Rust protocol unchanged.
+- **Real Windows QA on Zeter-PC:** Vitest 228/228 PASS after RED four new manual-subtitle tests; TypeScript/Vite PASS; `cargo fmt --all -- --check`, Rust workspace tests (`ZETER_TEST_FFMPEG_DIR=C:\ffmpeg\bin`) PASS; `node scripts/check-version.mjs`, `git diff --check` PASS. Actual native Tauri/WebView2 Playwright E2E **33/33 PASS**, including ZVE-009 click/add/range/text/delete/Undo/Redo/save/reopen .vcut and pixel-level FFmpeg H.264 MP4 with-caption vs no-caption comparison. An initial full run had 31/33 due only to ambiguous Playwright accessible-name matching with AI textbox, fixed by exact selectors and scoped button; both targeted 2/2 and full repeat 33/33 PASS without weakening test assertions. New binary: `target\x86_64-pc-windows-msvc\debug\zeter-desktop-tauri.exe`.
+- **Windows artifacts:** desktop DEBUG EXE `target\x86_64-pc-windows-msvc\debug\zeter-desktop-tauri.exe` 26,029,568 bytes SHA256 `D749C2D6571AB442AC64222F3EDA6F0E7F648D647B422411753EC3C5D7873998`; unsigned NSIS `target\x86_64-pc-windows-msvc\debug\bundle\nsis\Zeter Video Editor_0.1.0-alpha.27_x64-setup.exe` 116,543,359 bytes SHA256 `A0C4756436C29CF71E6B74F672E0986FCA12A70CA326719D8A792ED37065A261`. Built on Zeter-PC through Tauri/NSIS, not installed, signed, tagged, or publicly released. **GitHub PR/CI:** pending push and exact-HEAD checks as of this checkpoint; record outcomes without assuming SUCCESS. Do not merge until required gates pass.
+- **NEXT PRODUCT-CODE TASK after ZVE-009 integration:** ZVE-010 — improve subtitle clip visualization on the multitrack Timeline (approved text/subtitle tracks) by exposing timed segments with preview/seek/selection and safe edit operations over existing Rust subtitle commands. Inspect `apps/desktop/src/components/TimelinePanel.tsx`, `apps/desktop/src/timeline/`, `apps/desktop/src/subtitles/SubtitlePanel.tsx`, add Vitest and native Windows 16:9+9:16 E2E before merging. Preserve .vcut and original media; do not duplicate ZVE-009 or begin unrelated planning.
+
+---
+
 # CURRENT WORKING STATE — Native WebView2 spontaneous-pause recovery (2026-11-07)
 
 - Last pushed PR #89 branch head at start of this fix: 267ebbad3d1057a8dc99a0783322f82e6fd777a1, based on main 88452f4859af803f16c765c6be98112abd86af46; CI #42368422018 exact old head COMPLETED SUCCESS, including native Windows E2E and NSIS smoke. The NEW source fix is NOT covered by that older green CI; obtain new exact-HEAD gate after commit.
@@ -1052,7 +1063,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.26` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.27` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

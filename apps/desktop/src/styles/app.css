@@ -1016,9 +1016,17 @@ button {
 
 .subtitle-row {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 5px;
+  grid-template-columns: 34px repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color, #343b48);
 }
+.subtitle-row label { min-width: 0; font-size: 11px; }
+.subtitle-row input { box-sizing: border-box; min-width: 0; width: 100%; }
+.subtitle-row > input { grid-column: 2 / 4; }
+.subtitle-row > button:last-child { grid-column: 2 / 4; }
+.subtitle-error { color: #ffc8b8; font-size: 12px; }
 
 .subtitle-row .subtitle-time {
   padding: 0 5px;
