@@ -733,6 +733,8 @@ export function AppShell({
           sequence={activeSequence}
           selectedTrackId={selectedTrackId}
           selectedClip={selectedClip}
+          selectedSubtitleIndex={transient.selectedSubtitleIndex}
+          onSelectSubtitle={(index) => transientStore.selectSubtitle(index)}
           onSeek={(timeUs) => transientStore.setPlayheadTime(timeUs)}
           playheadTimeUs={transient.playheadTimeUs}
           onCommit={handleEditCommand}

@@ -1,3 +1,13 @@
+# CURRENT DEVELOPMENT — ZVE-010 subtitle segments on Timeline (2026-11-07)
+
+- **Base and prior success:** GitHub main `ba8bd4a263f3d9639e5b5e0aa4c33c5bd9bf4339` / alpha.27, post-merge Windows GitHub CI #42379285644 COMPLETED SUCCESS. Prior ZVE-009/PR #91 merged; Windows local `main` fast-forwarded exactly to this SHA before this slice.
+- **Active source branch:** `feat/zve-010-subtitle-timeline-20261107`, based on exact main SHA above. Desktop version `0.1.0-alpha.28` via `scripts/set-version.mjs`; source-only, no release/tag/install/signing.
+- **Feature:** `SubtitleTimelineLane.tsx` displays segments on a dedicated lane, packs overlaps without changing their Rust array order, seeks/selects from the lane and highlights the Inspector row. Left/right handles support transient pointer trim + keyboard frame steps (Shift x5) and then one authoritative Rust `SetSubtitleSegments` per gesture with Undo/Redo. Guarded against stale project/sequence and pending edits. End-of-timeline includes captions. `.vcut` schema, media inputs, Rust IPC and FFmpeg export are unchanged; text edited through existing Inspector.
+- **Local Windows verified evidence (2026-11-07):** new targeted Vitest 4/4 PASS; full Vitest **232/232 PASS (50 files)**; TypeScript/Vite PASS; `cargo fmt --all -- --check` PASS; Rust workspace `cargo test --workspace --quiet` PASS; `node scripts/check-version.mjs` PASS; `git diff --check` PASS. New native WebView2 `subtitle-timeline.spec.ts` 1/1 PASS: select, pointer/keyboard trim, one Rust history entry per gesture, Undo/Redo, `.vcut`, portrait sequence. **Full native WebView2 E2E 34/34 PASS** (includes real FFmpeg export and previews). Native Tauri DEBUG EXE 26,258,944 bytes SHA256 `8B18E6A075540693B4058879C888971B62861AFEA878B2A28F2F5ABF5741D964`; standalone NSIS DEBUG bundle 116,602,140 bytes SHA256 `4410102DE2F1A456CAE2ECE3DEDFEB04203E2BB67F3FA5DA66F4A884C6289CCC`, path `target/x86_64-pc-windows-msvc/debug/bundle/nsis/Zeter Video Editor_0.1.0-alpha.28_x64-setup.exe`. One parallel packaging attempt failed from Windows file-lock conflict with simultaneous E2E; sequential retry **PASS**. No install, signing, GitHub release or tag. Exact feature HEAD and CI still required before merge.
+- **NEXT PRODUCT CODE after integration:** ZVE-011 — professional audio waveform drawing for audio/media clips directly on Timeline using existing Rust `media-engine/waveform.rs` cache primitives. Determine read-only UI/IPC path, zoom/trim alignment and native Windows E2E first; do not replay completed subtitles or introduce unnecessary .vcut migration.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-009 manual timed subtitle editor (2026-11-07)
 
 - **Base:** GitHub `main` `7bb197024098c4502f42c0064d0e455dcc164ab2`; its post-merge Actions #42371458135 COMPLETED SUCCESS. ZVE-008/PR #89 is already merged; do not replay it.
@@ -1063,7 +1073,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.27` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.28` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

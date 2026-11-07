@@ -21,6 +21,7 @@ export interface ClipDragInput {
 export interface TransientUiState {
   selectedSequenceId: SequenceId | null;
   selectedClipId: ClipId | null;
+  selectedSubtitleIndex: number | null;
   selectedTrackId: TrackId | null;
   hoveredClipId: ClipId | null;
   drag: ClipDragState | null;
@@ -36,6 +37,7 @@ type Listener = () => void;
 const initialState = (): TransientUiState => ({
   selectedSequenceId: null,
   selectedClipId: null,
+  selectedSubtitleIndex: null,
   selectedTrackId: null,
   hoveredClipId: null,
   drag: null,
@@ -66,11 +68,15 @@ export class TransientStore {
   }
 
   selectClip(clipId: ClipId | null): void {
-    this.patch({ selectedClipId: clipId });
+    this.patch({ selectedClipId: clipId, selectedSubtitleIndex: clipId ? null : this.state.selectedSubtitleIndex });
   }
 
   selectTrack(trackId: TrackId | null): void {
-    this.patch({ selectedTrackId: trackId });
+    this.patch({ selectedTrackId: trackId, selectedSubtitleIndex: trackId ? null : this.state.selectedSubtitleIndex });
+  }
+
+  selectSubtitle(index: number | null): void {
+    this.patch({ selectedSubtitleIndex: index, selectedClipId: null, selectedTrackId: null });
   }
 
   setHoveredClip(clipId: ClipId | null): void {

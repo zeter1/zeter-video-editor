@@ -15,6 +15,8 @@ interface SubtitlePanelProps {
   sequence: Sequence;
   playheadTimeUs?: number;
   onSeek: (timeUs: number) => void;
+  selectedSubtitleIndex?: number | null;
+  onSelectSubtitle?: (index: number) => void;
   onCommit: EditCommit;
   transcription?: TranscriptionWorkflow;
 }
@@ -44,6 +46,7 @@ function validate(drafts: Draft[]): SubtitleSegment[] | string {
 
 export function SubtitlePanel({
   sequence, playheadTimeUs = 0, onSeek, onCommit, transcription,
+  selectedSubtitleIndex = null, onSelectSubtitle,
 }: SubtitlePanelProps) {
   const [drafts, setDrafts] = useState(() => draftsOf(sequence.subtitle_segments));
   const [error, setError] = useState<string | null>(null);
@@ -126,10 +129,10 @@ export function SubtitlePanel({
       ) : (
         <div className="subtitle-list">
           {drafts.map((draft, i) => (
-            <div className="subtitle-row" key={i}>
+            <div className={"subtitle-row" + (selectedSubtitleIndex === i ? " is-selected" : "")} key={i}>
               <button type="button" className="subtitle-time" disabled={submitting}
                 aria-label={`Перейти к субтитру ${i + 1}`}
-                onClick={() => onSeek(sequence.subtitle_segments[i]?.start ?? 0)}>{i + 1}</button>
+                onClick={() => { onSelectSubtitle?.(i); onSeek(sequence.subtitle_segments[i]?.start ?? 0); }}>{i + 1}</button>
               <label>Начало, с
                 <input type="number" min={0} step="0.001" disabled={submitting}
                   aria-label={`Начало субтитра ${i + 1}, с`} value={draft.start}
