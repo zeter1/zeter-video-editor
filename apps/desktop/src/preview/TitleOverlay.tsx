@@ -125,6 +125,7 @@ export function TitleOverlay({
     kind: "move" | "resize", corner?: Corner): void {
     if (event.button !== 0 || !event.isPrimary || drag.current || committing.current) return;
     event.stopPropagation();
+    if (kind === "move") event.currentTarget.focus();
     onSelect?.(title.clip.id, title.track.id);
     if (title.track.locked || !title.clip.text) return;
     const frame = svg.current?.getBoundingClientRect();
@@ -200,9 +201,38 @@ export function TitleOverlay({
   }
 
   function selectKey(event: ReactKeyboardEvent<SVGTextElement>, title: VisibleTitle): void {
-    if (event.key !== "Enter" && event.key !== " ") return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect?.(title.clip.id, title.track.id);
+      return;
+    }
+    const dx = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+    const dy = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+    if ((!dx && !dy) || event.altKey || event.ctrlKey || event.metaKey) return;
     event.preventDefault();
+    event.stopPropagation(); // Never seek the timeline while focus is on a title.
     onSelect?.(title.clip.id, title.track.id);
+    if (title.track.locked || !title.clip.text || committing.current || drag.current ||
+      event.repeat || width <= 0 || height <= 0) return;
+    const pixels = event.shiftKey ? 10 : 1;
+    const transform = {
+      ...title.clip.transform,
+      position_x: Math.round((title.clip.transform.position_x + dx * pixels * 2 / width) * 1_000_000) / 1_000_000,
+      position_y: Math.round((title.clip.transform.position_y + dy * pixels * 2 / height) * 1_000_000) / 1_000_000,
+    };
+    committing.current = true;
+    setPreview({ clipId: title.clip.id, transform, style: title.clip.text.style });
+    void (async () => {
+      try {
+        await requestEditCommit(onCommit, { SetTransform: {
+          sequence_id: sequenceId, track_id: title.track.id, clip_id: title.clip.id,
+          transform,
+        } });
+      } finally {
+        committing.current = false;
+        setPreview(null);
+      }
+    })();
   }
 
   async function commitStyle(patch: Partial<TextStyle>): Promise<void> {

@@ -72,6 +72,40 @@ describe("title drag in Preview", () => {
     } });
   });
 
+  it("focuses a title on mouse selection so arrows work without Tab", () => {
+    const { glyph } = mount();
+    fireEvent.pointerDown(glyph, down);
+    expect(document.activeElement).toBe(glyph);
+  });
+
+  it("nudges a focused title by one sequence pixel per arrow key, once in Rust history", async () => {
+    const { glyph, onCommit, onSelect } = mount(undefined, undefined, false, true);
+    fireEvent.keyDown(glyph, { key: "ArrowRight" });
+    await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
+    expect(onSelect).toHaveBeenCalledWith("title-1", "track-text");
+    expect(onCommit).toHaveBeenCalledWith({ SetTransform: {
+      sequence_id: "seq-1", track_id: "track-text", clip_id: "title-1",
+      transform: { ...clip.transform, position_x: 0.101042 },
+    } });
+  });
+
+  it("nudges ten sequence pixels with Shift", async () => {
+    const { glyph, onCommit } = mount(undefined, undefined, false, true);
+    fireEvent.keyDown(glyph, { key: "ArrowUp", shiftKey: true });
+    await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(1));
+    expect(onCommit).toHaveBeenCalledWith({ SetTransform: {
+      sequence_id: "seq-1", track_id: "track-text", clip_id: "title-1",
+      transform: { ...clip.transform, position_y: -0.218519 },
+    } });
+  });
+
+  it("does not nudge a locked title or hijack modified shortcuts", () => {
+    const { glyph, onCommit } = mount(undefined, undefined, true, true);
+    fireEvent.keyDown(glyph, { key: "ArrowLeft" });
+    fireEvent.keyDown(glyph, { key: "ArrowRight", ctrlKey: true });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("does not create a history entry for a simple click or a cancelled drag", () => {
     const { glyph, onSelect, onCommit } = mount();
     fireEvent.pointerDown(glyph, down);

@@ -119,6 +119,26 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
     await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
   ).find((title) => title.id === created.id)?.transform).toEqual(moved);
 
+  // Keyboard nudge uses sequence pixels (not Preview CSS pixels), one Rust
+  // SetTransform and one Undo/Redo; it must persist through .vcut.
+  await titleGlyph.click();
+  await expect(titleGlyph).toBeFocused();
+  await titleGlyph.press("ArrowRight");
+  const nudgedX = Math.round((moved.position_x + 2 / 1920) * 1_000_000) / 1_000_000;
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.transform.position_x).toBe(nudgedX);
+  const nudged = titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
+    .find((title) => title.id === created.id)!.transform;
+  await page.getByRole("button", { name: "Отменить", exact: true }).click();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.transform).toEqual(moved);
+  await page.getByRole("button", { name: "Повторить", exact: true }).click();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.transform).toEqual(nudged);
+
   // Selecting the title exposes an on-canvas selection frame, draggable
   // resize handles, and a toolbar above the text.
   await titleGlyph.click();
@@ -165,7 +185,7 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
   const reopened = await invokeTauri<TitleSnapshot>(page, "project_snapshot");
   expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.text?.text)
     .toBe("Титр после правки");
-  expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.transform).toEqual(moved);
+  expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.transform).toEqual(nudged);
   const reopenedStyle = titles(reopened, sequenceId).find((title) => title.id === created.id)?.text?.style;
   expect(reopenedStyle?.font_family).toBe("Tahoma");
   expect(reopenedStyle?.font_size).toBe(afterResize);
