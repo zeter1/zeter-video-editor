@@ -30,6 +30,7 @@ import { TimecodeInput } from "./TimecodeInput";
 import { formatTimecode } from "./timecode";
 import { contentPixelToTimeUs, timeUsToPixel } from "./timeScale";
 import { TrackView } from "./TrackView";
+import { SubtitleTimelineLane } from "./SubtitleTimelineLane";
 
 export const TIMELINE_PIXELS_PER_SECOND = 100;
 export const TIMELINE_TRACK_HEADER_WIDTH_PX = 132;
@@ -63,6 +64,7 @@ interface TimelineProps {
 
 function sequenceContentEndUs(sequence: Sequence): number {
   let end = 0;
+  for (const segment of sequence.subtitle_segments) end = Math.max(end, segment.end);
   for (const marker of sequence.markers) {
     end = Math.max(end, marker.time);
   }
@@ -601,6 +603,15 @@ export function Timeline({
           />
 
           <div className="timeline-track-list">
+            <SubtitleTimelineLane
+              sequence={sequence}
+              pixelsPerSecond={TIMELINE_PIXELS_PER_SECOND}
+              zoom={transient.timelineZoom}
+              maxTimeUs={endUs}
+              projectStore={projectStore}
+              transientStore={transientStore}
+              commitCommand={commitCommand}
+            />
             {sequence.tracks.map((track, trackIndex) => (
               <TrackView
                 key={track.id}

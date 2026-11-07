@@ -1409,3 +1409,73 @@ button {
 }
 .preview-title-toolbar :disabled { opacity: .5; cursor: not-allowed; }
 
+
+
+/* ZVE-010: caption intervals are first-class timeline items, not video clips.
+   Their three controls remain keyboard accessible at narrow zoom levels. */
+.timeline-subtitle-track {
+  background: #101922;
+}
+.timeline-subtitle-track .timeline-track-header {
+  align-content: center;
+  color: #dcf5d3;
+}
+.timeline-subtitle-count { color: var(--muted); font-size: 10px; }
+.timeline-subtitle-lane { position: relative; min-width: 0; }
+.timeline-subtitle-item {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  height: 36px;
+  min-width: 24px;
+  border: 1px solid #579c79;
+  border-radius: 5px;
+  background: #244b3a;
+  overflow: hidden;
+}
+.timeline-subtitle-item.is-selected {
+  border-color: #b8f6cb;
+  outline: 2px solid rgba(167, 242, 190, 0.48);
+  outline-offset: 1px;
+}
+.timeline-subtitle-item button {
+  height: 100%;
+  border: 0;
+  color: #e5f5e9;
+  background: transparent;
+  padding: 0;
+}
+.timeline-subtitle-item button:focus-visible {
+  outline: 2px solid #fbffbe;
+  outline-offset: -2px;
+}
+.timeline-subtitle-trim {
+  flex: 0 0 7px;
+  cursor: ew-resize;
+  background: rgba(184, 246, 203, 0.34) !important;
+  touch-action: none;
+}
+.timeline-subtitle-body {
+  flex: 1 1 0;
+  min-width: 0;
+  cursor: pointer;
+  padding: 0 5px !important;
+  text-align: left;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.timeline-subtitle-item button:disabled { opacity: 0.6; cursor: wait; }
+.timeline-subtitle-error {
+  grid-column: 1 / -1;
+  padding: 4px 10px;
+  margin: 0;
+  color: #ffbfa9;
+  font-size: 11px;
+}
+.subtitle-row.is-selected {
+  border-left: 3px solid #a6f0bd;
+  padding-left: 6px;
+  background: rgba(102, 167, 120, 0.11);
+}

@@ -13,6 +13,8 @@ interface InspectorPanelProps {
   sequence: Sequence | null;
   selectedTrackId: TrackId | null;
   selectedClip: Clip | null;
+  selectedSubtitleIndex?: number | null;
+  onSelectSubtitle?: (index: number) => void;
   onSeek: (timeUs: number) => void;
   playheadTimeUs?: number;
   onCommit: EditCommit;
@@ -23,6 +25,8 @@ export function InspectorPanel({
   sequence,
   selectedTrackId,
   selectedClip,
+  selectedSubtitleIndex = null,
+  onSelectSubtitle,
   onSeek,
   playheadTimeUs = 0,
   onCommit,
@@ -99,6 +103,8 @@ export function InspectorPanel({
 
         {sequence ? (
           <SubtitlePanel key={sequence.id} sequence={sequence}
+            selectedSubtitleIndex={selectedSubtitleIndex}
+            onSelectSubtitle={onSelectSubtitle}
             playheadTimeUs={playheadTimeUs} onSeek={onSeek} onCommit={onCommit} />
         ) : null}
       </div>
