@@ -267,6 +267,9 @@ export function PreviewPlayer({
     key: string; timeUs: number; timingKey: string;
   } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
+  // WebView2 can emit an unsolicited native pause a frame after play() resolves.
+  // Keep the requested transport alive, but bound retries to avoid a decoder loop.
+  const unexpectedNativePauseRef = useRef({ key: "", retries: 0 });
   // Accepted compositor frames anchor recovery after dropped callbacks.
   // Pause/Stop and native or UI-initiated seek retire this trusted anchor.
   const frameAnchorRef = useRef<{ key: string; mediaSeconds: number; presentedFrames: number } | null>(null);
@@ -359,6 +362,13 @@ export function PreviewPlayer({
   const key = active && source ? `${active.id}:${source.id}` : "";
   const image = active?.kind === "Image";
   const videoSource = active?.kind === "Video" && src ? src : null;
+  useEffect(() => {
+    unexpectedNativePauseRef.current = { key, retries: 0 };
+  }, [key]);
+
+  useEffect(() => {
+    if (!playing) unexpectedNativePauseRef.current.retries = 0;
+  }, [playing]);
   const frameTimingKey = active && videoSource
     ? `${key}:${active.source_in}:${active.source_out}:${active.timeline_start}:${active.timeline_end}:${active.speed}`
     : key;
@@ -638,7 +648,31 @@ export function PreviewPlayer({
                 // the external audio only after a usable video frame is ready.
                 if (!supportsPresentedFrames(video.current) && videoClockReady()) setSyncedVideoKey(key);
               }}
-              onPause={() => setSyncedVideoKey(null)}
+              onPause={() => {
+                setSyncedVideoKey(null);
+                const current = video.current;
+                // Intentional Pause/Stop, a real seek, EOF and missing data must
+                // never cause an automatic restart. Audio remains gated on a
+                // NEW compositor frame, not merely this native play() call.
+                if (!playing || !current || !current.paused || current.seeking ||
+                    current.ended || current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+                const recovery = unexpectedNativePauseRef.current;
+                if (recovery.key !== key) {
+                  recovery.key = key;
+                  recovery.retries = 0;
+                }
+                if (recovery.retries >= 2) {
+                  setPlaying(false);
+                  setMediaError("WebView2 неожиданно остановил видеодекодер. Повторите воспроизведение.");
+                  return;
+                }
+                recovery.retries += 1;
+                void current.play().catch((reason: unknown) => {
+                  if (isBenignMediaPlayRejection(reason)) return;
+                  setPlaying(false);
+                  setMediaError("Не удалось возобновить видео после остановки WebView2.");
+                });
+              }}
               onEnded={() => {
                 // Ignore old EOF signals queued before a scrub or Stop.
                 const current = video.current;

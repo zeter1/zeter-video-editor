@@ -1,3 +1,12 @@
+# CURRENT WORKING STATE — Native WebView2 spontaneous-pause recovery (2026-11-07)
+
+- Last pushed PR #89 branch head at start of this fix: 267ebbad3d1057a8dc99a0783322f82e6fd777a1, based on main 88452f4859af803f16c765c6be98112abd86af46; CI #42368422018 exact old head COMPLETED SUCCESS, including native Windows E2E and NSIS smoke. The NEW source fix is NOT covered by that older green CI; obtain new exact-HEAD gate after commit.
+- Independent Windows stress exposed a real first-start native WebView2 VIDEO pause around 80ms after resolved play() (video and WAV stall at 0.000s even when document visible/focused). Repeat RED: 6/6 audio and 2x A/V selected test invocations failed on the old binary, despite the earlier 32/32 full suite and old CI pass. Native event instrumentation proved the decoder paused without calling app JS pause(); standalone audio remained correctly gated to the video picture.
+- Fix in apps/desktop/src/preview/PreviewPlayer.tsx: bounded per-Play/clip retry on unexpected video pause while retaining invariant audio-gated to real rVFC frames. Never retry intentional Pause/Stop, seek, EOF, and reject persistent native failure visibly. Regression test added in PreviewTransportIntegration.test.tsx; RED 1/1, GREEN 1/1; isolated WebView2 standalone audio GREEN 1/1 and repeated targeted stress GREEN 6/6 (3 audio, 3 2x A/V with forward/backward/waiting/stalled). No drift-threshold relaxation, no media/format change. Version stays 0.1.0-alpha.26.
+- REQUIRED BEFORE PR #89 MERGE: full fresh Rust/Vitest/TypeScript/native 32/32 on new source; source code review, SHA256 of rebuilt unsigned EXE/NSIS if built, commit and push; GitHub new exact-HEAD terminal SUCCESS; branch protection. Never treat CI #42368422018 as proof for uncommitted source.
+- NEXT independent product feature after successful PR #89: ZVE-009 UI manual subtitles using AddSubtitleSegments/SetSubtitleSegments, Undo/Redo/.vcut/MP4 and native E2E.
+
+---
 # CURRENT CHECKPOINT — ZVE-008 branch sync and independent Windows QA (2026-11-07)
 
 - GitHub main: 88452f4859af803f16c765c6be98112abd86af46; PR #89 source before sync: ea259fd4e07ec6da2b99dec0023120aaf4addf54, draft 0.1.0-alpha.26; exact pre-sync PR CI #42363314135 COMPLETED SUCCESS. This merges owner-delegated QA policy from main with existing draft evidence; not a release.
