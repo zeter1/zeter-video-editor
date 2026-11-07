@@ -363,6 +363,9 @@ export function TitleOverlay({
           if (!clip.text) return null;
           const style = preview?.clipId === clip.id ? preview.style : clip.text.style;
           const transform = preview?.clipId === clip.id ? preview.transform : clip.transform;
+          // Newlines saved by the Inspector or Shift+Enter must remain separate rows in Preview.
+          const textLines = clip.text.text.split(/\r\n|\r|\n/);
+          const lineStep = Math.round(style.font_size * 1.2 * 1000) / 1000;
           const anchorX = style.alignment === "Left" ? 20
             : style.alignment === "Right" ? width - 20 : width / 2;
           const x = anchorX + transform.position_x * width / 2;
@@ -392,7 +395,13 @@ export function TitleOverlay({
               onKeyDown={(event) => selectKey(event, title)}
               onKeyUp={(event) => releaseKey(event, clip.id)}
               onBlur={() => { if (nudge.current?.clipId === clip.id) finishNudge(); }}
-            >{clip.text.text}</text>
+              xmlSpace="preserve"
+            >{textLines.length === 1 ? clip.text.text : textLines.map((line, index) => (
+              <tspan key={index} x={x}
+                dy={index === 0 ? -(textLines.length - 1) * lineStep / 2 : lineStep}>
+                {line || String.fromCharCode(160)}
+              </tspan>
+            ))}</text>
           );
         })}
         {selected && bounds && !inlineEdit && (

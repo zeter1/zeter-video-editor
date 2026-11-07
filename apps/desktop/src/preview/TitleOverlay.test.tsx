@@ -222,6 +222,33 @@ describe("inline title content editing", () => {
   });
 });
 
+describe("multiline titles in the Preview", () => {
+  it("renders each line, including empty lines, as a separate centered SVG row", () => {
+    const multiline: Clip = {
+      ...clip,
+      text: {
+        ...clip.text!,
+        text: ["Первая строка", "", "Третья строка"].join(String.fromCharCode(10)),
+      },
+    };
+    render(
+      <TitleOverlay sequenceId="seq-1" width={1920} height={1080}
+        titles={[{ clip: multiline, track }]} selectedClipId={null}
+        onCommit={vi.fn(async () => true)} />,
+    );
+    const glyph = screen.getByTestId("preview-title-title-1");
+    const rows = Array.from(glyph.querySelectorAll("tspan"));
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "Первая строка", String.fromCharCode(160), "Третья строка",
+    ]);
+    expect(rows.map((row) => row.getAttribute("x"))).toEqual([
+      glyph.getAttribute("x"), glyph.getAttribute("x"), glyph.getAttribute("x"),
+    ]);
+    expect(rows.map((row) => Number(row.getAttribute("dy")))).toEqual([-57.6, 57.6, 57.6]);
+  });
+});
+
 describe("selected title canvas controls", () => {
   it("shows a visible selection frame, four resize handles and quick formatting above the title", () => {
     mount(undefined, undefined, false, true);

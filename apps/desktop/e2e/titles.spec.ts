@@ -106,6 +106,21 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
   expect(titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
     .find((title) => title.id === created.id)?.text?.text).toBe("Титр прямо на холсте");
 
+  // Shift+Enter creates real multiline title content and distinct on-canvas rows.
+  const multilineText = ["Первая строка", "Вторая строка"].join(String.fromCharCode(10));
+  await inlineGlyph.dblclick();
+  const multilineEditor = page.getByRole("textbox", { name: "Редактировать титр на холсте" });
+  await multilineEditor.fill("Первая строка");
+  await multilineEditor.press("Shift+Enter");
+  await multilineEditor.pressSequentially("Вторая строка");
+  await multilineEditor.press("Enter");
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).find((title) => title.id === created.id)?.text?.text).toBe(multilineText);
+  await expect(inlineGlyph.locator("tspan")).toHaveCount(2);
+  await expect(inlineGlyph.locator("tspan").first()).toHaveText("Первая строка");
+  await expect(inlineGlyph.locator("tspan").last()).toHaveText("Вторая строка");
+
   // Drag the glyph in the actual WebView2 compositor. The Rust project must
   // remain unchanged until pointer up, then record exactly one SetTransform.
   const titleGlyph = page.getByTestId(`preview-title-${created.id}`);
@@ -218,7 +233,7 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
   await invokeTauri(page, "project_open", { path: savePath });
   const reopened = await invokeTauri<TitleSnapshot>(page, "project_snapshot");
   expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.text?.text)
-    .toBe("Титр прямо на холсте");
+    .toBe(multilineText);
   expect(titles(reopened, sequenceId).find((title) => title.id === created.id)?.transform).toEqual(nudged);
   const reopenedStyle = titles(reopened, sequenceId).find((title) => title.id === created.id)?.text?.style;
   expect(reopenedStyle?.font_family).toBe("Tahoma");
