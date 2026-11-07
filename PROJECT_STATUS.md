@@ -1,3 +1,11 @@
+# POST-MERGE CI RECOVERY — WebView2 CDP attach race (2026-11-07)
+
+- **ZVE-010 merged**: PR #92 https://github.com/zeter1/zeter-video-editor/pull/92, `main` squash commit `b5aec7314c64026d49ad6446a0c8f46d453484d0` (desktop alpha.28). Exact feature-head PR CI #42382557892 SUCCESS, but post-merge main CI #42383488327 FAILED in `End-to-end MVP acceptance`: 33/34 native cases passed, `manual-subtitles.spec.ts` failed before first app step because `connectTauri()` saw zero CDP pages immediately after connecting. New ZVE-010 `subtitle-timeline.spec.ts` still PASSED there. Failure was a test-harness startup race, not a tested editor command failure.
+- **Fix branch:** `fix/webview2-cdp-attach-race-20261107` from main `b5aec731...`. `apps/desktop/e2e/tauri.ts` now waits up to 15 seconds for a non-blank live WebView2 page target after CDP attachment instead of taking a one-time empty snapshot; retains existing `domcontentloaded` + Tauri invoke readiness checks and fails with observed URLs if truly unavailable. No production source, packaging, project schema or release version change.
+- **Windows smoke evidence:** `npm run build` PASS; native `manual-subtitles.spec.ts` + `subtitle-timeline.spec.ts` 2/2 PASS, including Rust, `.vcut`, H.264/FFmpeg pixels, Undo/Redo and portrait sequence. Finish full E2E + push/PR + exact-head CI, then merge if PASS and recheck `main` CI. This is a test-only follow-up; app version stays `0.1.0-alpha.28`.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-010 subtitle segments on Timeline (2026-11-07)
 
 - **Base and prior success:** GitHub main `ba8bd4a263f3d9639e5b5e0aa4c33c5bd9bf4339` / alpha.27, post-merge Windows GitHub CI #42379285644 COMPLETED SUCCESS. Prior ZVE-009/PR #91 merged; Windows local `main` fast-forwarded exactly to this SHA before this slice.
