@@ -26,6 +26,16 @@ If the final spec does not exist, continue the approved design workflow instead 
 
 The implementation plan is approved and complete. For stabilization inside the approved architecture, use TDD for behavior changes, systematic debugging for failures, and verification-before-completion before claims. Any new product capability or architectural direction that is not already in the approved specification requires Superpowers brainstorming and an explicit user decision before implementation.
 
+## Owner-delegated Windows QA and PR integration (decision 2026-11-07)
+
+The project owner explicitly delegated **routine Windows acceptance, code review, PR readiness, and merge-to-main decisions** for approved development tasks to ChatGPT. This supersedes the former requirement that the owner manually click through the application or separately approve each ordinary product PR. Do not block a PR merely because the owner has not performed hands-on QA.
+
+Before merging, ChatGPT must still independently perform and record **real, reproducible acceptance**, not just a green checkbox: inspect exact base/head diff and affected Rust/frontend/FFmpeg/contracts, run unit and integration tests, run the actual native Windows Tauri/WebView2 user actions on the changed build via Bridgerator, verify save/reopen, Undo/Redo and export output as relevant, build the unsigned DEBUG EXE/NSIS, confirm hashes, and obtain **terminal SUCCESS for the exact PR head** on mandatory GitHub checks. Investigate and fix real failures; a flaky rerun is not proof if the underlying failure remains unexplained. Perform a documented self-review, but do **not** impersonate an independent reviewer or bypass a required separate GitHub approval/branch protection.
+
+When every applicable gate genuinely passes, mark the PR ready (if draft), merge to `main` with an expected-head SHA using the repository-supported method, verify the new `main` commit and post-merge checks, and synchronize the Windows checkout. Do not ask the owner to repeat routine testing. If a required capability cannot be verified with available native GUI automation, report `NOT VERIFIED` and leave the PR unmerged rather than substituting simulation or invented QA.
+
+This delegation is **only for approved code development and internal PR integration**. Public tags/Releases, code signing, installer installation, auto-update activation, paid services, risky data operations, incompatible migrations and new out-of-spec architecture still require their own express authorization. Do not weaken/remove CI checks, assertions or security boundaries to get a merge.
+
 ## Mandatory product-first continuation (new sessions)
 
 **Primary goal: develop a functioning Windows video editor, not a documentation/versioning project.** The user wants the strongest *approved* editing workflows inspired by Premiere Pro and CapCut. Do not reinterpret the last Google checkpoint's maintenance topic as a request to spend the next session on maintenance again. This product-first rule takes priority when choosing the NEXT development task; security, data integrity, failing CI and direct user requests are legitimate exceptions.
