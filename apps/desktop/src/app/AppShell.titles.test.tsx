@@ -52,13 +52,14 @@ describe("titles in the editor", () => {
         const snap = store.getState().snapshot!;
         const seq = snap.project.sequences[0];
         let tracks = seq.tracks;
-        if ("AddTrack" in cmd) tracks = [...tracks, cmd.AddTrack.track];
-        if ("AddText" in cmd) tracks = tracks.map((track) => track.id === cmd.AddText.track_id
+        if ("AddTitle" in cmd && cmd.AddTitle.new_track)
+          tracks = [...tracks, cmd.AddTitle.new_track];
+        if ("AddTitle" in cmd) tracks = tracks.map((track) => track.id === cmd.AddTitle.track_id
           ? { ...track, clips: [...track.clips, {
-            id: cmd.AddText.clip_id, kind: "Text" as const, media_id: null,
-            source_in: 0, source_out: cmd.AddText.timeline_end - cmd.AddText.timeline_start,
-            timeline_start: cmd.AddText.timeline_start, timeline_end: cmd.AddText.timeline_end,
-            text: { text: cmd.AddText.text, style: cmd.AddText.style },
+            id: cmd.AddTitle.clip_id, kind: "Text" as const, media_id: null,
+            source_in: 0, source_out: cmd.AddTitle.timeline_end - cmd.AddTitle.timeline_start,
+            timeline_start: cmd.AddTitle.timeline_start, timeline_end: cmd.AddTitle.timeline_end,
+            text: { text: cmd.AddTitle.text, style: cmd.AddTitle.style },
             transform: { position_x: 0, position_y: 0, scale_x: 1, scale_y: 1,
               rotation_degrees: 0, opacity: 1,
               crop: { left: 0, right: 0, top: 0, bottom: 0 } },
@@ -79,22 +80,19 @@ describe("titles in the editor", () => {
     };
     render(<AppShell client={client} projectStore={store} transientStore={transient} />);
     fireEvent.click(screen.getByRole("button", { name: "Текст" }));
-    await waitFor(() => expect(executeEditCommand).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(executeEditCommand).toHaveBeenCalledTimes(1));
     expect(prompt).toHaveBeenCalledOnce();
     expect(executeEditCommand.mock.calls[0][0].command).toMatchObject({
-      AddTrack: { sequence_id: "seq-1", track: { kind: "Text" } },
-    });
-    expect(executeEditCommand.mock.calls[1][0].command).toMatchObject({
-      AddText: { sequence_id: "seq-1", timeline_start: 2_000_000,
-        timeline_end: 6_000_000, text: "Привет, мир!" },
+      AddTitle: { sequence_id: "seq-1", new_track: { kind: "Text" },
+        timeline_start: 2_000_000, timeline_end: 6_000_000, text: "Привет, мир!" },
     });
     const added = store.getState().snapshot!.project.sequences[0].tracks[1].clips[0];
     expect(transient.getState().selectedClipId).toBe(added.id);
     const editor = screen.getByRole("textbox", { name: "Содержание титра" });
     fireEvent.change(editor, { target: { value: "Другой текст" } });
     fireEvent.blur(editor);
-    await waitFor(() => expect(executeEditCommand).toHaveBeenCalledTimes(3));
-    expect(executeEditCommand.mock.calls[2][0].command).toEqual({
+    await waitFor(() => expect(executeEditCommand).toHaveBeenCalledTimes(2));
+    expect(executeEditCommand.mock.calls[1][0].command).toEqual({
       SetTextContent: { sequence_id: "seq-1", track_id: transient.getState().selectedTrackId,
         clip_id: added.id, text: "Другой текст" },
     });

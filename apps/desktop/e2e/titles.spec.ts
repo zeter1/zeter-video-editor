@@ -42,6 +42,22 @@ test("native WebView2 creates and edits a title, Undo/Redo and .vcut retain cont
   const created = titles(await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId)
     .find((title) => !oldIds.has(title.id))!;
   expect(created.text?.text).toBe("Нативный титр");
+  // One UI click must be one Rust history entry, including a fresh Text lane.
+  const trackCountBefore = before.project.sequences[0].tracks.length;
+  const createdSnapshot = await invokeTauri<TitleSnapshot>(page, "project_snapshot");
+  const newTrackCount = createdSnapshot.project.sequences[0].tracks.length;
+  await page.getByRole("button", { name: "Отменить", exact: true }).click();
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).filter((title) => !oldIds.has(title.id)).length).toBe(0);
+  await expect.poll(async () => (await invokeTauri<TitleSnapshot>(page, "project_snapshot"))
+    .project.sequences[0].tracks.length).toBe(trackCountBefore);
+  await page.getByRole("button", { name: "Повторить", exact: true }).click();
+  await expect.poll(async () => (await invokeTauri<TitleSnapshot>(page, "project_snapshot"))
+    .project.sequences[0].tracks.length).toBe(newTrackCount);
+  await expect.poll(async () => titles(
+    await invokeTauri<TitleSnapshot>(page, "project_snapshot"), sequenceId,
+  ).filter((title) => title.id === created.id).length).toBe(1);
   await expect(page.getByRole("textbox", { name: "Содержание титра" }))
     .toHaveValue("Нативный титр");
 

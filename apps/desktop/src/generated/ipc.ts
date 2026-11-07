@@ -201,6 +201,7 @@ export type EditCommand =
   | { SetColor: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; color: ColorAdjustments } }
   | { SetSpeed: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; speed: number } }
   | { AddTransition: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; transition: Transition } }
+  | { AddTitle: { sequence_id: SequenceId; track_id: TrackId; new_track: Track | null; clip_id: ClipId; timeline_start: TimeUs; timeline_end: TimeUs; text: string; style: TextStyle } }
   | { AddText: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; timeline_start: TimeUs; timeline_end: TimeUs; text: string; style: TextStyle } }
   | { SetTextStyle: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; style: TextStyle } }
   | { SetTextContent: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; text: string } }

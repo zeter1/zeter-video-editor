@@ -301,39 +301,26 @@ export function AppShell({
     setAddingText(true);
     try {
       const currentTrackId = transientStore.getState().selectedTrackId;
-      let target = seq.tracks.find((track) => track.id === currentTrackId &&
-        track.kind === "Text" && !track.locked);
-      target ??= seq.tracks.find((track) => track.kind === "Text" && !track.locked);
-      if (!target) {
-        const trackId = crypto.randomUUID();
-        const created = await handleEditCommand({ AddTrack: {
-          sequence_id: seq.id,
-          track: {
-            id: trackId, name: "Текст " + (seq.tracks.filter((t) => t.kind === "Text").length + 1),
-            kind: "Text", muted: false, locked: false, hidden: false, clips: [],
-          },
-          index: null,
-        } });
-        if (!created) return;
-        target = projectStore.getState().snapshot?.project.sequences
-          .find((item) => item.id === seq.id)?.tracks.find((track) => track.id === trackId);
-        if (!target) {
-          projectStore.setError("Не удалось получить новую текстовую дорожку.");
-          return;
-        }
-      }
+      const target = seq.tracks.find((track) => track.id === currentTrackId &&
+        track.kind === "Text" && !track.locked)
+        ?? seq.tracks.find((track) => track.kind === "Text" && !track.locked);
+      const trackId = target?.id ?? crypto.randomUUID();
+      const newTrack = target ? null : {
+        id: trackId, name: "Текст " + (seq.tracks.filter((t) => t.kind === "Text").length + 1),
+        kind: "Text" as const, muted: false, locked: false, hidden: false, clips: [],
+      };
       const start = Math.max(0, transientStore.getState().playheadTimeUs);
       const end = start + 4_000_000;
       const id = crypto.randomUUID();
-      const accepted = await handleEditCommand({ AddText: {
-        sequence_id: seq.id, track_id: target.id, clip_id: id,
+      const accepted = await handleEditCommand({ AddTitle: {
+        sequence_id: seq.id, track_id: trackId, new_track: newTrack, clip_id: id,
         timeline_start: start, timeline_end: end, text: title,
         style: { ...seq.subtitle_style.text_style },
       } });
       if (accepted && projectStore.getState().snapshot?.project.id === snapshot.project.id &&
           resolveSequence(projectStore.getState().snapshot?.project.sequences ?? [],
             transientStore.getState().selectedSequenceId)?.id === seq.id) {
-        transientStore.selectTrack(target.id);
+        transientStore.selectTrack(trackId);
         transientStore.selectClip(id);
       }
     } finally {
