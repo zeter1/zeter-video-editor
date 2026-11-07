@@ -157,6 +157,17 @@ pub enum EditCommand {
         clip_id: ClipId,
         transition: Transition,
     },
+    // Atomic user action: create a title and optionally its Text lane in one Undo step.
+    AddTitle {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        new_track: Option<Track>,
+        clip_id: ClipId,
+        timeline_start: TimeUs,
+        timeline_end: TimeUs,
+        text: String,
+        style: TextStyle,
+    },
     AddText {
         sequence_id: SequenceId,
         track_id: TrackId,
@@ -171,6 +182,12 @@ pub enum EditCommand {
         track_id: TrackId,
         clip_id: ClipId,
         style: TextStyle,
+    },
+    SetTextContent {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        clip_id: ClipId,
+        text: String,
     },
     AddSubtitleSegments {
         sequence_id: SequenceId,

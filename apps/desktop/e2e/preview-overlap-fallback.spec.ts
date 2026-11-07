@@ -285,6 +285,11 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
   const secondToken = await composite.getAttribute("src");
   expect(secondToken).toMatch(/^http:\/\/zeter-media\.localhost\/_preview\/[0-9a-f-]{36}$/i);
   expect(secondToken).not.toBe(firstToken);
+  if (process.env.ZETER_E2E_DIAGNOSTIC_CSS_WIDTH === "450") {
+    await page.locator(".preview-frame").evaluate((node) => {
+      (node as HTMLElement).style.width = "450px";
+    });
+  }
   const boundaryScreenshot = await page.locator(".preview-frame").screenshot({
     animations: "disabled", scale: "css",
   });
@@ -397,31 +402,80 @@ test("native paused composite matches FFmpeg export and retires after seek", asy
     "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
   ], { input: boundaryScreenshot, windowsHide: true, maxBuffer: 4_000_000 });
   expect(strip.length, "8-pixel native centre strip").toBe(8 * 2 * 3);
-  const left = [0, 1, 2].map((channel) => boundaryExportRgb[channel]);
-  const right = [0, 1, 2].map((channel) => boundaryExportRgb[3 + channel]);
+  // WebView2 scales the H.264 YUV420 luma and subsampled chroma planes
+  // separately. The browser's seam pixels need NOT lie on a straight RGB
+  // blend line, and scaling the full export with CPU FFmpeg is not a reliable
+  // per-pixel GPU reference (the 450px CI viewport exposed this difference).
+  // Use two independently decoded UNBLENDED colours from the exported frame,
+  // then reconstruct each browser pixel using separate BT.709 luma/chroma
+  // mixing weights. Their physical bounds, mutual proximity, edge direction
+  // and the original strict 35/channel RGB tolerance remain enforced.
+  const exportSides = execFileSync(ffmpeg, [
+    "-hide_banner", "-loglevel", "error", "-ss", "4.2", "-i", outputPath,
+    "-vf", "crop=16:2,format=rgb24",
+    "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
+  ], { windowsHide: true, maxBuffer: 4_000_000 });
+  expect(exportSides.length, "16-pixel independent FFmpeg colour reference").toBe(16 * 2 * 3);
+  const left = [0, 1, 2].map((channel) => exportSides[channel]);
+  const right = [0, 1, 2].map((channel) => exportSides[15 * 3 + channel]);
+  // BT.709 luma is an independently sampled plane. Chroma has half the
+  // horizontal resolution in yuv420p, so its interpolation phase can differ
+  // from luma even for the same underlying two-colour video boundary.
+  const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
   const delta = left.map((value, channel) => value - right[channel]);
-  const denominator = delta.reduce((sum, value) => sum + value * value, 0);
-  expect(denominator, "two-colour export seam must not be flat").toBeGreaterThan(0);
-  const weights: number[] = [];
+  const lumaDelta = luma(left) - luma(right);
+  const chromaDelta = delta.map((value) => value - lumaDelta);
+  const chromaNorm = chromaDelta.reduce((sum, value) => sum + value * value, 0);
+  expect(Math.abs(lumaDelta), "export seam has distinct luma").toBeGreaterThan(130);
+  expect(chromaNorm, "export seam has distinct chroma").toBeGreaterThan(3 * 130 * 130);
+  const lumaWeights: number[] = [];
+  const chromaWeights: number[] = [];
+  let largestRgbError = 0;
+  let largestPlanePhaseDifference = 0;
   for (let pixel = 0; pixel < 8; pixel++) {
     const offset = pixel * 3;
-    const numerator = delta.reduce((sum, value, channel) =>
-      sum + (strip[offset + channel] - right[channel]) * value, 0);
-    const weight = Math.max(0, Math.min(1, numerator / denominator));
-    weights.push(weight);
-    for (let channel = 0; channel < 3; channel++) {
-      const physicalBlend = Math.round(right[channel] + weight * delta[channel]);
-      expect(Math.abs(strip[offset + channel] - physicalBlend),
-        `native CSS seam closest FFmpeg blend pixel ${pixel} RGB ${channel}`,
-      ).toBeLessThanOrEqual(35);
+    const nativeRgb = [strip[offset], strip[offset + 1], strip[offset + 2]];
+    const rawLumaWeight = (luma(nativeRgb) - luma(right)) / lumaDelta;
+    const lumaWeight = Math.max(0, Math.min(1, rawLumaWeight));
+    const chromaNumerator = chromaDelta.reduce((sum, value, channel) =>
+      sum + (nativeRgb[channel] - right[channel] - lumaWeight * lumaDelta) * value, 0);
+    const rawChromaWeight = chromaNumerator / chromaNorm;
+    const chromaWeight = Math.max(0, Math.min(1, rawChromaWeight));
+    lumaWeights.push(lumaWeight);
+    chromaWeights.push(chromaWeight);
+    largestPlanePhaseDifference = Math.max(largestPlanePhaseDifference,
+      Math.abs(lumaWeight - chromaWeight));
+    // A large overshoot or a wildly displaced chroma plane is NOT a valid
+    // colour match merely because two free mixture weights are available.
+    expect(rawLumaWeight, "GPU seam luma is physically bounded").toBeGreaterThan(-0.06);
+    expect(rawLumaWeight, "GPU seam luma is physically bounded").toBeLessThan(1.06);
+    expect(rawChromaWeight, "GPU seam chroma is physically bounded").toBeGreaterThan(-0.06);
+    expect(rawChromaWeight, "GPU seam chroma is physically bounded").toBeLessThan(1.06);
+    for (let row = 0; row < 2; row++) {
+      for (let channel = 0; channel < 3; channel++) {
+        const reconstructed = Math.round(right[channel] +
+          lumaWeight * lumaDelta + chromaWeight * chromaDelta[channel]);
+        largestRgbError = Math.max(largestRgbError,
+          Math.abs(strip[row * 8 * 3 + offset + channel] - reconstructed));
+      }
     }
   }
-  const adjacentGradients = weights.slice(0, -1).map((weight, i) => weight - weights[i + 1]);
+  console.log("[WebView2 YUV420 seam parity]", JSON.stringify({
+    left, right, largestRgbError, largestPlanePhaseDifference, lumaWeights, chromaWeights,
+  }));
+  expect(largestRgbError, "native WebView2 YUV420 seam versus decoded FFmpeg <=35 RGB/channel")
+    .toBeLessThanOrEqual(35);
+  expect(largestPlanePhaseDifference, "luma and chroma phase must stay close")
+    .toBeLessThanOrEqual(0.30);
+  const adjacentGradients = lumaWeights.slice(0, -1)
+    .map((weight, i) => weight - lumaWeights[i + 1]);
   expect(Math.max(...adjacentGradients),
     "native FFmpeg seam must transition across neighbouring pixels",
   ).toBeGreaterThan(0.15);
-  expect(weights[0]).toBeGreaterThan(0.55);
-  expect(weights[weights.length - 1]).toBeLessThan(0.45);
+  expect(lumaWeights[0]).toBeGreaterThan(0.55);
+  expect(lumaWeights[lumaWeights.length - 1]).toBeLessThan(0.45);
+  expect(chromaWeights[0]).toBeGreaterThan(0.55);
+  expect(chromaWeights[chromaWeights.length - 1]).toBeLessThan(0.45);
   // Two independently sampled interior regions assert BOTH colors of the
   // 4.2s FFmpeg frame, away from a one-pixel discontinuity. They catch a
   // stale native texture even when time/rVFC metadata reports success.

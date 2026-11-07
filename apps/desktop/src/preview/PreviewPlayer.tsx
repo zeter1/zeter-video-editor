@@ -3,6 +3,7 @@ import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react"
 import type { Clip, MediaRef, ProjectId, ProjectRevision, Sequence, Track, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
+import { TitleOverlay } from "./TitleOverlay";
 import { PausedCompositeFrame } from "./PausedCompositeFrame";
 import { PreviewAudioTracks, previewAudioVolume, synchronizeAudioClock } from "./PreviewAudioTracks";
 import { adjacentEditBoundaryUs, collectEditBoundariesUs } from "./editNavigation";
@@ -30,6 +31,7 @@ interface PreviewPlayerProps {
   playheadTimeUs: number;
   onSeek: (timeUs: number) => void;
   onCommit: EditCommit;
+  onSelectTitle?: (clipId: string, trackId: string) => void;
 }
 
 function findVisibleClip(sequence: Sequence, timeUs: number): { clip: Clip; track: Track } | null {
@@ -207,6 +209,7 @@ export function PreviewPlayer({
   playheadTimeUs,
   onSeek,
   onCommit,
+  onSelectTitle,
 }: PreviewPlayerProps) {
   const [quality, setQuality] = useState<PreviewQuality>("Full");
   const [scale, setScale] = useState<PreviewScale>("Fit");
@@ -264,6 +267,9 @@ export function PreviewPlayer({
     key: string; timeUs: number; timingKey: string;
   } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
+  // WebView2 can emit an unsolicited native pause a frame after play() resolves.
+  // Keep the requested transport alive, but bound retries to avoid a decoder loop.
+  const unexpectedNativePauseRef = useRef({ key: "", retries: 0 });
   // Accepted compositor frames anchor recovery after dropped callbacks.
   // Pause/Stop and native or UI-initiated seek retire this trusted anchor.
   const frameAnchorRef = useRef<{ key: string; mediaSeconds: number; presentedFrames: number } | null>(null);
@@ -336,6 +342,15 @@ export function PreviewPlayer({
     }),
     [pictureSelection, media],
   );
+  const [draggingTitle, setDraggingTitle] = useState(false);
+  const visibleTitles = sequence.tracks
+    .filter((track) => !track.hidden)
+    .flatMap((track) => track.clips
+      .filter((clip) => clip.kind === "Text" && clip.text &&
+        clip.timeline_start <= playheadTimeUs && playheadTimeUs < clip.timeline_end)
+      .map((clip) => ({ clip, track })));
+  const pausedComposite = pictureSelection.multipleVideos &&
+    !playing && projectId !== null && revision !== null && !draggingTitle;
   // A still over a video must not replace the foreground transport decoder.
   // Readiness, embedded sound and rVFC continue to follow that same video.
   const movingLayer = pictureLayers.filter(({ clip }) => clip.kind === "Video").at(-1);
@@ -347,6 +362,13 @@ export function PreviewPlayer({
   const key = active && source ? `${active.id}:${source.id}` : "";
   const image = active?.kind === "Image";
   const videoSource = active?.kind === "Video" && src ? src : null;
+  useEffect(() => {
+    unexpectedNativePauseRef.current = { key, retries: 0 };
+  }, [key]);
+
+  useEffect(() => {
+    if (!playing) unexpectedNativePauseRef.current.retries = 0;
+  }, [playing]);
   const frameTimingKey = active && videoSource
     ? `${key}:${active.source_in}:${active.source_out}:${active.timeline_start}:${active.timeline_end}:${active.speed}`
     : key;
@@ -626,7 +648,31 @@ export function PreviewPlayer({
                 // the external audio only after a usable video frame is ready.
                 if (!supportsPresentedFrames(video.current) && videoClockReady()) setSyncedVideoKey(key);
               }}
-              onPause={() => setSyncedVideoKey(null)}
+              onPause={() => {
+                setSyncedVideoKey(null);
+                const current = video.current;
+                // Intentional Pause/Stop, a real seek, EOF and missing data must
+                // never cause an automatic restart. Audio remains gated on a
+                // NEW compositor frame, not merely this native play() call.
+                if (!playing || !current || !current.paused || current.seeking ||
+                    current.ended || current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+                const recovery = unexpectedNativePauseRef.current;
+                if (recovery.key !== key) {
+                  recovery.key = key;
+                  recovery.retries = 0;
+                }
+                if (recovery.retries >= 2) {
+                  setPlaying(false);
+                  setMediaError("WebView2 неожиданно остановил видеодекодер. Повторите воспроизведение.");
+                  return;
+                }
+                recovery.retries += 1;
+                void current.play().catch((reason: unknown) => {
+                  if (isBenignMediaPlayRejection(reason)) return;
+                  setPlaying(false);
+                  setMediaError("Не удалось возобновить видео после остановки WebView2.");
+                });
+              }}
               onEnded={() => {
                 // Ignore old EOF signals queued before a scrub or Stop.
                 const current = video.current;
@@ -680,7 +726,7 @@ export function PreviewPlayer({
           ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
           ) : null}
-          {pictureSelection.multipleVideos && !playing && projectId && revision !== null ? (
+          {pausedComposite && projectId && revision !== null ? (
             <PausedCompositeFrame
               key={`${projectId}:${revision}:${sequence.id}`}
               projectId={projectId}
@@ -689,6 +735,14 @@ export function PreviewPlayer({
               playheadTimeUs={playheadTimeUs}
               fps={sequence.fps}
             />
+          ) : null}
+          {visibleTitles.length > 0 ? (
+            <TitleOverlay key={sequence.id} sequenceId={sequence.id}
+              width={sequence.width} height={sequence.height}
+              titles={visibleTitles} selectedClipId={selectedClip?.id ?? null}
+              onSelect={onSelectTitle} onCommit={onCommit}
+              hideGlyphs={pausedComposite}
+              onDraggingChange={setDraggingTitle} />
           ) : null}
           {pictureSelection.multipleVideos ? (
             <span className="preview-composite-notice" role="status">

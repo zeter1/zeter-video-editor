@@ -85,10 +85,14 @@ test("WebView2 screenshot pixels agree with decoded FFmpeg colors and black gap"
   const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
   const red = path.join(state.mediaDir, "preview-pixels-red.mp4");
   const blue = path.join(state.mediaDir, "preview-pixels-blue.png");
+  // Make the tiny SD fixture's YUV matrix explicit: relying on implicit BT.601
+  // gave different RGB in Windows WebView2 and the independent FFmpeg decoder.
   runFfmpeg(ffmpeg, [
     "-y", "-f", "lavfi", "-i", "color=c=red:s=160x90:r=30:d=2",
     "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2",
-    "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", red,
+    "-t", "2", "-vf", "scale=in_color_matrix=bt601:out_color_matrix=bt709,format=yuv420p",
+    "-c:v", "libx264", "-color_primaries", "bt709", "-color_trc", "bt709",
+    "-colorspace", "bt709", "-c:a", "aac", red,
   ]);
   runFfmpeg(ffmpeg, [
     "-y", "-f", "lavfi", "-i", "color=c=blue:s=160x120:r=30",

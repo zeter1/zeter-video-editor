@@ -20,6 +20,8 @@ export function TextInspector({
   onCommit,
 }: TextInspectorProps) {
   const [draft, setDraft] = useState<TextStyle | null>(clip.text?.style ?? null);
+  const [draftContent, setDraftContent] = useState(clip.text?.text ?? "");
+  const submittedContent = useRef(clip.text?.text ?? "");
   const lastSubmitted = useRef<string | null>(
     JSON.stringify(clip.text?.style ?? null),
   );
@@ -28,6 +30,8 @@ export function TextInspector({
     const authoritative = clip.text?.style ?? null;
     setDraft(authoritative);
     lastSubmitted.current = JSON.stringify(authoritative);
+    setDraftContent(clip.text?.text ?? "");
+    submittedContent.current = clip.text?.text ?? "";
   }, [clip]);
 
   if (!draft || !clip.text) {
@@ -69,9 +73,33 @@ export function TextInspector({
     }
   }
 
+  async function commitContent(): Promise<void> {
+    const next = draftContent.trim();
+    const authoritative = clip.text?.text ?? "";
+    if (!next || [...next].length > 1000) {
+      setDraftContent(authoritative);
+      return;
+    }
+    if (next === submittedContent.current) return;
+    submittedContent.current = next;
+    const accepted = await requestEditCommit(onCommit, {
+      SetTextContent: { sequence_id: sequenceId, track_id: trackId, clip_id: clip.id, text: next },
+    });
+    if (!accepted) {
+      submittedContent.current = authoritative;
+      setDraftContent(authoritative);
+    }
+  }
+
   return (
     <fieldset className="inspector-section">
-      <legend>Text</legend>
+      <legend>Титр</legend>
+      <label>
+        Содержание титра
+        <textarea aria-label="Содержание титра" value={draftContent} maxLength={1000}
+          onChange={(event) => setDraftContent(event.target.value)}
+          onBlur={() => void commitContent()} rows={3} />
+      </label>
       <label>
         Font
         <input

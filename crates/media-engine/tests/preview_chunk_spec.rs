@@ -81,6 +81,30 @@ fn preview_window_reuses_exact_export_graph_and_seeks_on_output() {
         )
         .expect("valid slice"),
     );
+    // A low-resolution preview chunk must carry an explicit SDR matrix.
+    // Otherwise WebView2 can interpret untagged YUV differently from FFmpeg
+    // (particularly on saturated green/magenta frames at 160x90).
+    for (flag, value) in [
+        ("-color_primaries", "bt709"),
+        ("-color_trc", "bt709"),
+        ("-colorspace", "bt709"),
+    ] {
+        let at = chunk
+            .iter()
+            .position(|arg| arg == flag)
+            .expect("explicit color tag");
+        assert_eq!(chunk[at + 1], value);
+    }
+    let filter = &chunk[chunk
+        .iter()
+        .position(|arg| arg == "-filter_complex")
+        .unwrap()
+        + 1];
+    assert!(
+        filter.contains("out_color_matrix=bt709"),
+        "SDR pixels must be converted, not merely retagged"
+    );
+    assert!(filter.contains("setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709"));
     let mut expected = export;
     let t_idx = expected.iter().rposition(|arg| arg == "-t").unwrap();
     expected.insert(t_idx, "-ss".into());

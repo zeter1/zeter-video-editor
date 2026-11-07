@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { connectTauri, invokeTauri } from "./tauri";
@@ -60,13 +60,13 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
   const control = state.stallControlPath;
   const receiptsPath = control + ".hits";
   const rangesPath = control + ".ranges";
-  rmSync(control, { force: true });
-  rmSync(receiptsPath, { force: true });
-  rmSync(rangesPath, { force: true });
-  // Keep the first 512 KiB plus trailing MP4 metadata fast; stall only
-  // mid-file 206 byte ranges AFTER several genuine compositor frames.
+  if (existsSync(control)) unlinkSync(control);
+  if (existsSync(receiptsPath)) unlinkSync(receiptsPath);
+  if (existsSync(rangesPath)) unlinkSync(rangesPath);
+  // Keep the first 2 MiB plus trailing MP4 metadata fast so native WebView2
+  // can decode real frames before we delay later 206 byte range requests.
   // Production release builds have no stall hook and use the old sync handler.
-  writeFileSync(control, uniqueVideoMediaId + " 2000 524288 4194304\n");
+  writeFileSync(control, uniqueVideoMediaId + " 2000 2097152 4194304\n");
   try {
     await invokeTauri(page, "project_open", { path: fixturePath });
     await page.reload();
@@ -136,7 +136,7 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
       const [start, delayMs, elapsedMs, endedAtMs] = line.split(" ").map(Number);
       return { start, delayMs, elapsedMs, endedAtMs };
     });
-    expect(receipts.every((hit) => hit.start >= 524_288 && hit.start < 4_194_304 && hit.delayMs === 2000 &&
+    expect(receipts.every((hit) => hit.start >= 2_097_152 && hit.start < 4_194_304 && hit.delayMs === 2000 &&
       hit.elapsedMs >= 1750 && Number.isFinite(hit.endedAtMs))).toBe(true);
 
     const beforeReleaseEvents = await video.evaluate((element) =>
@@ -153,7 +153,7 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
       "native waiting MUST follow playing and >=6 genuine compositor frames, not startup buffering").toBeDefined();
 
     const releasedAtMs = Date.now();
-    rmSync(control, { force: true }); // Subsequent native requests are unthrottled.
+    if (existsSync(control)) unlinkSync(control); // Subsequent native requests are unthrottled.
     await expect.poll(() => video.evaluate((node) => {
       const v = node as HTMLVideoElement;
       const a = document.querySelector("audio[data-testid^='preview-audio-']") as HTMLAudioElement | null;
@@ -223,6 +223,6 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
     await expect.poll(() => audio.evaluate((node) => (node as HTMLAudioElement).paused)).toBe(true);
     expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
   } finally {
-    rmSync(control, { force: true }); // No fault injection leaks into later E2E tests.
+    if (existsSync(control)) unlinkSync(control); // No fault injection leaks into later E2E tests.
   }
 });

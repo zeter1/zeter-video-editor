@@ -12,6 +12,7 @@ interface PreviewPanelProps {
   playheadTimeUs: number;
   onSeek: (timeUs: number) => void;
   onCommit: EditCommit;
+  onSelectTitle?: (clipId: string, trackId: string) => void;
 }
 
 export function PreviewPanel({
@@ -24,6 +25,7 @@ export function PreviewPanel({
   playheadTimeUs,
   onSeek,
   onCommit,
+  onSelectTitle,
 }: PreviewPanelProps) {
   return (
     <section
@@ -52,6 +54,7 @@ export function PreviewPanel({
           playheadTimeUs={playheadTimeUs}
           onSeek={onSeek}
           onCommit={onCommit}
+          onSelectTitle={onSelectTitle}
         />
       ) : (
         <>

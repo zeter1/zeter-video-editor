@@ -345,6 +345,89 @@ impl Editor {
                 find_clip_mut(clips, *clip_id)?.transition = Some(*transition);
                 Ok(vec![ChangedEntity::Clip(*clip_id)])
             }),
+            EditCommand::AddTitle {
+                sequence_id,
+                track_id,
+                new_track,
+                clip_id,
+                timeline_start,
+                timeline_end,
+                text,
+                style,
+            } => {
+                let duration = timeline_end.checked_sub(*timeline_start)?;
+                if duration.get() <= 0 || text.trim().is_empty() || text.chars().count() > 1000 {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "title must have positive duration and 1..1000 characters",
+                    });
+                }
+                // Prevalidate before any mutation. Failed commands must never leave an
+                // orphan Text track or increment the project revision.
+                if let Some(track) = new_track {
+                    if track.id != *track_id
+                        || track.kind != crate::TrackKind::Text
+                        || track.locked
+                        || !track.clips.is_empty()
+                    {
+                        return Err(DomainError::InvalidEdit {
+                            reason: "new title track must be an empty unlocked Text lane with matching ID",
+                        });
+                    }
+                }
+                self.mutate_sequence_tracks(*sequence_id, |tracks| {
+                    let index = if let Some(track) = new_track {
+                        if tracks.iter().any(|existing| existing.id == *track_id) {
+                            return Err(DomainError::InvalidEdit {
+                                reason: "new title track ID already exists",
+                            });
+                        }
+                        tracks.push(track.clone());
+                        tracks.len() - 1
+                    } else {
+                        tracks
+                            .iter()
+                            .position(|track| track.id == *track_id)
+                            .ok_or(DomainError::EntityNotFound { entity: "track" })?
+                    };
+                    let target = &mut tracks[index];
+                    // The new-track path is already validated above. The existing-track
+                    // path is checked before pushing a clip.
+                    if target.locked {
+                        return Err(DomainError::TrackLocked {
+                            track_id: *track_id,
+                        });
+                    }
+                    if target.kind != crate::TrackKind::Text {
+                        return Err(DomainError::InvalidEdit {
+                            reason: "titles require an unlocked Text lane",
+                        });
+                    }
+                    target.clips.push(Clip {
+                        id: *clip_id,
+                        kind: ClipKind::Text,
+                        media_id: None,
+                        source_in: TimeUs::new(0)?,
+                        source_out: duration,
+                        timeline_start: *timeline_start,
+                        timeline_end: *timeline_end,
+                        transform: Transform::default(),
+                        color: ColorAdjustments::default(),
+                        audio: AudioState::default(),
+                        speed: 1.0,
+                        transition: None,
+                        text: Some(TextState {
+                            text: text.trim().to_owned(),
+                            style: style.clone(),
+                        }),
+                    });
+                    let mut changed = Vec::new();
+                    if new_track.is_some() {
+                        changed.push(ChangedEntity::Track(*track_id));
+                    }
+                    changed.push(ChangedEntity::Clip(*clip_id));
+                    Ok(changed)
+                })
+            }
             EditCommand::AddText {
                 sequence_id,
                 track_id,
@@ -386,6 +469,29 @@ impl Editor {
                     reason: "text style can only be set on a text clip",
                 })?;
                 text.style = style.clone();
+                Ok(vec![ChangedEntity::Clip(*clip_id)])
+            }),
+            EditCommand::SetTextContent {
+                sequence_id,
+                track_id,
+                clip_id,
+                text,
+            } => self.mutate_track_clips(*sequence_id, *track_id, |clips| {
+                if text.trim().is_empty() || text.chars().count() > 1000 {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "title must contain 1..1000 characters",
+                    });
+                }
+                let clip = find_clip_mut(clips, *clip_id)?;
+                if clip.kind != ClipKind::Text {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "text content can only be set on a text clip",
+                    });
+                }
+                let state = clip.text.as_mut().ok_or(DomainError::InvalidEdit {
+                    reason: "text clip has no text state",
+                })?;
+                state.text = text.trim().to_owned();
                 Ok(vec![ChangedEntity::Clip(*clip_id)])
             }),
             EditCommand::AddTrack {
@@ -970,6 +1076,228 @@ mod tests {
             expected_revision: ProjectRevision::new(revision),
             command,
         }
+    }
+
+    #[test]
+    fn add_title_creates_track_and_clip_in_one_undo_step_and_preserves_existing_track() {
+        let (project, sequence_id, _, _, _) = fixture();
+        let mut editor = Editor::new(project).unwrap();
+        let track_id = TrackId::new();
+        let clip_id = ClipId::new();
+        let lane = Track {
+            id: track_id,
+            name: "Text 1".into(),
+            kind: TrackKind::Text,
+            muted: false,
+            locked: false,
+            hidden: false,
+            clips: Vec::new(),
+        };
+        let result = editor
+            .execute(request(
+                0,
+                EditCommand::AddTitle {
+                    sequence_id,
+                    track_id,
+                    new_track: Some(lane),
+                    clip_id,
+                    timeline_start: time(3_000_000),
+                    timeline_end: time(7_000_000),
+                    text: "  Hello  ".into(),
+                    style: TextStyle::default(),
+                },
+            ))
+            .unwrap();
+        assert_eq!(result.revision, ProjectRevision::new(1));
+        assert_eq!(
+            result.changed_entities,
+            vec![
+                crate::ChangedEntity::Track(track_id),
+                crate::ChangedEntity::Clip(clip_id)
+            ]
+        );
+        assert_eq!(editor.project().sequences[0].tracks.len(), 2);
+        assert_eq!(
+            editor.project().sequences[0].tracks[1].clips[0]
+                .text
+                .as_ref()
+                .unwrap()
+                .text,
+            "Hello"
+        );
+        let json = serde_json::to_string(editor.project()).unwrap();
+        let round_trip: Project = serde_json::from_str(&json).unwrap();
+        assert_eq!(round_trip, *editor.project());
+
+        editor.undo(RequestId::new()).unwrap();
+        assert_eq!(
+            editor.project().sequences[0].tracks.len(),
+            1,
+            "one Undo must remove title and its automatically created lane"
+        );
+        editor.redo(RequestId::new()).unwrap();
+        assert_eq!(editor.project().sequences[0].tracks[1].clips.len(), 1);
+
+        let second_id = ClipId::new();
+        editor
+            .execute(request(
+                3,
+                EditCommand::AddTitle {
+                    sequence_id,
+                    track_id,
+                    new_track: None,
+                    clip_id: second_id,
+                    timeline_start: time(8_000_000),
+                    timeline_end: time(12_000_000),
+                    text: "Second title".into(),
+                    style: TextStyle::default(),
+                },
+            ))
+            .unwrap();
+        assert_eq!(editor.project().sequences[0].tracks.len(), 2);
+        assert_eq!(editor.project().sequences[0].tracks[1].clips.len(), 2);
+        editor.undo(RequestId::new()).unwrap();
+        assert_eq!(
+            editor.project().sequences[0].tracks.len(),
+            2,
+            "Undo on an existing text lane must not delete the lane"
+        );
+        assert_eq!(editor.project().sequences[0].tracks[1].clips.len(), 1);
+        editor.redo(RequestId::new()).unwrap();
+        assert_eq!(editor.project().sequences[0].tracks[1].clips.len(), 2);
+    }
+
+    #[test]
+    fn invalid_atomic_title_cannot_leave_orphan_lane_or_advance_revision() {
+        let (project, sequence_id, _, _, _) = fixture();
+        let mut editor = Editor::new(project).unwrap();
+        let track_id = TrackId::new();
+        let lane = Track {
+            id: track_id,
+            name: "Text".into(),
+            kind: TrackKind::Text,
+            muted: false,
+            locked: false,
+            hidden: false,
+            clips: vec![],
+        };
+        for (title, replacement) in [
+            (" ", None),
+            (
+                "Good",
+                Some(Track {
+                    locked: true,
+                    ..lane.clone()
+                }),
+            ),
+            (
+                "Good",
+                Some(Track {
+                    id: TrackId::new(),
+                    ..lane.clone()
+                }),
+            ),
+        ] {
+            let result = editor.execute(request(
+                0,
+                EditCommand::AddTitle {
+                    sequence_id,
+                    track_id,
+                    new_track: replacement.or_else(|| Some(lane.clone())),
+                    clip_id: ClipId::new(),
+                    timeline_start: time(0),
+                    timeline_end: time(4_000_000),
+                    text: title.into(),
+                    style: TextStyle::default(),
+                },
+            ));
+            assert!(result.is_err());
+            assert_eq!(editor.revision(), ProjectRevision::new(0));
+            assert_eq!(editor.project().sequences[0].tracks.len(), 1);
+        }
+        let invalid_target = editor.execute(request(
+            0,
+            EditCommand::AddTitle {
+                sequence_id,
+                track_id: editor.project().sequences[0].tracks[0].id,
+                new_track: None,
+                clip_id: ClipId::new(),
+                timeline_start: time(0),
+                timeline_end: time(4_000_000),
+                text: "Text".into(),
+                style: TextStyle::default(),
+            },
+        ));
+        assert!(invalid_target.is_err());
+        assert_eq!(editor.revision(), ProjectRevision::new(0));
+        assert_eq!(editor.project().sequences[0].tracks.len(), 1);
+    }
+
+    #[test]
+    fn title_content_edit_is_authoritative_undoable_and_rejects_non_text() {
+        let (project, sequence_id, track_id, video_id, _) = fixture();
+        let mut editor = Editor::new(project).unwrap();
+        let title_id = ClipId::new();
+        editor
+            .execute(request(
+                0,
+                EditCommand::AddText {
+                    sequence_id,
+                    track_id,
+                    clip_id: title_id,
+                    timeline_start: time(15_000_000),
+                    timeline_end: time(19_000_000),
+                    text: "Первый титр".into(),
+                    style: TextStyle::default(),
+                },
+            ))
+            .unwrap();
+        editor
+            .execute(request(
+                1,
+                EditCommand::SetTextContent {
+                    sequence_id,
+                    track_id,
+                    clip_id: title_id,
+                    text: "Новый титр".into(),
+                },
+            ))
+            .unwrap();
+        let title = |editor: &Editor| {
+            editor.project().sequences[0].tracks[0]
+                .clips
+                .iter()
+                .find(|clip| clip.id == title_id)
+                .unwrap()
+                .text
+                .as_ref()
+                .unwrap()
+                .text
+                .clone()
+        };
+        assert_eq!(title(&editor), "Новый титр");
+        editor.undo(RequestId::new()).unwrap();
+        assert_eq!(title(&editor), "Первый титр");
+        editor.redo(RequestId::new()).unwrap();
+        assert_eq!(title(&editor), "Новый титр");
+        let current = editor.revision().get();
+        for (id, value) in [(title_id, "   "), (video_id, "Недопустимо")] {
+            assert!(
+                editor
+                    .execute(request(
+                        current,
+                        EditCommand::SetTextContent {
+                            sequence_id,
+                            track_id,
+                            clip_id: id,
+                            text: value.into(),
+                        }
+                    ))
+                    .is_err()
+            );
+            assert_eq!(editor.revision().get(), current);
+        }
+        assert_eq!(title(&editor), "Новый титр");
     }
 
     #[test]

@@ -316,3 +316,37 @@ describe("PreviewPlayer", () => {
     expect(screen.queryByLabelText("Предпросмотр видео")).toBeNull();
   });
 });
+
+
+describe("title preview", () => {
+  it("shows only visible, timed text clips and changes when the playhead moves", () => {
+    const title = {
+      id: "title-1", kind: "Text" as const, media_id: null,
+      source_in: 0, source_out: 4_000_000,
+      timeline_start: 1_000_000, timeline_end: 5_000_000,
+      transform: { position_x: 0, position_y: 0, scale_x: 1, scale_y: 1,
+        rotation_degrees: 0, opacity: 1,
+        crop: { left: 0, right: 0, top: 0, bottom: 0 } },
+      color: { exposure: 0, contrast: 0, highlights: 0, shadows: 0, saturation: 1,
+        temperature: 0, tint: 0 },
+      audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+      speed: 1, transition: null,
+      text: { text: "Титр для проверки", style: sequence.subtitle_style.text_style },
+    };
+    const timeline: Sequence = { ...sequence, tracks: [{
+      id: "titles", name: "Титры", kind: "Text", muted: false, locked: false,
+      hidden: false, clips: [title],
+    }] };
+    const props = { sequence: timeline, selectedClip: null, selectedTrackId: null,
+      onSeek: vi.fn(), onCommit: vi.fn() };
+    const { rerender } = render(<PreviewPlayer {...props} playheadTimeUs={2_000_000} />);
+    expect(screen.getByRole("img", { name: "Титры предпросмотра" }).textContent)
+      .toContain("Титр для проверки");
+    rerender(<PreviewPlayer {...props} playheadTimeUs={5_000_000} />);
+    expect(screen.queryByRole("img", { name: "Титры предпросмотра" })).toBeNull();
+    rerender(<PreviewPlayer {...props} sequence={{ ...timeline, tracks: [
+      { ...timeline.tracks[0], hidden: true },
+    ] }} playheadTimeUs={2_000_000} />);
+    expect(screen.queryByRole("img", { name: "Титры предпросмотра" })).toBeNull();
+  });
+});

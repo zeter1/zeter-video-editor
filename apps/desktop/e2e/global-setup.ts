@@ -1,11 +1,10 @@
 import { execFileSync, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
-  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -18,8 +17,12 @@ const REPO = path.resolve(HERE, "../../..");
 const DESKTOP = path.join(REPO, "apps", "desktop");
 const TARGET = path.join(REPO, "target");
 const E2E_ROOT = path.join(TARGET, "task19-e2e");
-const RUNTIME = path.join(E2E_ROOT, "runtime");
-const FIXTURES = path.join(E2E_ROOT, "fixtures");
+// Keep the state pointer stable for tauri.ts/global-teardown, but use fresh
+// fixtures and WebView2 data per run. On some Windows setups fs.rmSync can
+// leave old E2E outputs in place without throwing, which must not affect tests.
+const RUN_ROOT = path.join(E2E_ROOT, `run-${randomUUID()}`);
+const RUNTIME = path.join(RUN_ROOT, "runtime");
+const FIXTURES = path.join(RUN_ROOT, "fixtures");
 const STATE = path.join(E2E_ROOT, "state.json");
 const PROJECT_TEMPLATE = path.join(REPO, "tests", "fixtures", "projects", "task19-base.vcut");
 
@@ -260,7 +263,7 @@ export default async function globalSetup(): Promise<void> {
     throw new Error("ZETER_TEST_FFMPEG_DIR must contain ffmpeg.exe and ffprobe.exe");
   }
 
-  rmSync(E2E_ROOT, { recursive: true, force: true });
+  mkdirSync(E2E_ROOT, { recursive: true });
   mkdirSync(RUNTIME, { recursive: true });
   mkdirSync(FIXTURES, { recursive: true });
 
@@ -334,8 +337,8 @@ export default async function globalSetup(): Promise<void> {
 
   const port = await freePort();
   const stallControlPath = path.join(FIXTURES, "media-stall-control.txt");
-  const webviewDataDir = path.join(E2E_ROOT, "webview-data");
-  const e2eConfig = path.join(E2E_ROOT, "tauri.e2e.conf.json");
+  const webviewDataDir = path.join(RUN_ROOT, "webview-data");
+  const e2eConfig = path.join(RUN_ROOT, "tauri.e2e.conf.json");
   writeFileSync(
     e2eConfig,
     JSON.stringify(
@@ -354,7 +357,9 @@ export default async function globalSetup(): Promise<void> {
               additionalBrowserArgs:
                 "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection " +
                 "--autoplay-policy=no-user-gesture-required " +
-                `--remote-debugging-port=${port}`,
+                // Keep native CDP screenshot colorimetry deterministic for FFmpeg RGB checks.
+                "--force-color-profile=srgb " +
+                `--remote-debugging-port=${port}`
             },
           ],
         },

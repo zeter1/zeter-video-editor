@@ -106,6 +106,8 @@ export function AppShell({
   const [exportJob, setExportJob] = useState<ExportJobView | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [creatingSequence, setCreatingSequence] = useState(false);
+  const [addingText, setAddingText] = useState(false);
+  const addingTextRef = useRef(false);
   const [portraitSequence, setPortraitSequence] = useState(false);
   const markerShortcutPending = useRef(false);
 
@@ -272,6 +274,60 @@ export function AppShell({
     }
   }
 
+
+  async function handleAddText(): Promise<void> {
+    if (addingTextRef.current) return;
+    const snapshot = projectStore.getState().snapshot;
+    const seq = resolveSequence(snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId);
+    if (!snapshot || !seq || projectStore.getState().syncStatus !== "synced") {
+      projectStore.setError("Откройте проект и дождитесь завершения предыдущей операции.");
+      return;
+    }
+    const content = window.prompt("Текст нового титра (до 1000 символов)", "Новый титр");
+    if (content === null) return;
+    const title = content.trim();
+    if (!title || [...title].length > 1000) {
+      projectStore.setError("Введите от 1 до 1000 символов для титра.");
+      return;
+    }
+    if (projectStore.getState().snapshot?.project.id !== snapshot.project.id ||
+        resolveSequence(projectStore.getState().snapshot?.project.sequences ?? [],
+          transientStore.getState().selectedSequenceId)?.id !== seq.id) {
+      projectStore.setError("Проект или последовательность изменились. Повторите создание титра.");
+      return;
+    }
+    addingTextRef.current = true;
+    setAddingText(true);
+    try {
+      const currentTrackId = transientStore.getState().selectedTrackId;
+      const target = seq.tracks.find((track) => track.id === currentTrackId &&
+        track.kind === "Text" && !track.locked)
+        ?? seq.tracks.find((track) => track.kind === "Text" && !track.locked);
+      const trackId = target?.id ?? crypto.randomUUID();
+      const newTrack = target ? null : {
+        id: trackId, name: "Текст " + (seq.tracks.filter((t) => t.kind === "Text").length + 1),
+        kind: "Text" as const, muted: false, locked: false, hidden: false, clips: [],
+      };
+      const start = Math.max(0, transientStore.getState().playheadTimeUs);
+      const end = start + 4_000_000;
+      const id = crypto.randomUUID();
+      const accepted = await handleEditCommand({ AddTitle: {
+        sequence_id: seq.id, track_id: trackId, new_track: newTrack, clip_id: id,
+        timeline_start: start, timeline_end: end, text: title,
+        style: { ...seq.subtitle_style.text_style },
+      } });
+      if (accepted && projectStore.getState().snapshot?.project.id === snapshot.project.id &&
+          resolveSequence(projectStore.getState().snapshot?.project.sequences ?? [],
+            transientStore.getState().selectedSequenceId)?.id === seq.id) {
+        transientStore.selectTrack(trackId);
+        transientStore.selectClip(id);
+      }
+    } finally {
+      addingTextRef.current = false;
+      setAddingText(false);
+    }
+  }
 
   async function addToTimeline(id: string, intendedSequenceId?: string | null): Promise<void> {
     const snapshot = projectStore.getState().snapshot;
@@ -636,6 +692,8 @@ export function AppShell({
           media={project?.media ?? []}
           onImport={() => void handleImport()}
           onAddToTimeline={(id) => void addToTimeline(id)}
+          onAddText={() => void handleAddText()}
+          addingText={addingText}
           busy={busy}
           aiOpen={aiOpen}
           onToggleAi={() => setAiOpen((open) => !open)}
@@ -663,6 +721,10 @@ export function AppShell({
           selectedTrackId={selectedTrackId}
           playheadTimeUs={transient.playheadTimeUs}
           onSeek={(timeUs) => transientStore.setPlayheadTime(timeUs)}
+          onSelectTitle={(clipId, trackId) => {
+            transientStore.selectTrack(trackId);
+            transientStore.selectClip(clipId);
+          }}
           onCommit={handleEditCommand}
         />
         <InspectorPanel

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { connectTauri, invokeTauri } from "./tauri";
@@ -60,9 +60,9 @@ test("real delayed media bytes recover 2x compositor and independent WAV", async
   const control = state.stallControlPath;
   const receiptsPath = control + ".hits";
   const rangesPath = control + ".ranges";
-  rmSync(control, { force: true });
-  rmSync(receiptsPath, { force: true });
-  rmSync(rangesPath, { force: true });
+  if (existsSync(control)) unlinkSync(control);
+  if (existsSync(receiptsPath)) unlinkSync(receiptsPath);
+  if (existsSync(rangesPath)) unlinkSync(rangesPath);
   // Debug-only native hook delays GET ranges beyond the first chunk by 2s.
   // Production release builds have no stall hook and use the old sync handler.
   writeFileSync(control, uniqueVideoMediaId + " 2000\n");
@@ -131,7 +131,7 @@ test("real delayed media bytes recover 2x compositor and independent WAV", async
       "expected a native WebView2 buffering event during actual byte starvation").toBe(true);
 
     const releasedAtMs = Date.now();
-    rmSync(control, { force: true }); // Subsequent native requests are unthrottled.
+    if (existsSync(control)) unlinkSync(control); // Subsequent native requests are unthrottled.
     await expect.poll(() => video.evaluate((node) => {
       const v = node as HTMLVideoElement;
       const a = document.querySelector("audio[data-testid^='preview-audio-']") as HTMLAudioElement | null;
@@ -197,6 +197,6 @@ test("real delayed media bytes recover 2x compositor and independent WAV", async
     await expect.poll(() => audio.evaluate((node) => (node as HTMLAudioElement).paused)).toBe(true);
     expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
   } finally {
-    rmSync(control, { force: true }); // No fault injection leaks into later E2E tests.
+    if (existsSync(control)) unlinkSync(control); // No fault injection leaks into later E2E tests.
   }
 });
