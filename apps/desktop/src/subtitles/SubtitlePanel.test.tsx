@@ -42,10 +42,10 @@ describe("SubtitlePanel", () => {
       <SubtitlePanel sequence={sequence()} onSeek={onSeek} onCommit={onCommit} />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Seek subtitle at 1.00s" }));
+    fireEvent.click(screen.getByRole("button", { name: "Перейти к субтитру 1" }));
     expect(onSeek).toHaveBeenCalledWith(1_000_000);
 
-    const editor = screen.getByRole("textbox", { name: "Subtitle 1 text" });
+    const editor = screen.getByRole("textbox", { name: "Текст субтитра 1" });
     fireEvent.change(editor, { target: { value: "Edited line" } });
     expect(onCommit).not.toHaveBeenCalled();
 
@@ -66,7 +66,7 @@ describe("SubtitlePanel", () => {
       <SubtitlePanel sequence={sequence()} onSeek={vi.fn()} onCommit={onCommit} />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Active-word highlight" }));
+    fireEvent.click(screen.getByRole("button", { name: "Подсветка слова" }));
 
     expect(onCommit).toHaveBeenCalledTimes(1);
     expect(onCommit.mock.calls[0][0]).toEqual({
@@ -123,7 +123,7 @@ describe("SubtitlePanel", () => {
       <SubtitlePanel sequence={sequence()} onSeek={vi.fn()} onCommit={onCommit} />,
     );
 
-    const editor = screen.getByRole("textbox", { name: "Subtitle 1 text" }) as HTMLInputElement;
+    const editor = screen.getByRole("textbox", { name: "Текст субтитра 1" }) as HTMLInputElement;
     fireEvent.change(editor, { target: { value: "Rejected line" } });
     fireEvent.blur(editor);
 

@@ -693,6 +693,7 @@ export function AppShell({
           onImport={() => void handleImport()}
           onAddToTimeline={(id) => void addToTimeline(id)}
           onAddText={() => void handleAddText()}
+          onOpenSubtitles={activeSequence ? () => document.getElementById('subtitle-add-button')?.focus() : undefined}
           addingText={addingText}
           busy={busy}
           aiOpen={aiOpen}
@@ -733,6 +734,7 @@ export function AppShell({
           selectedTrackId={selectedTrackId}
           selectedClip={selectedClip}
           onSeek={(timeUs) => transientStore.setPlayheadTime(timeUs)}
+          playheadTimeUs={transient.playheadTimeUs}
           onCommit={handleEditCommand}
         />
         <TimelinePanel

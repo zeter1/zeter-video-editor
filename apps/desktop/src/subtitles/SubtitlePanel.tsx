@@ -1,14 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Sequence, SubtitleSegment } from "../generated/ipc";
-import {
-  requestEditCommit,
-  type EditCommit,
-} from "../editing/commit";
-import {
-  TranscriptionPanel,
-  type TranscriptResultView,
-} from "../ai/TranscriptionPanel";
+import { requestEditCommit, type EditCommit } from "../editing/commit";
+import { TranscriptionPanel, type TranscriptResultView } from "../ai/TranscriptionPanel";
 import { SUBTITLE_PRESETS } from "./presets";
 
 export interface TranscriptionWorkflow {
@@ -17,109 +11,144 @@ export interface TranscriptionWorkflow {
   onStart: () => void;
   onApply: (result: TranscriptResultView) => void;
 }
-
 interface SubtitlePanelProps {
   sequence: Sequence;
+  playheadTimeUs?: number;
   onSeek: (timeUs: number) => void;
   onCommit: EditCommit;
   transcription?: TranscriptionWorkflow;
 }
+interface Draft { start: string; end: string; text: string }
+const draftsOf = (segments: SubtitleSegment[]): Draft[] =>
+  segments.map(({ start, end, text }) => ({
+    start: String(start / 1_000_000), end: String(end / 1_000_000), text,
+  }));
+
+function validate(drafts: Draft[]): SubtitleSegment[] | string {
+  const result: SubtitleSegment[] = [];
+  for (const [i, draft] of drafts.entries()) {
+    const start = Math.round(Number(draft.start) * 1_000_000);
+    const end = Math.round(Number(draft.end) * 1_000_000);
+    if (!draft.start.trim() || !draft.end.trim() ||
+        !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0) {
+      return `Субтитр ${i + 1}: укажите неотрицательное время в секундах.`;
+    }
+    if (end <= start) return `Субтитр ${i + 1}: конец должен быть позже начала.`;
+    if (!draft.text.trim() || draft.text.length > 1000) {
+      return `Субтитр ${i + 1}: текст должен содержать от 1 до 1000 символов.`;
+    }
+    result.push({ start, end, text: draft.text });
+  }
+  return result;
+}
 
 export function SubtitlePanel({
-  sequence,
-  onSeek,
-  onCommit,
-  transcription,
+  sequence, playheadTimeUs = 0, onSeek, onCommit, transcription,
 }: SubtitlePanelProps) {
-  const [segments, setSegments] = useState<SubtitleSegment[]>(sequence.subtitle_segments);
-  const lastSubmitted = useRef<string | null>(
-    JSON.stringify(sequence.subtitle_segments),
-  );
+  const [drafts, setDrafts] = useState(() => draftsOf(sequence.subtitle_segments));
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const pending = useRef(false);
+  const lastSubmitted = useRef(JSON.stringify(sequence.subtitle_segments));
 
   useEffect(() => {
-    setSegments(sequence.subtitle_segments);
+    setDrafts(draftsOf(sequence.subtitle_segments));
     lastSubmitted.current = JSON.stringify(sequence.subtitle_segments);
+    setError(null);
   }, [sequence]);
 
-  function replaceText(index: number, text: string): void {
-    setSegments((current) =>
-      current.map((segment, segmentIndex) =>
-        segmentIndex === index ? { ...segment, text } : segment,
-      ),
-    );
+  function updateDraft(i: number, field: keyof Draft, value: string): void {
+    setError(null);
+    setDrafts((current) => current.map((draft, index) =>
+      index === i ? { ...draft, [field]: value } : draft));
   }
 
-  async function commitSegments(): Promise<void> {
+  async function submit(segments: SubtitleSegment[], additive = false): Promise<void> {
+    if (pending.current) return;
     const fingerprint = JSON.stringify(segments);
-    if (lastSubmitted.current === fingerprint) {
-      return;
-    }
-    lastSubmitted.current = fingerprint;
-
-    const accepted = await requestEditCommit(onCommit, {
-      SetSubtitleSegments: {
-        sequence_id: sequence.id,
-        segments,
-      },
-    });
-
-    if (!accepted) {
-      setSegments(sequence.subtitle_segments);
+    if (!additive && lastSubmitted.current === fingerprint) return;
+    pending.current = true;
+    setSubmitting(true);
+    const accepted = await requestEditCommit(onCommit, additive
+      ? { AddSubtitleSegments: { sequence_id: sequence.id, segments } }
+      : { SetSubtitleSegments: { sequence_id: sequence.id, segments } });
+    pending.current = false;
+    setSubmitting(false);
+    if (accepted) {
+      if (!additive) lastSubmitted.current = fingerprint;
+      setError(null);
+    } else {
+      setDrafts(draftsOf(sequence.subtitle_segments));
       lastSubmitted.current = JSON.stringify(sequence.subtitle_segments);
+      setError("Не удалось сохранить субтитры. Изменения отменены.");
     }
+  }
+
+  function commitDrafts(): void {
+    if (pending.current) return;
+    const parsed = validate(drafts);
+    if (typeof parsed === "string") setError(parsed);
+    else void submit(parsed);
+  }
+
+  function addSegment(): void {
+    if (pending.current) return;
+    const start = Number.isSafeInteger(Math.round(playheadTimeUs))
+      ? Math.max(0, Math.round(playheadTimeUs)) : 0;
+    void submit([{ start, end: start + 2_000_000, text: "Новый субтитр" }], true);
+  }
+
+  function deleteSegment(i: number): void {
+    if (pending.current) return;
+    void submit(sequence.subtitle_segments.filter((_, index) => index !== i));
   }
 
   return (
-    <fieldset className="inspector-section subtitle-panel">
-      <legend>Subtitles</legend>
-      {transcription ? (
-        <TranscriptionPanel
-          result={transcription.result}
-          running={transcription.running}
-          onStart={transcription.onStart}
-          onApply={transcription.onApply}
-        />
-      ) : null}
+    <fieldset className="inspector-section subtitle-panel" aria-busy={submitting}>
+      <legend>Субтитры</legend>
+      {transcription ? <TranscriptionPanel
+        result={transcription.result} running={transcription.running}
+        onStart={transcription.onStart} onApply={transcription.onApply} /> : null}
 
-      <div className="subtitle-presets" aria-label="Subtitle presets">
+      <div className="subtitle-presets" aria-label="Стили субтитров">
         {Object.values(SUBTITLE_PRESETS).map((preset) => (
-          <button
-            key={preset.label}
-            type="button"
-            onClick={() =>
-              void requestEditCommit(onCommit, {
-                SetSubtitleStyle: {
-                  sequence_id: sequence.id,
-                  style: preset.style,
-                },
-              })
-            }
-          >
-            {preset.label}
-          </button>
+          <button key={preset.label} type="button" disabled={submitting}
+            onClick={() => void requestEditCommit(onCommit, {
+              SetSubtitleStyle: { sequence_id: sequence.id, style: preset.style },
+            })}>{preset.label}</button>
         ))}
       </div>
-
-      {segments.length === 0 ? (
-        <p className="empty-copy">No subtitle segments yet.</p>
+      <button type="button" id="subtitle-add-button" disabled={submitting}
+        onClick={addSegment}>Добавить субтитр</button>
+      {error ? <p role="alert" className="subtitle-error">{error}</p> : null}
+      {drafts.length === 0 ? (
+        <p className="empty-copy">Субтитров пока нет. Добавьте первый на позиции курсора.</p>
       ) : (
         <div className="subtitle-list">
-          {segments.map((segment, index) => (
-            <div className="subtitle-row" key={`${segment.start}-${segment.end}-${index}`}>
-              <button
-                type="button"
-                className="subtitle-time"
-                aria-label={`Seek subtitle at ${(segment.start / 1_000_000).toFixed(2)}s`}
-                onClick={() => onSeek(segment.start)}
-              >
-                {(segment.start / 1_000_000).toFixed(2)}s
-              </button>
-              <input
-                aria-label={`Subtitle ${index + 1} text`}
-                value={segment.text}
-                onChange={(event) => replaceText(index, event.target.value)}
-                onBlur={() => void commitSegments()}
-              />
+          {drafts.map((draft, i) => (
+            <div className="subtitle-row" key={i}>
+              <button type="button" className="subtitle-time" disabled={submitting}
+                aria-label={`Перейти к субтитру ${i + 1}`}
+                onClick={() => onSeek(sequence.subtitle_segments[i]?.start ?? 0)}>{i + 1}</button>
+              <label>Начало, с
+                <input type="number" min={0} step="0.001" disabled={submitting}
+                  aria-label={`Начало субтитра ${i + 1}, с`} value={draft.start}
+                  onChange={(e) => updateDraft(i, "start", e.target.value)}
+                  onBlur={commitDrafts} />
+              </label>
+              <label>Конец, с
+                <input type="number" min={0} step="0.001" disabled={submitting}
+                  aria-label={`Конец субтитра ${i + 1}, с`} value={draft.end}
+                  onChange={(e) => updateDraft(i, "end", e.target.value)}
+                  onBlur={commitDrafts} />
+              </label>
+              <input aria-label={`Текст субтитра ${i + 1}`} disabled={submitting}
+                maxLength={1000} value={draft.text}
+                onChange={(e) => updateDraft(i, "text", e.target.value)}
+                onBlur={commitDrafts} />
+              <button type="button" disabled={submitting}
+                aria-label={`Удалить субтитр ${i + 1}`}
+                onClick={() => deleteSegment(i)}>Удалить</button>
             </div>
           ))}
         </div>

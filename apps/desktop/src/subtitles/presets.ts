@@ -6,7 +6,7 @@ export const SUBTITLE_PRESETS: {
   activeWord: { label: string; style: SubtitleStyle };
 } = {
   clean: {
-    label: "Clean",
+    label: "Чистый стиль",
     style: {
       text_style: {
         font_family: "Arial",
@@ -24,7 +24,7 @@ export const SUBTITLE_PRESETS: {
     },
   },
   bold: {
-    label: "Bold short-form",
+    label: "Яркий для Shorts",
     style: {
       text_style: {
         font_family: "Arial",
@@ -42,7 +42,7 @@ export const SUBTITLE_PRESETS: {
     },
   },
   activeWord: {
-    label: "Active-word highlight",
+    label: "Подсветка слова",
     style: {
       text_style: {
         font_family: "Arial",

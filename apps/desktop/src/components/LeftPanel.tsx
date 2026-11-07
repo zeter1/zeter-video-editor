@@ -5,6 +5,7 @@ interface LeftPanelProps {
   media: MediaRef[];
   onImport?: () => void;
   onAddText?: () => void;
+  onOpenSubtitles?: () => void;
   addingText?: boolean;
   onAddToTimeline?: (mediaId: string) => void;
   busy?: boolean;
@@ -14,7 +15,7 @@ interface LeftPanelProps {
 }
 
 export function LeftPanel({
-  media, onImport, onAddToTimeline, onAddText, addingText = false,
+  media, onImport, onAddToTimeline, onAddText, onOpenSubtitles, addingText = false,
   busy = false, aiOpen = false, onToggleAi, aiContent,
 }: LeftPanelProps) {
   return (
@@ -29,7 +30,8 @@ export function LeftPanel({
           onClick={onAddText} title="Добавить титр в активную последовательность">
           {addingText ? "Добавление…" : "Текст"}
         </button>
-        <button type="button" disabled title="Субтитры через свойства">Субтитры</button>
+        <button type="button" disabled={!onOpenSubtitles} onClick={onOpenSubtitles}
+          title="Открыть редактор субтитров в свойствах">Субтитры</button>
         <button type="button" aria-pressed={aiOpen} onClick={onToggleAi}>AI-инструменты</button>
       </div>
       <div className="media-list">
