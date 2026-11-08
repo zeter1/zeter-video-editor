@@ -1479,3 +1479,22 @@ button {
   padding-left: 6px;
   background: rgba(102, 167, 120, 0.11);
 }
+
+/* Media-derived, non-interactive amplitudes; trim handles and clip actions stay above. */
+.timeline-audio-waveform {
+  position: absolute;
+  inset: 3px 7px;
+  width: calc(100% - 14px);
+  height: calc(100% - 6px);
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  stroke: #70d5b7;
+  stroke-width: 0.7;
+  opacity: 0.78;
+}
+.timeline-clip-audio .clip-kind,
+.timeline-clip-audio .clip-actions {
+  position: relative;
+  z-index: 1;
+}

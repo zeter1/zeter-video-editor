@@ -24,6 +24,7 @@ export interface IpcClient {
   ): Promise<ProjectSnapshotDto>;
   projectSave(path: string): Promise<ProjectSnapshotDto>;
   projectSnapshot(): Promise<ProjectSnapshotDto>;
+  getAudioWaveform(projectId: string, mediaId: string, sourceInUs: number, sourceOutUs: number, buckets: number): Promise<number[]>;
   executeEditCommand(request: EditRequest): Promise<CommandResultDto>;
   undo(requestId: RequestId): Promise<CommandResultDto>;
   redo(requestId: RequestId): Promise<CommandResultDto>;
@@ -97,6 +98,8 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
       call(invokeFn, "project_open_with_relink", { path, replacementPath }),
     projectSave: (path) => call(invokeFn, "project_save", { path }),
     projectSnapshot: () => call(invokeFn, "project_snapshot"),
+    getAudioWaveform: (projectId, mediaId, sourceInUs, sourceOutUs, buckets) =>
+      call(invokeFn, "get_audio_waveform", { projectId, mediaId, sourceInUs, sourceOutUs, buckets }),
     executeEditCommand: (request) =>
       call(invokeFn, "execute_edit_command", { request }),
     undo: (requestId) => call(invokeFn, "undo", { requestId }),
