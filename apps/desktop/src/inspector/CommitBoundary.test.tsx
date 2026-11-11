@@ -72,6 +72,7 @@ describe("inspector commit boundaries", () => {
     const onCommit = vi.fn().mockResolvedValue(true);
     render(
       <AudioInspector
+        projectId="project-1"
         sequenceId="sequence-1"
         trackId="track-1"
         clip={clipFixture()}

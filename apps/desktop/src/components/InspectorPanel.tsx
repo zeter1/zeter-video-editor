@@ -72,6 +72,7 @@ export function InspectorPanel({
             />
             <AudioInspector
               key={`audio-${selectedClip.id}`}
+              projectId={project!.id}
               sequenceId={sequence.id}
               trackId={selectedTrackId}
               clip={selectedClip}

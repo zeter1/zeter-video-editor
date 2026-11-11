@@ -1,27 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { AudioState, Clip, SequenceId, TrackId } from "../generated/ipc";
+import type { AudioState, Clip, ProjectId, SequenceId, TrackId } from "../generated/ipc";
+import { loadAudioLoudness, suggestedNormalizationGain, type AudioLoudness } from "./audioLoudness";
 import {
   requestEditCommit,
   type EditCommit,
 } from "../editing/commit";
 
 interface AudioInspectorProps {
+  projectId: ProjectId;
   sequenceId: SequenceId;
   trackId: TrackId;
   clip: Clip;
   onCommit: EditCommit;
-  normalizeGainDb?: number | null;
 }
 
 export function AudioInspector({
+  projectId,
   sequenceId,
   trackId,
   clip,
   onCommit,
-  normalizeGainDb = null,
 }: AudioInspectorProps) {
   const [draft, setDraft] = useState<AudioState>(clip.audio);
+  const [measurement, setMeasurement] = useState<AudioLoudness | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const analysisRevision = useRef(0);
   const lastSubmitted = useRef<string | null>(JSON.stringify(clip.audio));
 
   useEffect(() => {
@@ -29,6 +34,62 @@ export function AudioInspector({
     setDraft(authoritative);
     lastSubmitted.current = JSON.stringify(authoritative);
   }, [clip]);
+
+  // Analysis is source-range-specific. Never apply an old result after a trim,
+  // selection change or project switch, even if the pending IPC resolves later.
+  useEffect(() => {
+    analysisRevision.current += 1;
+    setMeasurement(null);
+    setAnalysisError(null);
+    setAnalyzing(false);
+    return () => { analysisRevision.current += 1; };
+  }, [projectId, sequenceId, trackId, clip.id, clip.source_in, clip.source_out]);
+
+  const normalizationGain = measurement
+    ? suggestedNormalizationGain(measurement, draft.volume)
+    : null;
+  const canNormalize = (clip.kind === "Audio" || clip.kind === "Video")
+    && !analyzing && !draft.muted
+    && JSON.stringify(draft) === JSON.stringify(clip.audio)
+    && normalizationGain !== null;
+
+  async function analyze(): Promise<void> {
+    const revision = ++analysisRevision.current;
+    setAnalyzing(true);
+    setAnalysisError(null);
+    setMeasurement(null);
+    try {
+      const next = await loadAudioLoudness(projectId, sequenceId, trackId, clip.id);
+      if (revision === analysisRevision.current) {
+        setMeasurement(next);
+      }
+    } catch {
+      if (revision === analysisRevision.current) {
+        setAnalysisError("Не удалось измерить громкость: проверьте аудиодорожку и исходный файл.");
+      }
+    } finally {
+      if (revision === analysisRevision.current) setAnalyzing(false);
+    }
+  }
+
+  async function normalize(): Promise<void> {
+    if (!canNormalize || normalizationGain === null) return;
+    const accepted = await requestEditCommit(onCommit, {
+      NormalizeAudio: {
+        sequence_id: sequenceId,
+        track_id: trackId,
+        clip_id: clip.id,
+        gain_db: normalizationGain,
+      },
+    });
+    if (accepted) {
+      const next = { ...draft, gain_db: normalizationGain };
+      setDraft(next);
+      lastSubmitted.current = JSON.stringify(next);
+    } else {
+      setAnalysisError("Не удалось применить нормализацию к выбранному клипу.");
+    }
+  }
 
   function update(patch: Partial<AudioState>): AudioState {
     const next = { ...draft, ...patch };
@@ -123,28 +184,28 @@ export function AudioInspector({
           onBlur={() => void commit()}
         />
       </label>
-      <button
-        type="button"
-        disabled={normalizeGainDb === null}
-        title={
-          normalizeGainDb === null
-            ? "Normalization becomes available after loudness analysis."
-            : "Apply analyzed normalization gain."
-        }
-        onClick={() => {
-          if (normalizeGainDb === null) return;
-          void requestEditCommit(onCommit, {
-            NormalizeAudio: {
-              sequence_id: sequenceId,
-              track_id: trackId,
-              clip_id: clip.id,
-              gain_db: normalizeGainDb,
-            },
-          });
-        }}
-      >
-        Normalize
-      </button>
+      {(clip.kind === "Audio" || clip.kind === "Video") ? (
+        <div className="audio-loudness" aria-label="Анализ громкости">
+          <button type="button" disabled={analyzing} onClick={() => void analyze()}>
+            {analyzing ? "Анализируем…" : "Измерить громкость"}
+          </button>
+          {measurement ? (
+            <p aria-live="polite">
+              LUFS: {measurement.integrated_lufs.toFixed(1)} · True Peak: {measurement.true_peak_dbfs.toFixed(1)} dBTP
+              {normalizationGain !== null ? ` · Рекомендуемый Gain: ${normalizationGain.toFixed(1)} dB` : ""}
+            </p>
+          ) : null}
+          {analysisError ? <p role="alert">{analysisError}</p> : null}
+          <button
+            type="button"
+            disabled={!canNormalize}
+            title="Статическая нормализация к −16 LUFS с ограничением −1.5 dBTP"
+            onClick={() => void normalize()}
+          >
+            Normalize
+          </button>
+        </div>
+      ) : null}
     </fieldset>
   );
 }

@@ -1,3 +1,14 @@
+# CURRENT DEVELOPMENT — ZVE-013 audio LUFS normalization (2026-11-11)
+
+- **Baseline:** main `18775e9803d790291b5bc3b34f2766d763c7b177` (ZVE-012 PR #95 merged), desktop `0.1.0-alpha.30`. Historical ZVE-012 development record follows below. Open PR #93 is independent infrastructure and must not be merged without its own green exact-head CI.
+- **Active Windows branch:** `feat/zve-013-audio-normalization-20261111` based on main above; new source version `0.1.0-alpha.31` via approved version script. Not a release/tag/sign/install. Working folder `G:\\МОЯ Веб-разработка\\zeter-video-editor`.
+- **Product:** local bounded Rust/FFmpeg EBU R128 measurement of selected audio/video source `source_in/source_out`, validates project/clip/media and rejects stale/changed media. UI in Audio Inspector displays LUFS and dBTP, calculates static target −16 LUFS capped at −1.5 dBTP, uses existing authoritatively undoable `NormalizeAudio` editing command and existing `.vcut` audio gain state. No source media mutation/schema change. Silent or missing audio reports a meaningful failure.
+- **QA Windows Zeter-PC:** Rust `cargo check -p zeter-desktop-tauri` PASS; Rust workspace `cargo test --workspace --quiet` PASS including `media-engine::loudness` 2/2; `cargo fmt --all -- --check` PASS; frontend `npm --prefix apps/desktop run build` PASS; **Vitest 242/242 PASS (53 files)**; version-policy 8/8 PASS; `node scripts/check-version.mjs` PASS alpha.31; `git diff --check` PASS. **Full native Windows Tauri/WebView2 Playwright E2E 37/37 PASS**, including new real FFmpeg WAV LUFS, Rust Undo/Redo, save/reopen `.vcut`, two before/after H.264 MP4 exports with independent decoded `volumedetect` gain-difference check, existing 2× A/V drift, preview parity, timeline, subtitles and waveforms. Bundle/NSIS, exact-head GitHub Actions gates tracked separately below; do not infer green CI from local results.
+- **Next integration:** finish full checks and unsigned DEBUG EXE/NSIS hashes, self-review, git commit/push, create PR to main, verify exact-head CI terminal SUCCESS then safe merge and post-merge main sync. Do not claim merged until observed.
+- **NEXT PRODUCT-CODE TASK ZVE-014:** *detach embedded video audio* into an independently editable audio timeline clip/track (explicitly approved in design §12 but absent in current Rust command and desktop UI). Determine core edit command and media identity without duplicating source bytes, preserve synchronization/Undo/Redo/.vcut and FFmpeg export, add native Windows WebView2 E2E. Work from verified main after ZVE-013 integration; do not alter editor formats without explicit decision.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-012 direct audio fade handles (2026-11-11)
 
 - **Verified baseline:** GitHub `main` is `fb0f6538723b6fa3c3332fdcc2d9d7bcb309a29b` (ZVE-011 PR #94 merged via squash); post-merge exact-main Windows Actions #42966053901 COMPLETED SUCCESS. PR #93 is a separate unfixed infrastructure issue with failed prior CI, not merged.
@@ -1095,7 +1106,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.30` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.31` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

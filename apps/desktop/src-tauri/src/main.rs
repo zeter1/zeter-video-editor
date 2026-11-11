@@ -5,6 +5,7 @@ mod contracts;
 mod diagnostics;
 mod error;
 mod ipc;
+mod loudness_ipc;
 mod preview_composite;
 mod preview_stream;
 mod runtime_manifest;
@@ -93,6 +94,7 @@ fn main() {
             ipc::project_save,
             ipc::project_snapshot,
             waveform_ipc::get_audio_waveform,
+            loudness_ipc::analyze_audio_loudness,
             preview_composite::request_preview_chunk,
             preview_composite::cancel_preview_chunk,
             transcription_ipc::start_transcription,
