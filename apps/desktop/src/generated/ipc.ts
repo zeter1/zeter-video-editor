@@ -181,6 +181,7 @@ export type EditCommand =
   | { RelinkMedia: { media_id: MediaId; media: MediaRef } }
   | { AddSequence: { sequence: Sequence; index: number | null } }
   | { AddClip: { sequence_id: SequenceId; track_id: TrackId; clip: Clip } }
+  | { DetachAudio: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; audio_track: Track; audio_clip_id: ClipId } }
   | { DeleteClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId } }
   | { MoveClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; timeline_start: TimeUs } }
   | { TrimClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; source_in: TimeUs; source_out: TimeUs; timeline_start: TimeUs; timeline_end: TimeUs } }

@@ -1,6 +1,7 @@
 import type { Clip, Project, Sequence, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { AudioInspector } from "../inspector/AudioInspector";
+import { DetachAudioButton } from "../inspector/DetachAudioButton";
 import { ColorInspector } from "../inspector/ColorInspector";
 import { SpeedInspector } from "../inspector/SpeedInspector";
 import { TextInspector } from "../inspector/TextInspector";
@@ -66,6 +67,13 @@ export function InspectorPanel({
             <SpeedInspector
               key={`speed-${selectedClip.id}`}
               sequenceId={sequence.id}
+              trackId={selectedTrackId}
+              clip={selectedClip}
+              onCommit={onCommit}
+            />
+            <DetachAudioButton
+              key={`detach-${selectedClip.id}`}
+              sequence={sequence}
               trackId={selectedTrackId}
               clip={selectedClip}
               onCommit={onCommit}

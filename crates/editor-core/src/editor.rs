@@ -2,7 +2,7 @@ use crate::history::{History, HistoryAction, HistoryEntry, find_track_mut};
 use crate::{
     AudioState, ChangedEntity, Clip, ClipKind, ColorAdjustments, CommandResult, DomainError,
     EditCommand, EditRequest, MediaRef, Project, ProjectRevision, RequestId, SequenceId, TextState,
-    TimeUs, TrackId, Transform,
+    TimeUs, TrackId, TrackKind, Transform,
 };
 
 pub struct Editor {
@@ -153,6 +153,63 @@ impl Editor {
                 Ok(vec![
                     ChangedEntity::Track(*track_id),
                     ChangedEntity::Clip(clip.id),
+                ])
+            }),
+            EditCommand::DetachAudio {
+                sequence_id,
+                track_id,
+                clip_id,
+                audio_track,
+                audio_clip_id,
+            } => self.mutate_sequence_tracks(*sequence_id, |tracks| {
+                if audio_track.kind != TrackKind::Audio
+                    || !audio_track.clips.is_empty()
+                    || audio_track.locked
+                    || audio_track.hidden
+                {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "detached audio requires an empty, enabled audio track",
+                    });
+                }
+                let index = tracks
+                    .iter()
+                    .position(|track| track.id == *track_id)
+                    .ok_or(DomainError::EntityNotFound { entity: "track" })?;
+                let source_track = &mut tracks[index];
+                if source_track.locked {
+                    return Err(DomainError::TrackLocked {
+                        track_id: *track_id,
+                    });
+                }
+                if audio_track.muted != source_track.muted {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "detached audio must preserve the source track mute state",
+                    });
+                }
+                let source = source_track
+                    .clips
+                    .iter_mut()
+                    .find(|clip| clip.id == *clip_id)
+                    .ok_or(DomainError::EntityNotFound { entity: "clip" })?;
+                if source.kind != ClipKind::Video || source.media_id.is_none() || source.audio.muted
+                {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "detach audio requires a video clip with enabled source audio",
+                    });
+                }
+                let mut audio_clip = source.clone();
+                audio_clip.id = *audio_clip_id;
+                audio_clip.kind = ClipKind::Audio;
+                audio_clip.transition = None;
+                source.audio.muted = true;
+                let mut new_track = audio_track.clone();
+                new_track.clips.push(audio_clip);
+                tracks.insert(index + 1, new_track);
+                Ok(vec![
+                    ChangedEntity::Track(*track_id),
+                    ChangedEntity::Clip(*clip_id),
+                    ChangedEntity::Track(audio_track.id),
+                    ChangedEntity::Clip(*audio_clip_id),
                 ])
             }),
             EditCommand::DeleteClip {
