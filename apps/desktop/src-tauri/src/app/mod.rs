@@ -18,6 +18,7 @@ pub struct AppState {
     pub preview: PreviewService,
     pub export_tasks: Mutex<Vec<ExportTaskMeta>>,
     pub export_gate: Arc<AsyncMutex<()>>,
+    pub waveform_gate: Arc<AsyncMutex<()>>,
 }
 
 impl AppState {
@@ -28,6 +29,7 @@ impl AppState {
             preview: PreviewService::default(),
             export_tasks: Mutex::new(Vec::new()),
             export_gate: Arc::new(AsyncMutex::new(())),
+            waveform_gate: Arc::new(AsyncMutex::new(())),
         }
     }
 }

@@ -16,6 +16,7 @@ import {
 } from "../state/transientStore";
 import { createMoveClipInteraction } from "./interaction";
 import { snapTimelineTime } from "./snapping";
+import { WaveformOverlay } from "./WaveformOverlay";
 import {
   durationUsToPixels,
   pixelDeltaToTimeUs,
@@ -313,6 +314,8 @@ export function ClipView({
         onPointerMove={previewTrim}
         onPointerUp={commitTrim}
       />
+      {clip.kind === "Audio" ? <WaveformOverlay clip={clip}
+        projectId={projectStore.getState().snapshot?.project.id ?? null} /> : null}
       <span className="clip-kind">{clip.kind}</span>
       <div className="clip-actions" onPointerDown={(event) => event.stopPropagation()}>
         <button

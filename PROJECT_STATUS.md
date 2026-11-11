@@ -1,3 +1,13 @@
+# CURRENT DEVELOPMENT — ZVE-011 real audio waveforms on Timeline (2026-11-08)
+
+- **Baseline:** GitHub `main` `b5aec7314c64026d49ad6446a0c8f46d453484d0`, `0.1.0-alpha.28`, ZVE-010/PR #92 merged. A separate open infrastructure PR #93 (`fix/webview2-cdp-attach-race-20261107`, HEAD `1955ac91ef101c24b835843b4d0d1867fcf32909`) has GitHub Actions run #42398005778 FAILED: 28/34 native WebView2 E2E pass, independent 2x AV drift backward-scrub recovery timeout fails, then 5 CDP connections refuse. Do not merge #93 without fresh exact-HEAD successful CI. The local fresh native test on this branch does pass.
+- **Product branch:** `feat/zve-011-audio-waveforms-20261108` created from that exact clean `main`; `scripts/set-version.mjs` sets `0.1.0-alpha.29` in all required manifests/changelog. No .vcut schema mutation, release, signing or installation.
+- **Implemented:** Rust `media-engine::waveform` builds managed mono 8 kHz FFmpeg PCM cache and efficiently reads 512 actual per-bin source amplitude maxima for requested `source_in_us/source_out_us`; bounded asynchronous Tauri IPC `get_audio_waveform` authenticates current project/media identity against Rust state, checks media size/mtime, serializes cache generation outside project mutex and publishes only complete file. React `WaveformOverlay` paints amplitudes as non-interactive SVG directly on audio clips; moving/speed/stretch/zoom retain source mapping, trimming retriggers audio retrieval and drops stale replies; missing audio safely leaves clip undisturbed. Read-only reconstruction cache under app_cache_dir, not .vcut; no changes to original media, exports, AI, Undo/Redo.
+- **REAL LOCAL WINDOWS EVIDENCE:** TypeScript/Vite production client PASS; full frontend Vitest **235/235 (51 files)**; Rust `cargo test --workspace --quiet` all PASS (**142 unit/integration tests**, plus doc targets); `cargo fmt --all -- --check` PASS; `node --test scripts/version-policy.test.mjs` **8/8 PASS**; `node scripts/check-version.mjs` PASS; `git diff --check` PASS. Native Windows Tauri/WebView2 `npm run test:e2e` with `ZETER_TEST_FFMPEG_DIR=C:\ffmpeg\bin`: **35/35 PASS** (includes new 1/1 waveform true WAV/zoom/.vcut E2E, real FFmpeg export, and 2x A/V stress test). Build `npm run tauri build -- --debug --bundles nsis` performed separately after tests; see later evidence for final NSIS status and SHA.
+- **NEXT INTEGRATION:** GitHub push, PR creation, review, exact-head CI. No merge until latest head checks meet policy; any red CI is a blocker, not a test to bypass. **NEXT PRODUCT TASK:** ZVE-012 — direct-manipulation fade-in/fade-out handles with native Rust AudioState and Undo/Redo, plus tests and native Windows QA. Do not repeat subtitle or waveform work.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-010 subtitle segments on Timeline (2026-11-07)
 
 - **Base and prior success:** GitHub main `ba8bd4a263f3d9639e5b5e0aa4c33c5bd9bf4339` / alpha.27, post-merge Windows GitHub CI #42379285644 COMPLETED SUCCESS. Prior ZVE-009/PR #91 merged; Windows local `main` fast-forwarded exactly to this SHA before this slice.
@@ -1073,7 +1083,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.28` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.29` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

@@ -10,6 +10,7 @@ mod preview_stream;
 mod runtime_manifest;
 mod transcription_ipc;
 mod update;
+mod waveform_ipc;
 
 use tauri::Manager;
 
@@ -91,6 +92,7 @@ fn main() {
             ipc::project_open_recovery,
             ipc::project_save,
             ipc::project_snapshot,
+            waveform_ipc::get_audio_waveform,
             preview_composite::request_preview_chunk,
             preview_composite::cancel_preview_chunk,
             transcription_ipc::start_transcription,
