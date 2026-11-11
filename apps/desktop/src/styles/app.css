@@ -1498,3 +1498,44 @@ button {
   position: relative;
   z-index: 1;
 }
+
+/* Direct-manipulation audio fades: pointer-safe overlay above waveform, below clip trim grips. */
+.audio-fade-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.audio-fade-envelope {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #e1cf82;
+  stroke-width: 1.4;
+  pointer-events: none;
+}
+.audio-fade-handle {
+  position: absolute;
+  top: 1px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  transform: translateX(-50%);
+  border: 1px solid #394a36;
+  border-radius: 4px;
+  background: #f2d482;
+  box-shadow: 0 1px 2px #14231f;
+  cursor: ew-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+.audio-fade-handle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+.audio-fade-handle:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

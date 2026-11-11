@@ -17,6 +17,7 @@ import {
 import { createMoveClipInteraction } from "./interaction";
 import { snapTimelineTime } from "./snapping";
 import { WaveformOverlay } from "./WaveformOverlay";
+import { AudioFadeHandles } from "./AudioFadeHandles";
 import {
   durationUsToPixels,
   pixelDeltaToTimeUs,
@@ -316,6 +317,9 @@ export function ClipView({
       />
       {clip.kind === "Audio" ? <WaveformOverlay clip={clip}
         projectId={projectStore.getState().snapshot?.project.id ?? null} /> : null}
+      {clip.kind === "Audio" ? <AudioFadeHandles clip={clip} widthPx={width}
+        sequenceId={sequenceId} trackId={trackId} locked={trackLocked}
+        commitCommand={commitCommand} onSelect={() => transientStore.selectClip(clip.id)} /> : null}
       <span className="clip-kind">{clip.kind}</span>
       <div className="clip-actions" onPointerDown={(event) => event.stopPropagation()}>
         <button
