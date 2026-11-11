@@ -3,6 +3,7 @@ pub mod capabilities;
 pub mod encoder;
 pub mod error;
 pub mod export;
+pub mod loudness;
 pub mod preview_cache;
 pub mod probe;
 pub mod process;
