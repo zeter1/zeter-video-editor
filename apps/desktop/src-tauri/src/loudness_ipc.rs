@@ -76,6 +76,9 @@ pub async fn analyze_audio_loudness(
         (media, source_in_us, source_out_us)
     };
 
+    // Save the authoritative media identity across the asynchronous decoder job.
+    // Relinking may replace a source without changing the clip ID or trim range.
+    let expected_media = media.clone();
     let metadata =
         fs::metadata(&media.absolute_path).map_err(|_| error("Source media unavailable"))?;
     if !metadata.is_file() || metadata.len() != media.file_size {
@@ -125,10 +128,23 @@ pub async fn analyze_audio_loudness(
         .and_then(|s| s.tracks.iter().find(|t| t.id.get().to_string() == track_id))
         .and_then(|t| t.clips.iter().find(|c| c.id.get().to_string() == clip_id))
         .is_some_and(|c| {
-            c.source_in.get() as u64 == source_in_us && c.source_out.get() as u64 == source_out_us
+            c.media_id == Some(expected_media.id)
+                && matches!(c.kind, ClipKind::Audio | ClipKind::Video)
+                && c.source_in.get() as u64 == source_in_us
+                && c.source_out.get() as u64 == source_out_us
         });
-    if !still_same_clip {
-        return Err(error("Clip changed during analysis"));
+    let still_same_media = snapshot
+        .project
+        .media
+        .iter()
+        .find(|item| item.id == expected_media.id)
+        .is_some_and(|item| {
+            item.absolute_path == expected_media.absolute_path
+                && item.file_size == expected_media.file_size
+                && item.duration == expected_media.duration
+        });
+    if !still_same_clip || !still_same_media {
+        return Err(error("Clip or source media changed during analysis"));
     }
     Ok(result)
 }
