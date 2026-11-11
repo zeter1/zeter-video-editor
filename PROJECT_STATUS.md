@@ -1,3 +1,15 @@
+# CURRENT DEVELOPMENT — ZVE-012 direct audio fade handles (2026-11-11)
+
+- **Verified baseline:** GitHub `main` is `fb0f6538723b6fa3c3332fdcc2d9d7bcb309a29b` (ZVE-011 PR #94 merged via squash); post-merge exact-main Windows Actions #42966053901 COMPLETED SUCCESS. PR #93 is a separate unfixed infrastructure issue with failed prior CI, not merged.
+- **Active feature branch:** `feat/zve-012-audio-fades-20261111` created from exact clean `fb0f6538`. Version bumped via `scripts/set-version.mjs` to `0.1.0-alpha.30` across all manifests; updated `CHANGELOG.md`. This is **source/QA prerelease only**, no release/tag/installation/signing.
+- **Implemented:** Directly draggable yellow Fade In / Fade Out knobs + gold fade envelope on waveform clips (`AudioFadeHandles.tsx` integrated into `ClipView.tsx`), instant temporary preview during drag, exactly one authoritative `SetAudioState` on release preserving volume/gain/mute, Undo/Redo; Arrow keys/Home/End/Shift accessibility, pointer cancel, locked-track guard, duration/overlap clamping, pending-edit guard. Knobs inset from clip edges and layered below existing trim handles; independent native pointer hit regression verifies both Trim and Fade remain usable. Reuses existing Rust `AudioState` and project serialization; no .vcut migration, FFmpeg export change, or original media mutation.
+- **Local Windows evidence:** `npm --prefix apps/desktop run build` PASS, `npm --prefix apps/desktop test -- --run` **238/238 PASS (52 files)**, `cargo fmt --all -- --check` PASS, `cargo test --workspace --quiet` all Rust workspace tests PASS, `node scripts/check-version.mjs` PASS. Native Tauri/WebView2 new `audio-fade-timeline.spec.ts` 1/1 PASS after trim/fade hit-target assertion, checks waveform readiness, native pointer drag, Rust authoritative revision, Undo/Redo, .vcut save/reopen. Final full native Windows Tauri/WebView2 `npm --prefix apps/desktop run test:e2e` **36/36 PASS**, now including real trim-vs-fade hit targets, real WAV/FFmpeg waveform, Rust revision/Undo/Redo/.vcut, native MP4 exports, 2x A/V sync; one earlier intermittent fade-grip test failure was reproduced/diagnosed with native pointer events, stabilized by waiting for real waveform before interaction and moving knob hitboxes away from trim region. Exact final sources were rebuilt and tested. Version-policy 8/8 PASS; git diff --check PASS.
+- **Windows artifacts (completed):** unsigned DEBUG EXE `target/x86_64-pc-windows-msvc/debug/zeter-desktop-tauri.exe` 27,017,216 bytes, SHA256 `03AE7C443BEFBC3DFB0BD8415E2B9EECB8F5D58C705506E4E6AEA4923B4C9859`. Unsigned standalone DEBUG NSIS bundle `target/x86_64-pc-windows-msvc/debug/bundle/nsis/Zeter Video Editor_0.1.0-alpha.30_x64-setup.exe` 116,678,803 bytes, SHA256 `E18AC22A7499C92DC3BDE492FDDA8F383BF7EF5F333F5C854257F3E621FA27ED`. Tauri `--debug --bundles nsis` PASS with ignored QA override `bundle.createUpdaterArtifacts=false`. No signing, installation, tag or GitHub Release.
+- **Remaining integration:** commit and push feature branch; open PR; confirm terminal SUCCESS for mandatory CI on exact feature HEAD; self-review and merge under repo policy; update Google task journal and read back main/local checkout. Do not claim integrated while pending.
+- **Next approved product slice:** ZVE-013 — make selected-audio loudness analysis/normalization truly actionable in Audio Inspector using local Rust/FFmpeg analysis, existing NormalizeAudio command, preview/export parity, native Windows test. Do not redo prior ZVE-011 waveform/ZVE-010 subtitles.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-011 real audio waveforms on Timeline (2026-11-08)
 
 - **Baseline:** GitHub `main` `b5aec7314c64026d49ad6446a0c8f46d453484d0`, `0.1.0-alpha.28`, ZVE-010/PR #92 merged. A separate open infrastructure PR #93 (`fix/webview2-cdp-attach-race-20261107`, HEAD `1955ac91ef101c24b835843b4d0d1867fcf32909`) has GitHub Actions run #42398005778 FAILED: 28/34 native WebView2 E2E pass, independent 2x AV drift backward-scrub recovery timeout fails, then 5 CDP connections refuse. Do not merge #93 without fresh exact-HEAD successful CI. The local fresh native test on this branch does pass.
@@ -1083,7 +1095,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.29` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.30` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
