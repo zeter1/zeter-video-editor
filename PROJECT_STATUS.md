@@ -1,3 +1,14 @@
+# CURRENT DEVELOPMENT — ZVE-014 Detach Audio (2026-11-11)
+
+- **Baseline:** verified GitHub `main` `cb4da2aff7456c27dbeb9f6f9e0ce6e1f2178722`, ZVE-013 PR #96 merged, exact-main Actions #42992289229 COMPLETED SUCCESS. Desktop `0.1.0-alpha.31` prior to this feature. The independent infrastructure PR #93 remains unmerged/failed; do not integrate without separate fixes and exact-head CI.
+- **Development branch:** `feat/zve-014-detach-audio-20261111` based on exact clean main `cb4da2a`; source desktop version now `0.1.0-alpha.32` via `node scripts/set-version.mjs`, NOT a signed/published/installed release.
+- **Product:** Inspector button `Отделить аудио` for selected video; a single Rust `DetachAudio` creates a new audio track containing an independently editable `Audio` clip referencing existing `media_id`, same timeline/source ranges, speed/gain/fades, and mutes embedded source video audio. Preserves source track mute state. Uses existing project model, save/reopen `.vcut`, Undo/Redo, Preview and FFmpeg MP4 export; no original file edits or schema migration.
+- **Files:** `crates/editor-core/src/{command,editor}.rs`, `crates/editor-core/tests/detach_audio.rs`, `apps/desktop/src/inspector/DetachAudioButton{,.test}.tsx`, `apps/desktop/src/components/InspectorPanel.tsx`, `apps/desktop/src/generated/ipc.ts`, `apps/desktop/src-tauri/src/contracts.rs`, `apps/desktop/e2e/detach-audio.spec.ts`; version manifests + CHANGELOG.
+- **QA so far:** local Windows Rust workspace tests PASS, new Rust detach tests (3 tests) PASS, Rust fmt PASS, React 246/246 Vitest (54 files) PASS after final mute-case guard, TypeScript/Vite production build PASS, version-policy 8/8 and check-version PASS. Native Windows Tauri/WebView2 targeted Detach Audio 1/1 PASS with FFmpeg real MP4 before/after decoded audio level (no duplication), authoritative Rust undo/redo, independent MoveClip, .vcut save/reopen. FULL 38/38 Windows native Tauri/WebView2 E2E PASS (real FFmpeg audio and video). QA unsigned DEBUG EXE `target/x86_64-pc-windows-msvc/debug/zeter-desktop-tauri.exe`: 27,681,280 bytes, SHA256 `E01F7EAB1A1F7641D5744D96B9FB59E0F773A9868A64F1EB4F03BA01229E9D74`. QA unsigned NSIS `target/x86_64-pc-windows-msvc/debug/bundle/nsis/Zeter Video Editor_0.1.0-alpha.32_x64-setup.exe`: 116,813,422 bytes, SHA256 `1C6E0BD3542FFA5C68FCDE141A581FBDE256AC04CC69B21686578E09D45820B6`; `tauri build --debug --bundles nsis` completed exit 0. No install, tag, signing or public release. Exact-head GitHub CI and merge separately verified in a later checkpoint; do not infer success.
+- **NEXT PRODUCT-CODE TASK ZVE-015 (after ZVE-014 integration):** implement clip drag between compatible timeline tracks (currently `MoveClip` only relocates time on one track) as an atomic Rust track-transfer command, pointer target/ghost in `apps/desktop/src/timeline/ClipView.tsx` and `TrackView.tsx`, locked/overlap/track-kind guards, Undo/Redo/.vcut, export parity; required tests Rust, React, real Windows WebView2. Confirm design §5 and current source before coding; do not expand project schema. Branch from freshly verified `main` only.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-013 audio LUFS normalization (2026-11-11)
 
 - **Baseline:** main `18775e9803d790291b5bc3b34f2766d763c7b177` (ZVE-012 PR #95 merged), desktop `0.1.0-alpha.30`. Historical ZVE-012 development record follows below. Open PR #93 is independent infrastructure and must not be merged without its own green exact-head CI.
@@ -1107,7 +1118,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.31` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.32` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

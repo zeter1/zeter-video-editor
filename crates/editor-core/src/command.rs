@@ -43,6 +43,15 @@ pub enum EditCommand {
         track_id: TrackId,
         clip: Clip,
     },
+    // Atomically move a video clip's embedded audio to an independent lane.
+    // The new audio clip references the original media; no extraction or copying.
+    DetachAudio {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        clip_id: ClipId,
+        audio_track: Track,
+        audio_clip_id: ClipId,
+    },
     DeleteClip {
         sequence_id: SequenceId,
         track_id: TrackId,
