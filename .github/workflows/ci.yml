@@ -89,13 +89,29 @@ jobs:
         run: npm test -- --run
         working-directory: apps/desktop
 
+      # Run all normal native scenarios, then the real 206 byte-starvation
+      # regression in a FRESH WebView2/Tauri process. The latter is a deliberate
+      # full decoder/GPU/HTTP range starvation stress test; in a long-lived CI
+      # WebView2 session it can hang the entire CDP browser after 28 prior tests.
+      # Do not omit the case, weaken its strict 6-frame A/V assertions, or allow
+      # either command to fail silently: both must succeed to unblock NSIS.
       - name: End-to-end MVP acceptance
         shell: pwsh
         working-directory: apps/desktop
         run: |
           $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
           $env:ZETER_TEST_FFMPEG_DIR = Split-Path $paths.ffmpeg -Parent
-          npm run test:e2e
+          npm run test:e2e -- --grep-invert 'actual mid-play 206 byte starvation'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Native mid-play 206 byte-starvation acceptance (isolated WebView2)
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
+          $env:ZETER_TEST_FFMPEG_DIR = Split-Path $paths.ffmpeg -Parent
+          npm run test:e2e -- --grep 'actual mid-play 206 byte starvation'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Tauri debug bundle smoke
         working-directory: apps/desktop
