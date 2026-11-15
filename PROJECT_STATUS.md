@@ -1,3 +1,15 @@
+# CURRENT DEVELOPMENT — ZVE-015 cross-track clip transfer (2026-11-15)
+
+- **Starting point:** checked clean Windows and GitHub `main` `f3c16c3afe154b5e3ff03127e4a9bdcc917d05c7`; version `0.1.0-alpha.32`. Prior ZVE-014 PR #97 merged; main post-merge Actions #43003835930 terminal SUCCESS. Unrelated PRs #93/#85/#84 remain separate/unmerged.
+- **Development:** local Windows branch `feat/zve-015-cross-track-drag-20261115`, version bumped **once** to `0.1.0-alpha.33` with the repository version script. Working tree: `G:\МОЯ Веб-разработка\zeter-video-editor`. No source release/signature/tag/installation.
+- **New editing feature:** one atomic authoritative Rust `TransferClip` moves Video/Image between Video/Overlay, Audio between Audio, Text between Text/Overlay; rejects incompatible types, locked origin/destination, absent entities, occupied destination intervals, same-track misuse. Clip media identity, source timing, duration, transforms/audio settings stay intact; one Undo/Redo entry via SequenceTracks. Same-track moves still use `MoveClip`. React pointer hit-testing detects actual destination lanes, previews ghost/blue valid drop or red forbidden target, commits on mouse-up only, cancels invalid drops. Existing .vcut format and FFmpeg contract unchanged.
+- **Changed code:** `crates/editor-core/src/{command,editor}.rs`, `crates/editor-core/tests/transfer_clip.rs` (4 integration tests), `apps/desktop/src/timeline/{ClipView,TrackView,interaction,transferTarget}*`, `apps/desktop/src/state/transientStore.ts`, CSS, generated TypeScript IPC + Rust contract source, `apps/desktop/e2e/cross-track-transfer.spec.ts`, version manifests, CHANGELOG.
+- **Windows QA verified:** Rust `cargo test --workspace --quiet` PASS; new dedicated `cargo test -p editor-core --test transfer_clip` 4/4 PASS; `cargo fmt --all -- --check` PASS; TypeScript/Vite production build PASS; **Vitest 251/251 PASS (55 files)** including transfer/collision/pointer and existing drag regression. One-target **real native Tauri/WebView2 E2E 1/1 PASS**: real mouse drop, locked destination, incompatible Rust command refusal, Undo/Redo, .vcut save/reopen and before/after FFmpeg H.264 decoded-frame hash. Complete 39-test native Windows suite and unsigned QA bundle are being checked separately; update this line only with their actual final results.
+- **GitHub handoff:** PR, exact-head CI and merge are pending final local checks; no claim of integration yet. Keep branch until checked. Never merge if latest feature SHA fails required CI/review/protection.
+- **Next proposed product slice ZVE-016 (after merging ZVE-015):** synchronized multiselect/group movement on Timeline (moving several selected clips across compatible tracks with a single atomic Rust batch edit and Undo/Redo), preserving linked A/V sync and collision guards; first verify §5 requirements and any already approved queue entry.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-014 Detach Audio (2026-11-11)
 
 - **Baseline:** verified GitHub `main` `cb4da2aff7456c27dbeb9f6f9e0ce6e1f2178722`, ZVE-013 PR #96 merged, exact-main Actions #42992289229 COMPLETED SUCCESS. Desktop `0.1.0-alpha.31` prior to this feature. The independent infrastructure PR #93 remains unmerged/failed; do not integrate without separate fixes and exact-head CI.
@@ -1118,7 +1130,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.32` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.33` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

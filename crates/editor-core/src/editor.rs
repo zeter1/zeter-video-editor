@@ -236,6 +236,82 @@ impl Editor {
                 clip.timeline_end = timeline_start.checked_add(duration)?;
                 Ok(vec![ChangedEntity::Clip(*clip_id)])
             }),
+            EditCommand::TransferClip {
+                sequence_id,
+                source_track_id,
+                target_track_id,
+                clip_id,
+                timeline_start,
+            } => self.mutate_sequence_tracks(*sequence_id, |tracks| {
+                if source_track_id == target_track_id {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "use MoveClip to move within the same track",
+                    });
+                }
+                let source_index = tracks
+                    .iter()
+                    .position(|track| track.id == *source_track_id)
+                    .ok_or(DomainError::EntityNotFound {
+                        entity: "source track",
+                    })?;
+                let target_index = tracks
+                    .iter()
+                    .position(|track| track.id == *target_track_id)
+                    .ok_or(DomainError::EntityNotFound {
+                        entity: "target track",
+                    })?;
+                for index in [source_index, target_index] {
+                    if tracks[index].locked {
+                        return Err(DomainError::TrackLocked {
+                            track_id: tracks[index].id,
+                        });
+                    }
+                }
+                let clip_index = tracks[source_index]
+                    .clips
+                    .iter()
+                    .position(|clip| clip.id == *clip_id)
+                    .ok_or(DomainError::EntityNotFound { entity: "clip" })?;
+                let original = &tracks[source_index].clips[clip_index];
+                let compatible = match original.kind {
+                    ClipKind::Audio => tracks[target_index].kind == TrackKind::Audio,
+                    ClipKind::Video | ClipKind::Image => {
+                        matches!(
+                            tracks[target_index].kind,
+                            TrackKind::Video | TrackKind::Overlay
+                        )
+                    }
+                    ClipKind::Text => {
+                        matches!(
+                            tracks[target_index].kind,
+                            TrackKind::Text | TrackKind::Overlay
+                        )
+                    }
+                };
+                if !compatible {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "clip type is incompatible with destination track",
+                    });
+                }
+                let duration = original.timeline_end.checked_sub(original.timeline_start)?;
+                let timeline_end = timeline_start.checked_add(duration)?;
+                if tracks[target_index].clips.iter().any(|other| {
+                    *timeline_start < other.timeline_end && timeline_end > other.timeline_start
+                }) {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "destination track already contains a clip in this range",
+                    });
+                }
+                let mut moved = tracks[source_index].clips.remove(clip_index);
+                moved.timeline_start = *timeline_start;
+                moved.timeline_end = timeline_end;
+                tracks[target_index].clips.push(moved);
+                Ok(vec![
+                    ChangedEntity::Track(*source_track_id),
+                    ChangedEntity::Track(*target_track_id),
+                    ChangedEntity::Clip(*clip_id),
+                ])
+            }),
             EditCommand::TrimClip {
                 sequence_id,
                 track_id,

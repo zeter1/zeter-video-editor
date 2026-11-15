@@ -15,6 +15,7 @@ import {
   useTransientStore,
 } from "../state/transientStore";
 import { createMoveClipInteraction } from "./interaction";
+import { canDropClipOnTrack } from "./transferTarget";
 import { snapTimelineTime } from "./snapping";
 import { WaveformOverlay } from "./WaveformOverlay";
 import { AudioFadeHandles } from "./AudioFadeHandles";
@@ -111,7 +112,7 @@ export function ClipView({
   );
 
   function startMove(event: ReactPointerEvent<HTMLDivElement>): void {
-    if (trackLocked || event.button !== 0) {
+    if (trackLocked || event.button !== 0 || transientStore.getState().drag) {
       return;
     }
 
@@ -160,7 +161,20 @@ export function ClipView({
       clipEdgeTimesUs,
       markerTimesUs,
     });
-    gesture.interaction.preview(snap.timeUs);
+    // Pointer capture keeps events on the source clip; hit-testing still finds
+    // the real lane beneath the cursor (including empty destination lanes).
+    const hit = document.elementFromPoint?.(event.clientX, event.clientY);
+    const lane = hit?.closest<HTMLElement>(".timeline-track-lane[data-track-id]");
+    // JSDOM has no hit-testing API; real WebView2 always uses the actual
+    // pointer destination, while unit-only environments keep same-lane drags.
+    const hoveredTrackId = (typeof document.elementFromPoint === "function"
+      ? lane?.dataset.trackId
+      : trackId) ?? null;
+    const tracks = projectStore.getState().snapshot?.project.sequences
+      .find((sequence) => sequence.id === sequenceId)?.tracks ?? [];
+    const target = tracks.find((candidate) => candidate.id === hoveredTrackId);
+    const valid = target && canDropClipOnTrack(clip, trackId, target, snap.timeUs);
+    gesture.interaction.preview(snap.timeUs, valid ? target.id : null, hoveredTrackId);
   }
 
   function commitMove(event: ReactPointerEvent<HTMLDivElement>): void {
@@ -294,7 +308,9 @@ export function ClipView({
     <div
       className={`timeline-clip timeline-clip-${clip.kind.toLowerCase()}${
         trackLocked ? " is-locked" : ""
-      }`}
+      }${transient.drag?.clipId === clip.id &&
+        transient.drag.targetTrackId !== null && transient.drag.targetTrackId !== trackId
+          ? " is-cross-track-source" : ""}`}
       aria-label={`${clip.kind} clip ${clip.id}`}
       data-testid={`clip-${clip.id}`}
       style={{ left, width }}

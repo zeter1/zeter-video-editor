@@ -74,13 +74,12 @@ export function createMoveClipInteraction(options: MoveClipInteractionOptions) {
         originTimeUs: options.confirmedTimelineStartUs,
         previewTimeUs: options.confirmedTimelineStartUs,
       });
+      options.transientStore.updateClipDrag(options.confirmedTimelineStartUs, options.trackId, options.trackId);
     },
 
-    preview(timelineStartUs: number): void {
-      if (finished) {
-        return;
-      }
-      options.transientStore.updateClipDrag(Math.max(0, Math.round(timelineStartUs)));
+    preview(timelineStartUs: number, targetTrackId?: TrackId | null, hoveredTrackId?: TrackId | null): void {
+      if (finished) return;
+      options.transientStore.updateClipDrag(Math.max(0, Math.round(timelineStartUs)), targetTrackId, hoveredTrackId);
     },
 
     async commit(): Promise<MoveClipCommitResult> {
@@ -99,22 +98,28 @@ export function createMoveClipInteraction(options: MoveClipInteractionOptions) {
       finished = true;
       // Selecting a clip is not a project edit. A drag that returns to its
       // original time must not change Rust revision or add to Undo history.
-      if (current.previewTimeUs === options.confirmedTimelineStartUs) {
+      if (current.targetTrackId === null ||
+          (current.targetTrackId === options.trackId &&
+           current.previewTimeUs === options.confirmedTimelineStartUs)) {
         options.transientStore.endClipDrag();
         return { kind: "unchanged" };
       }
 
+      const command: EditCommand = current.targetTrackId === options.trackId
+        ? { MoveClip: {
+            sequence_id: options.sequenceId, track_id: options.trackId,
+            clip_id: options.clipId, timeline_start: current.previewTimeUs,
+          } }
+        : { TransferClip: {
+            sequence_id: options.sequenceId, source_track_id: options.trackId,
+            target_track_id: current.targetTrackId, clip_id: options.clipId,
+            timeline_start: current.previewTimeUs,
+          } };
+
       const request: EditRequest = {
         request_id: (options.requestIdFactory ?? defaultRequestId)(),
         expected_revision: revision,
-        command: {
-          MoveClip: {
-            sequence_id: options.sequenceId,
-            track_id: options.trackId,
-            clip_id: options.clipId,
-            timeline_start: current.previewTimeUs,
-          },
-        },
+        command,
       };
 
       try {

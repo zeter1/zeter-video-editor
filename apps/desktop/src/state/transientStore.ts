@@ -9,6 +9,8 @@ export interface ClipDragState {
   previewTimeUs: number;
   originStartUs: number;
   previewStartUs: number;
+  targetTrackId: TrackId | null;
+  hoveredTrackId: TrackId | null;
 }
 
 export interface ClipDragInput {
@@ -89,6 +91,8 @@ export class TransientStore {
         ...input,
         originStartUs: input.originTimeUs,
         previewStartUs: input.previewTimeUs,
+        targetTrackId: null,
+        hoveredTrackId: null,
       },
     });
   }
@@ -102,15 +106,19 @@ export class TransientStore {
     });
   }
 
-  updateClipDrag(previewTimeUs: number): void {
-    if (!this.state.drag) {
-      return;
-    }
+  updateClipDrag(
+    previewTimeUs: number,
+    targetTrackId?: TrackId | null,
+    hoveredTrackId?: TrackId | null,
+  ): void {
+    if (!this.state.drag) return;
     this.patch({
       drag: {
         ...this.state.drag,
         previewTimeUs,
         previewStartUs: previewTimeUs,
+        targetTrackId: targetTrackId === undefined ? this.state.drag.targetTrackId : targetTrackId,
+        hoveredTrackId: hoveredTrackId === undefined ? this.state.drag.hoveredTrackId : hoveredTrackId,
       },
     });
   }

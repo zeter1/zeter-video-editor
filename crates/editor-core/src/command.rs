@@ -63,6 +63,14 @@ pub enum EditCommand {
         clip_id: ClipId,
         timeline_start: TimeUs,
     },
+    // Transfer one clip and its timing between compatible tracks in one history entry.
+    TransferClip {
+        sequence_id: SequenceId,
+        source_track_id: TrackId,
+        target_track_id: TrackId,
+        clip_id: ClipId,
+        timeline_start: TimeUs,
+    },
     TrimClip {
         sequence_id: SequenceId,
         track_id: TrackId,
