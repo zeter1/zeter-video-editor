@@ -225,9 +225,43 @@ test("2x compositor frame stays aligned with independent WAV after forward/backw
   const forwardRequestedAtMs = Date.now();
   await scrub(1.35);
   await sampleDrift("forward scrub", forwardRequestedAtMs);
+  // The source lasts only 6s (3s at 2x). Slow remote CDP calls may let it
+  // reach natural EOF between two user actions. A scrub from a genuinely
+  // stopped transport must be followed by Play, just like real user input.
+  // An unexpected pause *before* EOF still fails the test.
+  const beforeBackward = await page.evaluate(() => ({
+    timecode: document.querySelector(".preview-controls .timecode")?.textContent,
+    transport: document.querySelector(".preview-controls .play-button")?.getAttribute("aria-label"),
+    sourceTime: document.querySelector<HTMLVideoElement>("video.preview-media")?.currentTime ?? null,
+  }));
+  const endedBeforeBackward = beforeBackward.transport === "Воспроизвести" &&
+    beforeBackward.timecode === "3.000 с";
+  expect(beforeBackward.transport === "Пауза" || endedBeforeBackward,
+    "2x transport must not stop unexpectedly before the natural 3s EOF").toBe(true);
   const backwardRequestedAtMs = Date.now();
   await scrub(0.45);
+  const stoppedDuringScrub = await page.getByRole("button", { name: "Воспроизвести", exact: true }).count() > 0;
+  if (stoppedDuringScrub) {
+    // This is valid only if playback had ended or was on its final native
+    // frames when the real slider click raced it, never for an arbitrary stall.
+    expect(endedBeforeBackward || (beforeBackward.sourceTime !== null &&
+      beforeBackward.sourceTime >= 5.7),
+    "Unexpected pause during backward scrub away from source EOF").toBe(true);
+    await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  }
   await sampleDrift("backward scrub", backwardRequestedAtMs);
+
+  // Regression for the CI failure: a 3s/2x clip can legitimately reach EOF
+  // before the next remote WebView2 interaction. Prove that a user's scrub
+  // back + explicit Play restarts both *native* decoders and remains synced.
+  await expect.poll(async () =>
+    (await page.getByRole("button", { name: "Воспроизвести", exact: true }).count()) > 0,
+  { timeout: 7_000, intervals: [100, 200, 400] }).toBe(true);
+  await expect(page.locator(".preview-controls .timecode")).toHaveText("3.000 с");
+  const restartRequestedAtMs = Date.now();
+  await scrub(0.45);
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  await sampleDrift("backward scrub after natural EOF restart", restartRequestedAtMs);
 
   // These are deterministic DOM buffering signals against ACTUAL native
   // WebView2 video/WAV decoders, not an emulation of network starvation.
