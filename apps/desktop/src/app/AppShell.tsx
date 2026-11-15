@@ -110,6 +110,12 @@ export function AppShell({
   const addingTextRef = useRef(false);
   const [portraitSequence, setPortraitSequence] = useState(false);
   const markerShortcutPending = useRef(false);
+  // Editor-local clipboard: frozen copy of the last selected clip. Never write
+  // private media or project data into the operating-system clipboard.
+  const clipClipboardRef = useRef<{
+    projectId: string; sourceTrackId: TrackId; clip: Clip;
+  } | null>(null);
+  const pasteShortcutPending = useRef(false);
 
   const project = projectState.snapshot?.project ?? null;
   const activeSequence = resolveSequence(project?.sequences ?? [], transient.selectedSequenceId);
@@ -579,6 +585,64 @@ export function AppShell({
         state.snapshot?.project.sequences ?? [], transientState.selectedSequenceId,
       );
       if (!sequence) return;
+
+      // Copy is read-only and works on locked tracks; paste is always a new
+      // authoritative Rust edit, guarded against concurrent shortcut repeats.
+      const clipCopy = control && !event.shiftKey &&
+        (key === "c" || event.code === "KeyC");
+      const clipPaste = control && !event.shiftKey &&
+        (key === "v" || event.code === "KeyV");
+      if (clipCopy) {
+        const selected = findSelectedClipContext(sequence, transientState.selectedClipId);
+        if (!selected || !state.snapshot) return;
+        event.preventDefault();
+        clipClipboardRef.current = {
+          projectId: state.snapshot.project.id,
+          sourceTrackId: selected.trackId,
+          clip: structuredClone(selected.clip),
+        };
+        return;
+      }
+      if (clipPaste) {
+        const copied = clipClipboardRef.current;
+        if (!copied || !state.snapshot) return;
+        event.preventDefault();
+        if (copied.projectId !== state.snapshot.project.id) {
+          clipClipboardRef.current = null;
+          projectStore.setError("Буфер клипа относится к другому проекту. Скопируйте клип снова.");
+          return;
+        }
+        if (pasteShortcutPending.current) return;
+        const target = sequence.tracks.find((track) => track.id === transientState.selectedTrackId) ??
+          sequence.tracks.find((track) => track.id === copied.sourceTrackId) ??
+          sequence.tracks.find((track) =>
+            copied.clip.kind === "Audio" ? track.kind === "Audio" :
+            copied.clip.kind === "Text" ? track.kind === "Text" || track.kind === "Overlay" :
+            track.kind === "Video" || track.kind === "Overlay");
+        if (!target) {
+          projectStore.setError("Нет подходящей дорожки для вставки клипа.");
+          return;
+        }
+        const pastedId = crypto.randomUUID();
+        pasteShortcutPending.current = true;
+        void handleEditCommand({
+          PasteClip: {
+            sequence_id: sequence.id,
+            track_id: target.id,
+            clip: copied.clip,
+            pasted_id: pastedId,
+            timeline_start: transientState.playheadTimeUs,
+          },
+        }).then((committed) => {
+          if (committed && projectStore.getState().snapshot?.project.id === copied.projectId &&
+              resolveSequence(projectStore.getState().snapshot?.project.sequences ?? [],
+                transientStore.getState().selectedSequenceId)?.id === sequence.id) {
+            transientStore.selectTrack(target.id);
+            transientStore.selectClip(pastedId);
+          }
+        }).finally(() => { pasteShortcutPending.current = false; });
+        return;
+      }
 
       // Match the physical M key also on a Russian keyboard layout (KeyM = ь).
       // Never enqueue two markers against the same Rust revision while a

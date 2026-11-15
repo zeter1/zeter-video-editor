@@ -94,6 +94,15 @@ pub enum EditCommand {
         duplicate_id: ClipId,
         timeline_start: TimeUs,
     },
+    // Paste a previously copied clip snapshot; source clip may have been edited or deleted.
+    // Rust validates the destination and owns the single undoable edit.
+    PasteClip {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        clip: Clip,
+        pasted_id: ClipId,
+        timeline_start: TimeUs,
+    },
     RippleDelete {
         sequence_id: SequenceId,
         track_id: TrackId,

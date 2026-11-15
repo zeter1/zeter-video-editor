@@ -243,4 +243,53 @@ describe("Editor keyboard shortcuts", () => {
     fireEvent.keyDown(window, { key: "m" });
     expect(client.executeEditCommand).toHaveBeenCalledTimes(1);
   });
+
+  it("copies a frozen selected clip and sends a fresh undoable paste at the playhead", async () => {
+    const { client, projectStore, transientStore } = mount();
+    transientStore.setPlayheadTime(6_000_000);
+    fireEvent.keyDown(window, { key: "c", code: "KeyC", ctrlKey: true });
+    expect(client.executeEditCommand).not.toHaveBeenCalled();
+    const snapshot = projectStore.getState().snapshot!;
+    snapshot.project.sequences[0].tracks[0].clips[0].audio.volume = 0.3;
+    fireEvent.keyDown(window, { key: "v", code: "KeyV", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "v", code: "KeyV", ctrlKey: true });
+    await waitFor(() => expect(client.executeEditCommand).toHaveBeenCalledTimes(1));
+    const args = client.executeEditCommand.mock.calls[0][0];
+    expect(args).toMatchObject({
+      expected_revision: 4,
+      command: { PasteClip: {
+        sequence_id: "sequence-1", track_id: "track-1",
+        timeline_start: 6_000_000, clip: {
+          id: "clip-1", source_in: 0, source_out: 2_000_000,
+          audio: { volume: 1 },
+        },
+      } },
+    });
+    expect(args.command.PasteClip.pasted_id).not.toBe("clip-1");
+    await waitFor(() => expect(client.reconcileCommandResult).toHaveBeenCalledTimes(1));
+  });
+
+  it("never steals copy/paste from inputs, dialog, drag, repeats or an absent selection", () => {
+    const { client, transientStore } = mount();
+    const input = screen.getByRole("slider", { name: "Opacity" });
+    fireEvent.keyDown(input, { key: "c", ctrlKey: true });
+    fireEvent.keyDown(input, { key: "v", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "c", ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: "c", ctrlKey: true, repeat: true });
+    transientStore.beginClipDrag("clip-1", 0);
+    fireEvent.keyDown(window, { key: "c", ctrlKey: true });
+    transientStore.endClipDrag();
+    transientStore.selectClip(null);
+    fireEvent.keyDown(window, { key: "c", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "v", ctrlKey: true });
+    expect(client.executeEditCommand).not.toHaveBeenCalled();
+  });
+
+  it("allows read-only copy on a locked source but Rust remains responsible for destination locks", async () => {
+    const { client } = mount(true);
+    fireEvent.keyDown(window, { key: "с", code: "KeyC", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "м", code: "KeyV", ctrlKey: true });
+    await waitFor(() => expect(client.executeEditCommand).toHaveBeenCalledTimes(1));
+    expect(client.executeEditCommand.mock.calls[0][0].command).toHaveProperty("PasteClip");
+  });
 });

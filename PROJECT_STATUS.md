@@ -1,3 +1,15 @@
+# CURRENT DEVELOPMENT — ZVE-016 native clip copy/paste (2026-11-15)
+
+- **Verified baseline:** Windows GitHub `main` `4b6c097f81440a0ea241134052bfcd5f943c86b1`, desktop `0.1.0-alpha.33`, ZVE-015 PR #98 already MERGED after exact-PR-head Actions #43717235548 terminal SUCCESS. Existing `main` post-merge Actions #43718455800 terminal **FAILURE**: first failure in native `preview-two-speed-av-drift.spec.ts` unexpected pause during backward scrub before EOF, 6 following CDP ECONNREFUSED are cascades (32/39 passed). Do **not** call current main CI green or merge a new PR without independent exact-head success and root-cause investigation.
+- **Current work:** Windows checkout `G:\МОЯ Веб-разработка\zeter-video-editor`, feature branch `feat/zve-016-clip-copy-paste-20261115` based on exact main. Version increased once via `node scripts/set-version.mjs` to **0.1.0-alpha.34**; no tag, signed/public release or installer installation. Versioned source is **not** yet in `main`.
+- **Feature:** new atomic authoritative Rust `EditCommand::PasteClip` pastes a cloned snapshot with fresh ClipId at playhead into a compatible track. Tracks Video/Image→Video/Overlay, Audio→Audio, Text→Text/Overlay; locked, overlapping, duplicate-ID, missing-media and overflow operations reject without incrementing revision or mutating state. Source clip can be edited or deleted after copy; snapshot keeps media_id, trim, speed, text, transform, color, audio, transitions and duration. One Rust Undo/Redo; same .vcut schema and FFmpeg rendering.
+- **UI:** Ctrl+C on selected clip snapshots an editor-local in-memory clipboard without altering OS clipboard or project; Ctrl+V inserts to selected track (otherwise source or compatible track) with revisioned IPC, asynchronous guard, user-visible error via existing error path and selection of new clip on success. Defends inputs, modal dialogs, dragging, repeat, alt/meta/shift and cross-project identities. Physical KeyC/KeyV support Russian layout. Files: `crates/editor-core/src/{command,editor}.rs`, `crates/editor-core/tests/paste_clip.rs`, `apps/desktop/src/app/{AppShell.tsx,AppShellShortcuts.test.tsx}`, IPC contracts and `apps/desktop/e2e/clip-copy-paste.spec.ts`.
+- **Verified so far on real Windows:** Rust first RED compile error (no PasteClip), then `cargo test -p editor-core --test paste_clip --quiet` 4/4 GREEN; `npm --prefix apps/desktop run test -- --run src/app/AppShellShortcuts.test.tsx` 10/10 PASS; TS/Vite `npm --prefix apps/desktop run build` PASS; native Tauri/WebView2 fresh build with actual user shortcuts/timecode, rejected overlap, Undo/Redo, save/reopen .vcut and dual H.264 export decoded frame MD5 parity: targeted Playwright **1/1 PASS**. `node scripts/check-version.mjs` PASS at alpha.34 after version script. Full suite/QA installer/exact-head GitHub CI still PENDING at this checkpoint.
+- **Integration status:** no feature commit/PR/merge confirmed yet at this checkpoint. Run full Rust workspace, cargo fmt, 251+ Vitest, version-policy, full native Windows E2E, normal DEBUG NSIS, SHA256 and self-review, then push feature branch / create PR. **Merge only if exact-head CI terminal SUCCESS and all AGENTS.md gates verified.** Old draft PR #93/#85/#84 untouched.
+- **NEXT PRODUCT-CODE TASK after ZVE-016 integrated:** assess the next approved manual Timeline editing gap, prioritized **multiple-clip selection and atomic group repositioning** versus source-accurate A/V preview, with concrete code `crates/editor-core/src/{command,editor}.rs`, `apps/desktop/src/timeline/{Timeline,ClipView}.tsx`, Rust/Vitest/native Windows E2E, Undo/Redo, .vcut/FFmpeg parity. Implement only within approved WORKING-DESIGN; obtain an explicit separate design approval if it extends the approved architecture. Do not repeat ZVE-015/ZVE-016.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-015 cross-track clip transfer (2026-11-15)
 
 - **Starting point:** checked clean Windows and GitHub `main` `f3c16c3afe154b5e3ff03127e4a9bdcc917d05c7`; version `0.1.0-alpha.32`. Prior ZVE-014 PR #97 merged; main post-merge Actions #43003835930 terminal SUCCESS. Unrelated PRs #93/#85/#84 remain separate/unmerged.
@@ -1131,7 +1143,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.33` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.34` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

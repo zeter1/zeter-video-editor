@@ -384,6 +384,62 @@ impl Editor {
                 clips.push(duplicate);
                 Ok(vec![ChangedEntity::Clip(*duplicate_id)])
             }),
+            EditCommand::PasteClip {
+                sequence_id,
+                track_id,
+                clip,
+                pasted_id,
+                timeline_start,
+            } => self.mutate_sequence_tracks(*sequence_id, |tracks| {
+                let target = tracks
+                    .iter_mut()
+                    .find(|track| track.id == *track_id)
+                    .ok_or(DomainError::EntityNotFound {
+                        entity: "target track",
+                    })?;
+                if target.locked {
+                    return Err(DomainError::TrackLocked {
+                        track_id: target.id,
+                    });
+                }
+                let compatible = match clip.kind {
+                    ClipKind::Audio => target.kind == TrackKind::Audio,
+                    ClipKind::Video | ClipKind::Image => {
+                        matches!(target.kind, TrackKind::Video | TrackKind::Overlay)
+                    }
+                    ClipKind::Text => {
+                        matches!(target.kind, TrackKind::Text | TrackKind::Overlay)
+                    }
+                };
+                if !compatible {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "clip type is incompatible with destination track",
+                    });
+                }
+                if clip.id == *pasted_id {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "pasted clip needs a fresh identity",
+                    });
+                }
+                let duration = clip.timeline_end.checked_sub(clip.timeline_start)?;
+                let timeline_end = timeline_start.checked_add(duration)?;
+                if target.clips.iter().any(|other| {
+                    *timeline_start < other.timeline_end && timeline_end > other.timeline_start
+                }) {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "destination track already contains a clip in this range",
+                    });
+                }
+                let mut pasted = clip.clone();
+                pasted.id = *pasted_id;
+                pasted.timeline_start = *timeline_start;
+                pasted.timeline_end = timeline_end;
+                target.clips.push(pasted);
+                Ok(vec![
+                    ChangedEntity::Track(*track_id),
+                    ChangedEntity::Clip(*pasted_id),
+                ])
+            }),
             EditCommand::RippleDelete {
                 sequence_id,
                 track_id,
