@@ -93,13 +93,15 @@ export function InspectorPanel({
               clip={selectedClip}
               onCommit={onCommit}
             />
-            <TransitionInspector
-              key={`transition-${selectedClip.id}`}
-              sequenceId={sequence.id}
-              trackId={selectedTrackId}
-              clip={selectedClip}
-              onCommit={onCommit}
-            />
+            {(selectedClip.kind === "Video" || selectedClip.kind === "Image") ? (
+              <TransitionInspector
+                key={`transition-${selectedClip.id}`}
+                sequenceId={sequence.id}
+                trackId={selectedTrackId}
+                clip={selectedClip}
+                onCommit={onCommit}
+              />
+            ) : null}
           </div>
         ) : (
           <div className="inspector-empty">

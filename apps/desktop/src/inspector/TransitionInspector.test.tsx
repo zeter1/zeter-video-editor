@@ -106,4 +106,21 @@ describe("TransitionInspector", () => {
       expect(transition.value).toBe("CrossDissolve");
     });
   });
+
+  it("keeps typed Inspector duration inside the clip and preserves the approved kind", async () => {
+    const onCommit = vi.fn().mockResolvedValue(true);
+    const shortClip = { ...clip(), timeline_end: 100_000, source_out: 100_000,
+      transition: { kind: "Fade" as const, duration: 50_000 } };
+    render(<TransitionInspector sequenceId="sequence-1" trackId="track-1"
+      clip={shortClip} onCommit={onCommit} />);
+    const duration = screen.getByRole("spinbutton", { name: "Transition duration" }) as HTMLInputElement;
+    expect(duration.max).toBe("100");
+    fireEvent.change(duration, { target: { value: "9999" } });
+    expect(duration.value).toBe("100");
+    fireEvent.blur(duration);
+    await vi.waitFor(() => expect(onCommit).toHaveBeenCalledWith({
+      AddTransition: { sequence_id: "sequence-1", track_id: "track-1",
+        clip_id: "clip-1", transition: { kind: "Fade", duration: 100_000 } },
+    }));
+  });
 });

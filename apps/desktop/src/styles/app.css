@@ -1567,3 +1567,44 @@ button {
   opacity: 0.4;
   cursor: default;
 }
+
+/* ZVE-017: visible clip-start transition fade range; direct duration grip.
+   Only the grip receives pointer input, so clip selection/drag remains usable. */
+.transition-duration-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.transition-duration-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-right: 2px solid #82d7ff;
+  background: linear-gradient(90deg, rgba(29, 44, 64, 0.75), rgba(93, 177, 219, 0.36));
+  pointer-events: none;
+}
+.transition-duration-handle {
+  position: absolute;
+  top: 24px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  transform: translateX(-50%);
+  border: 1px solid #22567b;
+  border-radius: 4px;
+  background: #89d9ff;
+  box-shadow: 0 1px 2px #111c2d;
+  cursor: ew-resize;
+  touch-action: none;
+  pointer-events: auto;
+}
+.transition-duration-handle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+.transition-duration-handle:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

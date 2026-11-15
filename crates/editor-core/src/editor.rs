@@ -531,7 +531,17 @@ impl Editor {
                 clip_id,
                 transition,
             } => self.mutate_track_clips(*sequence_id, *track_id, |clips| {
-                find_clip_mut(clips, *clip_id)?.transition = Some(*transition);
+                let clip = find_clip_mut(clips, *clip_id)?;
+                let clip_duration = clip.timeline_end.checked_sub(clip.timeline_start)?;
+                if !matches!(clip.kind, ClipKind::Video | ClipKind::Image)
+                    || transition.duration.get() < 1_000
+                    || transition.duration > clip_duration
+                {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "transition requires a video/image clip and 1ms..clip-duration range",
+                    });
+                }
+                clip.transition = Some(*transition);
                 Ok(vec![ChangedEntity::Clip(*clip_id)])
             }),
             EditCommand::AddTitle {
@@ -1176,7 +1186,7 @@ mod tests {
         AudioState, Clip, ClipId, ClipKind, ColorAdjustments, DomainError, EditCommand,
         EditRequest, Editor, MediaId, MediaRef, Project, ProjectId, ProjectRevision,
         ProjectSettings, RequestId, Sequence, SequenceId, SubtitleSegment, SubtitleStyle,
-        TextStyle, TimeUs, Track, TrackId, TrackKind, Transform,
+        TextStyle, TimeUs, Track, TrackId, TrackKind, Transform, Transition, TransitionKind,
     };
 
     fn time(value: i64) -> TimeUs {
@@ -1264,6 +1274,73 @@ mod tests {
             request_id: RequestId::new(),
             expected_revision: ProjectRevision::new(revision),
             command,
+        }
+    }
+
+    #[test]
+    fn transition_duration_respects_clip_bounds_and_is_one_undo_step() {
+        for kind in [
+            TransitionKind::CrossDissolve,
+            TransitionKind::Fade,
+            TransitionKind::DipToBlack,
+            TransitionKind::DipToWhite,
+        ] {
+            let (project, sequence_id, track_id, clip_id, _) = fixture();
+            let mut editor = Editor::new(project).unwrap();
+            for invalid in [0, 5_000_001] {
+                let result = editor.execute(request(
+                    0,
+                    EditCommand::AddTransition {
+                        sequence_id,
+                        track_id,
+                        clip_id,
+                        transition: Transition {
+                            kind,
+                            duration: time(invalid),
+                        },
+                    },
+                ));
+                assert!(result.is_err(), "{kind:?} accepted {invalid} us");
+                assert_eq!(editor.revision(), ProjectRevision::new(0));
+                assert_eq!(
+                    editor.project().sequences[0].tracks[0].clips[0].transition,
+                    None
+                );
+            }
+            editor
+                .execute(request(
+                    0,
+                    EditCommand::AddTransition {
+                        sequence_id,
+                        track_id,
+                        clip_id,
+                        transition: Transition {
+                            kind,
+                            duration: time(1_500_000),
+                        },
+                    },
+                ))
+                .unwrap();
+            assert_eq!(
+                editor.project().sequences[0].tracks[0].clips[0].transition,
+                Some(Transition {
+                    kind,
+                    duration: time(1_500_000)
+                })
+            );
+            editor.undo(RequestId::new()).unwrap();
+            assert_eq!(
+                editor.project().sequences[0].tracks[0].clips[0].transition,
+                None
+            );
+            editor.redo(RequestId::new()).unwrap();
+            assert_eq!(
+                editor.project().sequences[0].tracks[0].clips[0].transition,
+                Some(Transition {
+                    kind,
+                    duration: time(1_500_000)
+                })
+            );
         }
     }
 
