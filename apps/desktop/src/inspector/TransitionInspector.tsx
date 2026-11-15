@@ -10,6 +10,7 @@ import {
   requestEditCommit,
   type EditCommit,
 } from "../editing/commit";
+import { clampTransitionDuration } from "../timeline/TransitionDurationHandle";
 
 export const APPROVED_TRANSITIONS: ReadonlyArray<{
   kind: TransitionKind;
@@ -34,7 +35,8 @@ export function TransitionInspector({
   clip,
   onCommit,
 }: TransitionInspectorProps) {
-  const confirmedDuration = clip.transition?.duration ?? 300_000;
+  const clipDuration = clip.timeline_end - clip.timeline_start;
+  const confirmedDuration = clampTransitionDuration(clip.transition?.duration ?? 300_000, clipDuration);
   const confirmedKind = clip.transition?.kind ?? "CrossDissolve";
   const [duration, setDuration] = useState(confirmedDuration);
   const [kind, setKind] = useState<TransitionKind>(confirmedKind);
@@ -55,6 +57,7 @@ export function TransitionInspector({
     nextKind: TransitionKind = kind,
     nextDuration = duration,
   ): Promise<void> {
+    nextDuration = clampTransitionDuration(nextDuration, clipDuration);
     const fingerprint = JSON.stringify({
       kind: nextKind,
       duration: nextDuration,
@@ -109,9 +112,10 @@ export function TransitionInspector({
           aria-label="Transition duration"
           type="number"
           min="1"
+          max={Math.floor(Math.max(1_000, clipDuration) / 1_000)}
           value={Math.round(duration / 1_000)}
           onChange={(event) =>
-            setDuration(Math.max(1_000, Math.round(Number(event.target.value) * 1_000)))
+            setDuration(clampTransitionDuration(Number(event.target.value) * 1_000, clipDuration))
           }
           onBlur={() => void commit()}
         />

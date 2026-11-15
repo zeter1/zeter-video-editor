@@ -19,6 +19,7 @@ import { canDropClipOnTrack } from "./transferTarget";
 import { snapTimelineTime } from "./snapping";
 import { WaveformOverlay } from "./WaveformOverlay";
 import { AudioFadeHandles } from "./AudioFadeHandles";
+import { TransitionDurationHandle } from "./TransitionDurationHandle";
 import {
   durationUsToPixels,
   pixelDeltaToTimeUs,
@@ -336,8 +337,25 @@ export function ClipView({
       {clip.kind === "Audio" ? <AudioFadeHandles clip={clip} widthPx={width}
         sequenceId={sequenceId} trackId={trackId} locked={trackLocked}
         commitCommand={commitCommand} onSelect={() => transientStore.selectClip(clip.id)} /> : null}
+      {(clip.kind === "Video" || clip.kind === "Image") && clip.transition
+        ? <TransitionDurationHandle clip={clip} widthPx={width}
+            sequenceId={sequenceId} trackId={trackId} locked={trackLocked}
+            commitCommand={commitCommand} onSelect={() => transientStore.selectClip(clip.id)} />
+        : null}
       <span className="clip-kind">{clip.kind}</span>
       <div className="clip-actions" onPointerDown={(event) => event.stopPropagation()}>
+        {(clip.kind === "Video" || clip.kind === "Image") && !clip.transition ? (
+          <button type="button" aria-label={`Add transition ${clip.id}`}
+            disabled={trackLocked || clip.timeline_end - clip.timeline_start < 1_000}
+            title="Add Cross Dissolve at clip start"
+            onClick={() => {
+              transientStore.selectClip(clip.id);
+              void commitCommand({ AddTransition: { sequence_id: sequenceId,
+                track_id: trackId, clip_id: clip.id,
+                transition: { kind: "CrossDissolve",
+                  duration: Math.min(300_000, clip.timeline_end - clip.timeline_start) } } });
+            }}>T</button>
+        ) : null}
         <button
           type="button"
           aria-label={`Split ${clip.id}`}
