@@ -9,6 +9,7 @@ import type {
 import type { ProjectStore } from "../state/projectStore";
 import type { TransientStore } from "../state/transientStore";
 import { ClipView } from "./ClipView";
+import { durationUsToPixels, timeUsToPixel } from "./timeScale";
 
 interface TrackViewProps {
   track: Track;
@@ -50,6 +51,13 @@ export function TrackView({
   commitCommand,
   requestIdFactory,
 }: TrackViewProps) {
+  const drag = transientStore.getState().drag;
+  const sourceTrack = projectStore.getState().snapshot?.project.sequences
+    .find((sequence) => sequence.id === sequenceId)?.tracks
+    .find((candidate) => candidate.clips.some((clip) => clip.id === drag?.clipId));
+  const draggedClip = sourceTrack?.clips.find((clip) => clip.id === drag?.clipId);
+  const showGhost = Boolean(drag && draggedClip && sourceTrack?.id !== track.id &&
+    drag.targetTrackId === track.id);
   return (
     <div className={`timeline-track${track.locked ? " is-locked" : ""}${transientStore.getState().selectedTrackId === track.id ? " is-selected" : ""}`}>
       <div className="timeline-track-header">
@@ -144,9 +152,22 @@ export function TrackView({
         </div>
       </div>
       <div
-        className="timeline-track-lane"
+        className={`timeline-track-lane${drag?.targetTrackId === track.id && sourceTrack?.id !== track.id ? " is-drop-target" : ""}${drag?.hoveredTrackId === track.id && drag.targetTrackId === null ? " is-drop-rejected" : ""}`}
+        data-track-id={track.id}
         onClick={() => transientStore.selectTrack(track.id)}
       >
+        {showGhost && draggedClip && drag ? (
+          <div className="timeline-transfer-ghost"
+            aria-label={`Перенос ${draggedClip.kind} на ${track.name}`}
+            style={{
+              left: timeUsToPixel(drag.previewTimeUs, pixelsPerSecond, zoom, scrollLeftPx),
+              width: Math.max(22, durationUsToPixels(
+                draggedClip.timeline_end - draggedClip.timeline_start, pixelsPerSecond, zoom,
+              )),
+            }}>
+            {draggedClip.kind}
+          </div>
+        ) : null}
         {track.clips.map((clip) => (
           <ClipView
             key={clip.id}

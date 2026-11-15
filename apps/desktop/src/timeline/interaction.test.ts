@@ -227,3 +227,63 @@ describe("commit-on-release clip movement", () => {
     expect(transientStore.getState().drag).toBeNull();
   });
 });
+
+describe("cross-track clip movement", () => {
+  it("commits one atomic TransferClip after previewing an allowed destination", async () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    const current = snapshot(7);
+    const seq = current.project.sequences[0];
+    seq.tracks[0].clips[0].kind = "Video";
+    seq.tracks.push({ ...seq.tracks[0], id: "overlay-1", kind: "Overlay", name: "B-roll", clips: [] });
+    projectStore.applySnapshot(current);
+    const executeEditCommand = vi.fn().mockResolvedValue(successResult());
+    const reconcile = vi.fn().mockResolvedValue("refreshed");
+    const interaction = createMoveClipInteraction({
+      sequenceId: seq.id, trackId: seq.tracks[0].id,
+      clipId: seq.tracks[0].clips[0].id,
+      confirmedTimelineStartUs: 1_000_000,
+      projectStore, transientStore,
+      executeEditCommand,
+      reconcileCommandResult: reconcile,
+      requestIdFactory: () => "request-1",
+    });
+    interaction.begin();
+    interaction.preview(5_000_000, "overlay-1", "overlay-1");
+    expect(projectStore.getState().revision).toBe(7);
+    expect(transientStore.getState().drag).toMatchObject({
+      targetTrackId: "overlay-1", previewTimeUs: 5_000_000,
+    });
+    expect(await interaction.commit()).toMatchObject({ kind: "committed" });
+    expect(executeEditCommand).toHaveBeenCalledTimes(1);
+    expect(executeEditCommand).toHaveBeenCalledWith({
+      request_id: "request-1", expected_revision: 7,
+      command: {
+        TransferClip: {
+          sequence_id: seq.id, source_track_id: seq.tracks[0].id,
+          target_track_id: "overlay-1", clip_id: seq.tracks[0].clips[0].id,
+          timeline_start: 5_000_000,
+        },
+      },
+    });
+    expect(transientStore.getState().drag).toBeNull();
+  });
+
+  it("rejects invalid hovering without creating a new Rust revision", async () => {
+    const projectStore = createProjectStore();
+    const transientStore = createTransientStore();
+    projectStore.applySnapshot(snapshot(3));
+    const executeEditCommand = vi.fn();
+    const interaction = createMoveClipInteraction({
+      sequenceId: "sequence-1", trackId: "track-1",
+      clipId: "clip-1", confirmedTimelineStartUs: 1_000_000,
+      projectStore, transientStore, executeEditCommand,
+      reconcileCommandResult: vi.fn(),
+    });
+    interaction.begin();
+    interaction.preview(3_000_000, null, "forbidden-track");
+    expect(await interaction.commit()).toEqual({ kind: "unchanged" });
+    expect(executeEditCommand).not.toHaveBeenCalled();
+    expect(projectStore.getState().revision).toBe(3);
+  });
+});

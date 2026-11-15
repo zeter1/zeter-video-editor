@@ -184,6 +184,7 @@ export type EditCommand =
   | { DetachAudio: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; audio_track: Track; audio_clip_id: ClipId } }
   | { DeleteClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId } }
   | { MoveClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; timeline_start: TimeUs } }
+  | { TransferClip: { sequence_id: SequenceId; source_track_id: TrackId; target_track_id: TrackId; clip_id: ClipId; timeline_start: TimeUs } }
   | { TrimClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; source_in: TimeUs; source_out: TimeUs; timeline_start: TimeUs; timeline_end: TimeUs } }
   | { SplitClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; split_at: TimeUs; right_clip_id: ClipId } }
   | { DuplicateClip: { sequence_id: SequenceId; track_id: TrackId; clip_id: ClipId; duplicate_id: ClipId; timeline_start: TimeUs } }
