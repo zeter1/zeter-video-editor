@@ -66,8 +66,17 @@ The editor combines a conventional multi-track timeline with local AI-assisted e
 
 The approved MVP implementation plan is complete and integrated into `main`. The project is now in post-MVP stabilization / release-readiness work; `PROJECT_STATUS.md` is the source of truth for the current checkpoint. New product or architectural scope requires a new Superpowers brainstorming/specification decision instead of silently extending the completed MVP plan.
 
-## Контакты для связи с разработчиком
+## Контакты для связи:
 
 - [zeter11@gmail.com](mailto:zeter11@gmail.com)
 - [https://t.me/zeter1](https://t.me/zeter1)
 - [https://www.linkedin.com/in/zeter/](https://www.linkedin.com/in/zeter/)
+- [https://www.facebook.com/zeter1](https://www.facebook.com/zeter1)
+- [https://vk.ru/zeter1](https://vk.ru/zeter1)
+- [https://www.instagram.com/zeter1992/](https://www.instagram.com/zeter1992/)
+- [https://tenchat.ru/zeter](https://tenchat.ru/zeter)
+- [https://x.com/zeter1](https://x.com/zeter1)
+- [https://www.threads.com/@zeter1992](https://www.threads.com/@zeter1992)
+- [https://ok.ru/zeter1](https://ok.ru/zeter1)
+- [https://t.me/zeterchat](https://t.me/zeterchat) - Telegram-группа для общения
+- [https://dkoles.com/](https://dkoles.com/) - сайт.
