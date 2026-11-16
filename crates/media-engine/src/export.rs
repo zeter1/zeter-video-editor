@@ -1,4 +1,5 @@
 use std::{
+    collections::{HashMap, HashSet},
     fs,
     io::{self, BufRead, BufReader},
     path::{Path, PathBuf},
@@ -17,6 +18,8 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     ManagedRuntime, MediaCapabilities, MediaError,
     encoder::{EncoderKind, select_encoder},
+    preview_cache::{ChunkProbe, ManagedChunkProbe},
+    probe::MediaProbe,
     process::{ProcessOutput, ProcessSpec, status_error},
     render_plan::RenderPlan,
 };
@@ -245,8 +248,14 @@ impl<R: ExportRunner> ExportJob<R> {
         let mut encoder = selection.primary;
         let mut used_software_fallback = false;
 
-        let first_spec =
-            build_export_spec_with_window(&self.runtime, &plan, encoder, &temp_output, range);
+        let first_spec = build_export_spec_with_window_probed(
+            &self.runtime,
+            &plan,
+            encoder,
+            &temp_output,
+            range,
+        )
+        .map_err(export_failure)?;
         match self.runner.run_with_progress(
             &first_spec,
             &cancel,
@@ -266,13 +275,14 @@ impl<R: ExportRunner> ExportJob<R> {
 
                 encoder = selection.software_fallback.expect("checked fallback");
                 used_software_fallback = true;
-                let fallback_spec = build_export_spec_with_window(
+                let fallback_spec = build_export_spec_with_window_probed(
                     &self.runtime,
                     &plan,
                     encoder,
                     &temp_output,
                     range,
-                );
+                )
+                .map_err(export_failure)?;
                 if let Err(error) = self.runner.run_with_progress(
                     &fallback_spec,
                     &cancel,
@@ -354,6 +364,20 @@ pub fn build_preview_chunk_spec(
     start: TimeUs,
     end: TimeUs,
 ) -> Result<ProcessSpec, MediaError> {
+    build_preview_chunk_spec_with_probe(runtime, plan, encoder, output, start, end, None)
+}
+
+// Executed preview chunks use the same source-audio decision as final export.
+// Pure spec tests may opt out without touching filesystem / managed tools.
+pub(crate) fn build_preview_chunk_spec_with_probe(
+    runtime: &ManagedRuntime,
+    plan: &RenderPlan,
+    encoder: EncoderKind,
+    output: &Path,
+    start: TimeUs,
+    end: TimeUs,
+    source_probe: Option<&dyn Fn(&Path) -> Result<MediaProbe, MediaError>>,
+) -> Result<ProcessSpec, MediaError> {
     if start >= end {
         return Err(MediaError::InvalidPreviewChunk {
             reason: "start must precede end",
@@ -374,14 +398,15 @@ pub fn build_preview_chunk_spec(
     // Preview caches require the exact legacy export graph and PTS
     // semantics for parity with existing generated preview chunks. Only
     // user-requested MP4 range exports use fast input seeking.
-    Ok(build_window_spec_impl(
+    build_window_spec_impl(
         runtime,
         plan,
         encoder,
         output,
         Some((start, end)),
         false,
-    ))
+        source_probe,
+    )
 }
 
 /// Convert a bounded region into a new 0-based render plan, seeking each
@@ -531,7 +556,28 @@ pub(crate) fn build_export_spec_with_window(
     output: &Path,
     window: Option<(TimeUs, TimeUs)>,
 ) -> ProcessSpec {
-    build_window_spec_impl(runtime, plan, encoder, output, window, true)
+    build_window_spec_impl(runtime, plan, encoder, output, window, true, None)
+        .expect("unprobed export specification is infallible")
+}
+
+// Executed exports must inspect actual source streams before creating FFmpeg's
+// filtergraph. RenderPlan media metadata intentionally does not change .vcut.
+fn build_export_spec_with_window_probed(
+    runtime: &ManagedRuntime,
+    plan: &RenderPlan,
+    encoder: EncoderKind,
+    output: &Path,
+    window: Option<(TimeUs, TimeUs)>,
+) -> Result<ProcessSpec, MediaError> {
+    build_window_spec_impl(
+        runtime,
+        plan,
+        encoder,
+        output,
+        window,
+        true,
+        Some(&|path| ManagedChunkProbe.inspect(runtime, path)),
+    )
 }
 
 fn build_window_spec_impl(
@@ -541,7 +587,8 @@ fn build_window_spec_impl(
     output: &Path,
     window: Option<(TimeUs, TimeUs)>,
     fast_seek: bool,
-) -> ProcessSpec {
+    source_probe: Option<&dyn Fn(&Path) -> Result<MediaProbe, MediaError>>,
+) -> Result<ProcessSpec, MediaError> {
     let mut spec = ProcessSpec::new(&runtime.ffmpeg_path)
         .arg("-y")
         .arg("-hide_banner")
@@ -588,8 +635,49 @@ fn build_window_spec_impl(
     } else {
         plan.duration_seconds().unwrap_or(0.001).max(0.001)
     };
-    let (filtergraph, has_audio) =
-        compile_timeline_filtergraph(effective_plan, &input_clips, duration);
+    // One FFprobe per distinct *audible* source, never invent [N:a] for a
+    // video-only MP4. No provisional project/cached metadata is trusted.
+    let mut audible_inputs = HashSet::new();
+    if let Some(inspect) = source_probe {
+        let mut source_audio = HashMap::new();
+        for (input_index, clip) in &input_clips {
+            if !matches!(clip.kind, ClipKind::Video | ClipKind::Audio)
+                || !effective_plan
+                    .audio
+                    .iter()
+                    .any(|audio| audio.clip_id == clip.clip_id && !audio.muted)
+            {
+                continue;
+            }
+            let media_id = clip.media_id.expect("input clip has a media id");
+            let Some(source) = plan.sources.iter().find(|source| source.id == media_id) else {
+                return Err(MediaError::MissingRenderSource { media_id });
+            };
+            let has_audio = if let Some(has_audio) = source_audio.get(&media_id) {
+                *has_audio
+            } else {
+                let has_audio = !inspect(Path::new(&source.absolute_path))?
+                    .audio_streams
+                    .is_empty();
+                source_audio.insert(media_id, has_audio);
+                has_audio
+            };
+            if has_audio {
+                audible_inputs.insert(*input_index);
+            } else if clip.kind == ClipKind::Audio {
+                // Explicit audio clips with no stream are invalid rather than silently dropped.
+                return Err(MediaError::InvalidExportSettings {
+                    reason: "audio clip source contains no audio stream",
+                });
+            }
+        }
+    }
+    let (filtergraph, has_audio) = compile_timeline_filtergraph(
+        effective_plan,
+        &input_clips,
+        duration,
+        source_probe.map(|_| &audible_inputs),
+    );
     spec = spec
         .arg("-filter_complex")
         .arg(filtergraph)
@@ -646,15 +734,17 @@ fn build_window_spec_impl(
             .arg(format!("{:.6}", seconds(end.get() - start.get()))),
         _ => spec.arg("-t").arg(format!("{duration:.6}")),
     };
-    spec.arg("-movflags")
+    Ok(spec
+        .arg("-movflags")
         .arg("+faststart")
-        .arg(output.as_os_str())
+        .arg(output.as_os_str()))
 }
 
 fn compile_timeline_filtergraph(
     plan: &RenderPlan,
     input_clips: &[(usize, &RenderClip)],
     duration: f64,
+    audible_inputs: Option<&HashSet<usize>>,
 ) -> (String, bool) {
     let mut parts = vec![format!(
         "color=c=black:s={}x{}:r={:.6}:d={duration:.6}[vbase0]",
@@ -829,7 +919,7 @@ setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709[vout]",
         else {
             continue;
         };
-        if audio.muted {
+        if audio.muted || audible_inputs.is_some_and(|inputs| !inputs.contains(input_index)) {
             continue;
         }
 

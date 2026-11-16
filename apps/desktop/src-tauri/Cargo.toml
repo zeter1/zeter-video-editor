@@ -1,6 +1,6 @@
 [package]
 name = "zeter-desktop-tauri"
-version = "0.1.0-alpha.38"
+version = "0.1.0-alpha.39"
 edition.workspace = true
 rust-version.workspace = true
 
