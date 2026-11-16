@@ -41,4 +41,50 @@ describe("rankLocalHighlights", () => {
     expect(rankLocalHighlights(source, video, [Number.NaN], 4)).toEqual([]);
     expect(rankLocalHighlights(source, { ...video, source_out: 9_000_000 }, [0.5], 4)).toEqual([]);
   });
+
+  it("aligns a candidate to a real subtitle pause rather than cutting through the next utterance", () => {
+    const timed = { subtitle_segments: [
+      { start: 5_500_000, end: 14_000_000, text: "Первый фрагмент." },
+      { start: 15_000_000, end: 19_000_000, text: "Конец мысли." },
+      { start: 24_500_000, end: 31_000_000, text: "Новая мысль, важный момент." },
+      { start: 32_000_000, end: 39_000_000, text: "Развитие темы." },
+    ] } as Sequence;
+    const result = rankLocalHighlights(timed, video, new Array(80).fill(0.2), 11);
+    expect(result).toEqual(expect.arrayContaining([
+      expect.objectContaining({ start: 24_500_000, source_revision: 11 }),
+    ]));
+    expect(result.find((candidate) => candidate.start === 24_500_000)?.reasons)
+      .toContain("Начало реплики после паузы");
+    expect(result.every((candidate) => candidate.start >= 5_000_000 &&
+      candidate.end <= 45_000_000 && candidate.end > candidate.start)).toBe(true);
+  });
+
+  it("does not invent a pause when a long utterance overlaps shorter subtitle intervals", () => {
+    const overlapping = { subtitle_segments: [
+      { start: 5_000_000, end: 31_000_000, text: "Непрерывная речь." },
+      { start: 10_000_000, end: 11_000_000, text: "Вложенный субтитр." },
+      { start: 24_500_000, end: 26_000_000, text: "Ещё вложенный субтитр." },
+    ] } as Sequence;
+    const result = rankLocalHighlights(overlapping, video, new Array(80).fill(0.2), 14);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.flatMap((candidate) => candidate.reasons))
+      .not.toContain("Начало реплики после паузы");
+    expect(result.flatMap((candidate) => candidate.reasons))
+      .not.toContain("Пауза перед следующей репликой");
+  });
+
+  it("uses only valid timestamped subtitle evidence when audio is silent", () => {
+    const timed = { subtitle_segments: [
+      { start: 9_000_000, end: 12_000_000, text: "Настоящая реплика." },
+      { start: 25_000_000, end: 24_000_000, text: "Invalid reversed time" },
+      { start: Number.NaN, end: 30_000_000, text: "Invalid nonfinite time" },
+      { start: 45_100_000, end: 47_000_000, text: "Outside clip" },
+    ] } as Sequence;
+    const ranked = rankLocalHighlights(timed, video, new Array(80).fill(0), 12);
+    expect(ranked.length).toBeGreaterThan(0);
+    expect(ranked.every((candidate) => candidate.reasons.some((reason) =>
+      reason.includes("субтитров") || reason.includes("реплики")))).toBe(true);
+    expect(rankLocalHighlights({ subtitle_segments: timed.subtitle_segments.slice(1) } as Sequence,
+      video, new Array(80).fill(0), 12)).toEqual([]);
+  });
 });

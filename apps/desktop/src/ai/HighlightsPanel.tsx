@@ -25,8 +25,9 @@ export function HighlightsPanel({
     <section className="ai-review-panel" aria-label="Highlights">
       <h4>Найти интересные фрагменты</h4>
       <p className="empty-copy">
-        Локальная оценка по реальной звуковой активности и имеющимся субтитрам.
-        Содержание речи пока не оценивается — проверьте предложенные фрагменты.
+        Локальная оценка по звуковой активности и временным границам субтитров:
+        паузы помогают не разрезать реплику при создании Short. Текст может быть
+        создан вручную или локальным Whisper; смысл речи пока не распознаётся.
       </p>
       <button type="button" disabled={disabled || analyzing} onClick={onAnalyze}>
         {analyzing ? "Анализ звука…" : "Найти хайлайты"}
@@ -39,7 +40,7 @@ export function HighlightsPanel({
         {candidates.map((candidate, index) => (
           <article key={candidate.start + "-" + candidate.end + "-" + index}>
             <strong>{time(candidate.start)} – {time(candidate.end)}</strong>
-            <span> · {Math.round(candidate.score * 100)}% по аудиосигналу</span>
+            <span> · {Math.round(candidate.score * 100)}% по доступным признакам</span>
             <ul>
               {candidate.reasons.map((reason) => <li key={reason}>{reason}</li>)}
             </ul>

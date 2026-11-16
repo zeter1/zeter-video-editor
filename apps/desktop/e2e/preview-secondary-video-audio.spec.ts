@@ -37,13 +37,13 @@ test("native lower video audio follows Play/mute/Pause without altering the proj
   if (!source || !source.media_id) throw new Error("Missing synthetic embedded-AAC video");
   const lowerId = randomUUID(), upperId = randomUUID();
   bottom.clips = [{
-    ...source, id: lowerId, timeline_start: 0, timeline_end: 3_000_000,
-    source_in: 0, source_out: 3_000_000,
+    ...source, id: lowerId, timeline_start: 0, timeline_end: 5_500_000,
+    source_in: 0, source_out: 5_500_000,
     audio: { ...source.audio, muted: false, volume: 0.4 },
   }];
   overlay.clips = [{
-    ...source, id: upperId, timeline_start: 0, timeline_end: 3_000_000,
-    source_in: 0, source_out: 3_000_000,
+    ...source, id: upperId, timeline_start: 0, timeline_end: 5_500_000,
+    source_in: 0, source_out: 5_500_000,
     audio: { ...source.audio, muted: true }, // only the lower video should sound
   }];
   track("Audio").clips = [];
@@ -75,6 +75,8 @@ test("native lower video audio follows Play/mute/Pause without altering the proj
   await expect(foreground).toHaveJSProperty("muted", true);
 
   await page.getByRole("button", { name: "Пауза", exact: true }).click();
+  // Verify the user transport itself stopped, not only that mute removed sound.
+  await expect(page.getByRole("button", { name: "Воспроизвести", exact: true })).toBeVisible();
   await expect(follower).toHaveJSProperty("muted", true);
   await expect.poll(() => follower.evaluate((node) => (node as HTMLVideoElement).paused),
     { timeout: 8_000 }).toBe(true);
