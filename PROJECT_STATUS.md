@@ -1,3 +1,15 @@
+# CURRENT DEVELOPMENT — ZVE-018 transition preset library (2026-11-16)
+
+- **Verified starting point:** GitHub/local `main == origin/main == a9935751634422b1b67c07f0b118d3a37647bdad`, PR #100 (ZVE-017) already MERGED; post-merge Actions run #43733607085 terminal SUCCESS on this exact `main`. No unrelated PR was modified. Approved spec `docs/superpowers/WORKING-DESIGN.md` §11 includes four transitions and the left Transitions panel.
+- **Active product branch:** `feat/zve-018-transition-palette-20261116` on this exact base, version `0.1.0-alpha.35 → 0.1.0-alpha.36` bumped ONCE by `scripts/set-version.mjs`. This is an unpublished unsigned development build; not a tag, signed Release, installed app or updater activation.
+- **Product code:** `apps/desktop/src/{components/TransitionPalette.tsx,components/LeftPanel.tsx,app/AppShell.tsx,editing/transitions.ts,timeline/ClipView.tsx,inspector/TransitionInspector.tsx,styles/app.css}` provides a dedicated Transitions palette with four approved presets, real HTML drag/drop onto eligible Video/Image clips with positive hover feedback, click-to-apply for selection, replace preserving existing duration, and explicit remove from Timeline or Inspector. No accidental media transfer; nonvisual/locked clip drop is rejected. Native drag source text selection disabled for reliability.
+- **Core + protocol:** `crates/editor-core/src/{command.rs,editor.rs}` adds atomic `RemoveTransition` with absent-transition, locked-track, revision and Undo/Redo guards; existing `AddTransition` remains authoritative for application/replacement. `apps/desktop/src-tauri/src/contracts.rs` and generated `apps/desktop/src/generated/ipc.ts` updated identically (LF exact byte contract test). Project `.vcut` schema, media sources and FFmpeg filter plan unchanged, no migration.
+- **Windows checks actually passed:** all **267/267 Vitest** across 58 files, all `cargo test --workspace --quiet` (including generated IPC contract and two new RemoveTransition tests), `cargo fmt --all -- --check`, `npm --prefix apps/desktop run build`, `node scripts/check-version.mjs`, version policy **8/8**, `git diff --check`. New targeted Tauri/WebView2 native `e2e/transition-palette.spec.ts` **1/1 PASS** with genuine drag/drop, replacement, Inspector, delete, Undo/Redo, `.vcut` save/reopen and decoded FFmpeg MP4 before/after MD5 difference. Initial native runs exposed a locale encoding error in test button labels and a drag hit-target instability; both investigated with Playwright trace and fixed, not counted as passes.
+- **Still required before merge (update these facts when completed):** run full normal native WebView2 suite plus isolated 206-byte starvation suite; build unsigned DEBUG EXE/NSIS, capture SHA-256; push branch and create PR; independently review exact diff, obtain mandatory exact-PR-head CI SUCCESS, check branch protections/reviews, then authorized merge to main; verify post-merge SHA/CI, sync Windows checkout and Google task log. Do NOT claim alpha.36 shipped until merged.
+- **NEXT PRODUCT-CODE TASK after ZVE-018 integration:** ZVE-019 — verify and strengthen transition **Preview/FFmpeg parity** for all four approved kinds when seeking/playing the transition start, using `apps/desktop/src/preview/` and `crates/media-engine/src/export.rs`; demonstrate native frame/transition appearance with test media, Undo/Redo and `.vcut` round-trip, no new schema or unrelated architectural change. First inspect how proxy/composite preview currently applies transition filters rather than inventing unapproved features.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-017 direct Timeline transition duration (2026-11-15)
 
 - **Fresh checked baseline:** `main` and clean local checkout at `247ed349b8d26c5a0f2474b6a0c9b9b63e45761f`; ZVE-016 PR [#99](https://github.com/zeter1/zeter-video-editor/pull/99) MERGED, exact-head Windows CI [#43727147449](https://github.com/zeter1/zeter-video-editor/actions/runs/43727147449) SUCCESS. Post-merge `main` CI [#43728044306](https://github.com/zeter1/zeter-video-editor/actions/runs/43728044306) FAILURE on 2× AV backward-scrub unexpected native pause, then six WebView2 ECONNREFUSED cascades; do not claim main CI green. ZVE-016 is already integrated and must not be repeated.
@@ -1157,7 +1169,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.35` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.36` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

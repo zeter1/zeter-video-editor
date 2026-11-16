@@ -183,6 +183,11 @@ pub enum EditCommand {
         clip_id: ClipId,
         transition: Transition,
     },
+    RemoveTransition {
+        sequence_id: SequenceId,
+        track_id: TrackId,
+        clip_id: ClipId,
+    },
     // Atomic user action: create a title and optionally its Text lane in one Undo step.
     AddTitle {
         sequence_id: SequenceId,

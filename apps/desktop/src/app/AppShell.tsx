@@ -10,6 +10,7 @@ import { ErrorDialog } from "../errors/ErrorDialog";
 import type { RecoveryAction } from "../errors/actions";
 import { JobStatus, type ExportJobView } from "../components/JobStatus";
 import { LeftPanel } from "../components/LeftPanel";
+import { canEditTransition, transitionForClip } from "../editing/transitions";
 import { PreviewPanel } from "../components/PreviewPanel";
 import { TimelinePanel } from "../components/TimelinePanel";
 import { TopToolbar } from "../components/TopToolbar";
@@ -762,6 +763,17 @@ export function AppShell({
           busy={busy}
           aiOpen={aiOpen}
           onToggleAi={() => setAiOpen((open) => !open)}
+          selectedClip={selectedClip}
+          selectedTrackLocked={activeSequence?.tracks.find((track) => track.id === selectedTrackId)?.locked ?? false}
+          onApplyTransition={(kind) => {
+            if (!activeSequence || !selectedClip || !selectedTrackId ||
+              !canEditTransition(selectedClip,
+                activeSequence.tracks.find((track) => track.id === selectedTrackId)?.locked ?? true)) return;
+            void handleEditCommand({ AddTransition: {
+              sequence_id: activeSequence.id, track_id: selectedTrackId,
+              clip_id: selectedClip.id, transition: transitionForClip(selectedClip, kind),
+            } });
+          }}
           aiContent={
             <AiWorkspace key={activeSequence?.id ?? "no-project"}
               sequence={activeSequence}

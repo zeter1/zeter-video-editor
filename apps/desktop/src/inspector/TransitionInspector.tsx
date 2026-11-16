@@ -11,16 +11,8 @@ import {
   type EditCommit,
 } from "../editing/commit";
 import { clampTransitionDuration } from "../timeline/TransitionDurationHandle";
-
-export const APPROVED_TRANSITIONS: ReadonlyArray<{
-  kind: TransitionKind;
-  label: string;
-}> = [
-  { kind: "CrossDissolve", label: "Cross Dissolve" },
-  { kind: "Fade", label: "Fade" },
-  { kind: "DipToBlack", label: "Dip to Black" },
-  { kind: "DipToWhite", label: "Dip to White" },
-];
+import { APPROVED_TRANSITIONS } from "../editing/transitions";
+export { APPROVED_TRANSITIONS } from "../editing/transitions";
 
 interface TransitionInspectorProps {
   sequenceId: SequenceId;
@@ -106,6 +98,14 @@ export function TransitionInspector({
           ))}
         </select>
       </label>
+      {clip.transition ? (
+        <button type="button" aria-label="Remove transition"
+          onClick={() => void requestEditCommit(onCommit, {
+            RemoveTransition: { sequence_id: sequenceId, track_id: trackId, clip_id: clip.id },
+          })}>
+          Remove transition
+        </button>
+      ) : null}
       <label>
         Duration (ms)
         <input
