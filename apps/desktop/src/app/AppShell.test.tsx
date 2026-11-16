@@ -37,6 +37,25 @@ describe("AppShell", () => {
     expect(screen.queryByRole("region", { name: "AI-инструменты" })).toBeNull();
   });
 
+  it("switches back to AI after opening Transitions without accidentally closing AI", () => {
+    render(<AppShell projectStore={createProjectStore()} transientStore={createTransientStore()} />);
+    const ai = screen.getByRole("button", { name: /^AI-/ });
+    const transitions = screen.getByRole("button", { name: "Transitions" });
+
+    fireEvent.click(ai);
+    expect(screen.getByRole("region", { name: /^AI-/ })).toBeTruthy();
+    fireEvent.click(transitions);
+    expect(screen.getByRole("region", { name: "Transitions presets" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: /^AI-/ })).toBeNull();
+    fireEvent.click(ai);
+    expect(screen.getByRole("region", { name: /^AI-/ })).toBeTruthy();
+
+    fireEvent.click(ai);
+    fireEvent.click(transitions);
+    fireEvent.click(ai);
+    expect(screen.getByRole("region", { name: /^AI-/ })).toBeTruthy();
+  });
+
   it("exposes project lifecycle actions without putting project state in the toolbar", () => {
     const openProject = vi.fn();
     const saveProject = vi.fn();

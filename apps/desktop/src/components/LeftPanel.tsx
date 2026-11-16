@@ -41,7 +41,10 @@ export function LeftPanel({
         <button type="button" aria-pressed={transitionsOpen}
           onClick={() => setTransitionsOpen((open) => !open)}>Transitions</button>
         <button type="button" aria-pressed={aiOpen && !transitionsOpen}
-          onClick={() => { setTransitionsOpen(false); onToggleAi?.(); }}>AI-инструменты</button>
+          onClick={() => {
+            setTransitionsOpen(false);
+            if (!transitionsOpen || !aiOpen) onToggleAi?.();
+          }}>AI-инструменты</button>
       </div>
       <div className="media-list">
         {transitionsOpen ? (
