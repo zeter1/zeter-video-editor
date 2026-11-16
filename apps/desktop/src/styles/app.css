@@ -1168,6 +1168,13 @@ button {
 .preview-frame.preview-scale-100 {
   width: min(100%, 1920px);
 }
+.preview-transition-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
 .preview-ffmpeg-composite {
   position: absolute;
   z-index: 1;
