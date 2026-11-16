@@ -11,6 +11,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror.workspace = true
 semver = "1.0"
+rustface = { version = "0.1.7", default-features = false }
 
 [dev-dependencies]
 tempfile = "3.23"

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Zeter Video Editor",
-  "version": "0.1.0-alpha.40",
+  "version": "0.1.0-alpha.41",
   "identifier": "com.zeter.videoeditor",
   "build": {
     "beforeBuildCommand": "npm run build",
@@ -36,7 +36,8 @@
       "binaries/zeter-ai-worker"
     ],
     "resources": [
-      "../../../release/runtime-manifest.json"
+      "../../../release/runtime-manifest.json",
+      "../../../crates/ai-engine/model/THIRD_PARTY_NOTICE.md"
     ],
     "windows": {
       "webviewInstallMode": {

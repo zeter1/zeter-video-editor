@@ -123,3 +123,142 @@ fn validate_face(face: FaceBounds) -> Result<(), AiError> {
     }
     Ok(())
 }
+
+// Bundled BSD-2-Clause SeetaFace frontal cascade: see model/THIRD_PARTY_NOTICE.md.
+const FACE_MODEL: &[u8] = include_bytes!("../model/seeta_fd_frontal_v1.0.bin");
+
+/// Choose a deterministic single focus in scenes containing several people.
+/// Prefer the largest detected face; tie-break toward the frame center, then
+/// toward the left/top. Empty/invalid model outputs are never treated as faces.
+pub fn select_primary_face(faces: &[FaceBounds]) -> Option<FaceBounds> {
+    faces
+        .iter()
+        .copied()
+        .filter(|face| validate_face(*face).is_ok())
+        .max_by(|a, b| {
+            let area_a = a.width * a.height;
+            let area_b = b.width * b.height;
+            let distance = |face: &FaceBounds| {
+                let dx = face.x + face.width / 2.0 - 0.5;
+                let dy = face.y + face.height / 2.0 - 0.5;
+                dx * dx + dy * dy
+            };
+            area_a
+                .total_cmp(&area_b)
+                .then_with(|| distance(b).total_cmp(&distance(a)))
+                .then_with(|| b.x.total_cmp(&a.x))
+                .then_with(|| b.y.total_cmp(&a.y))
+        })
+}
+
+/// Analyze a bounded grayscale source frame entirely on CPU. No account,
+/// cloud inference, storage or per-person identity data are involved.
+pub fn locate_primary_face_in_grayscale(
+    grayscale: &[u8],
+    width: u32,
+    height: u32,
+) -> Result<Option<FaceBounds>, AiError> {
+    if width < 20
+        || height < 20
+        || width > 640
+        || height > 640
+        || (width as usize).checked_mul(height as usize) != Some(grayscale.len())
+    {
+        return Err(AiError::InvalidAnalysisOutput(
+            "grayscale face detection input must be a complete frame <=640x640".into(),
+        ));
+    }
+    let model = rustface::read_model(FACE_MODEL)
+        .map_err(|_| AiError::WorkerUnavailable("embedded face detector is invalid".into()))?;
+    let mut detector = rustface::create_detector_with_model(model);
+    detector.set_min_face_size(20);
+    detector.set_score_thresh(2.0);
+    detector.set_pyramid_scale_factor(0.8);
+    detector.set_slide_window_step(4, 4);
+    let image = rustface::ImageData::new(grayscale, width, height);
+    let faces: Vec<FaceBounds> = detector
+        .detect(&image)
+        .iter()
+        .filter_map(|face| {
+            let rect = face.bbox();
+            let left = rect.x().max(0) as u32;
+            let top = rect.y().max(0) as u32;
+            let right =
+                (i64::from(rect.x()) + i64::from(rect.width())).clamp(0, i64::from(width)) as u32;
+            let bottom =
+                (i64::from(rect.y()) + i64::from(rect.height())).clamp(0, i64::from(height)) as u32;
+            if right <= left || bottom <= top {
+                return None;
+            }
+            Some(FaceBounds {
+                x: left as f32 / width as f32,
+                y: top as f32 / height as f32,
+                width: (right - left) as f32 / width as f32,
+                height: (bottom - top) as f32 / height as f32,
+            })
+        })
+        .collect();
+    Ok(select_primary_face(&faces))
+}
+
+#[cfg(test)]
+mod local_face_tests {
+    use super::*;
+
+    fn face(x: f32, y: f32, width: f32, height: f32) -> FaceBounds {
+        FaceBounds {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    #[test]
+    fn no_face_and_invalid_faces_use_center_fallback() {
+        assert_eq!(select_primary_face(&[]), None);
+        assert_eq!(select_primary_face(&[face(f32::NAN, 0.1, 0.3, 0.3)]), None);
+        let crop = initial_vertical_crop(1920, 1080, None).unwrap();
+        assert!((crop.left - crop.right).abs() < 0.00001);
+    }
+
+    #[test]
+    fn multiple_faces_choose_largest_then_nearest_center_then_left() {
+        let small = face(0.0, 0.1, 0.15, 0.15);
+        let large = face(0.7, 0.2, 0.28, 0.3);
+        assert_eq!(select_primary_face(&[small, large]), Some(large));
+        let far = face(0.1, 0.1, 0.2, 0.2);
+        let near = face(0.4, 0.4, 0.2, 0.2);
+        assert_eq!(select_primary_face(&[far, near]), Some(near));
+        let left = face(0.2, 0.4, 0.2, 0.2);
+        let right = face(0.6, 0.4, 0.2, 0.2);
+        assert_eq!(select_primary_face(&[right, left]), Some(left));
+    }
+
+    #[test]
+    fn frame_rejects_truncated_and_unbounded_data() {
+        assert!(locate_primary_face_in_grayscale(&[], 512, 512).is_err());
+        assert!(locate_primary_face_in_grayscale(&[], 100_000, 100_000).is_err());
+    }
+
+    #[test]
+    fn blank_frame_has_no_false_face() {
+        let blank = vec![127_u8; 320 * 240];
+        assert_eq!(
+            locate_primary_face_in_grayscale(&blank, 320, 240).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn actual_public_domain_astronaut_face_is_detected() {
+        // Public-domain NASA astronaut photo, scikit-image v0.25.2.
+        let frame = include_bytes!("../tests/fixtures/astronaut-512.gray");
+        let located = locate_primary_face_in_grayscale(frame, 512, 512).unwrap();
+        println!("Face found on genuine source image: {located:?}");
+        assert!(
+            located.is_some(),
+            "a real photographic face must be detected"
+        );
+    }
+}

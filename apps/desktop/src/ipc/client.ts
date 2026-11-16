@@ -15,6 +15,14 @@ import type {
 } from "../generated/ipc";
 import type { ProjectStore } from "../state/projectStore";
 
+/** Bounding box normalized to the uncropped input frame (not an identity). */
+export interface FaceBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface IpcClient {
   projectNew(name: string): Promise<ProjectSnapshotDto>;
   projectOpen(path: string): Promise<ProjectSnapshotDto>;
@@ -25,6 +33,7 @@ export interface IpcClient {
   projectSave(path: string): Promise<ProjectSnapshotDto>;
   projectSnapshot(): Promise<ProjectSnapshotDto>;
   getAudioWaveform(projectId: string, mediaId: string, sourceInUs: number, sourceOutUs: number, buckets: number): Promise<number[]>;
+  detectShortFace?: (projectId: string, revision: number, sequenceId: string, clipId: string) => Promise<FaceBounds | null>;
   executeEditCommand(request: EditRequest): Promise<CommandResultDto>;
   undo(requestId: RequestId): Promise<CommandResultDto>;
   redo(requestId: RequestId): Promise<CommandResultDto>;
@@ -100,6 +109,8 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
     projectSnapshot: () => call(invokeFn, "project_snapshot"),
     getAudioWaveform: (projectId, mediaId, sourceInUs, sourceOutUs, buckets) =>
       call(invokeFn, "get_audio_waveform", { projectId, mediaId, sourceInUs, sourceOutUs, buckets }),
+    detectShortFace: (projectId, revision, sequenceId, clipId) =>
+      call(invokeFn, "detect_short_face", { projectId, revision, sequenceId, clipId }),
     executeEditCommand: (request) =>
       call(invokeFn, "execute_edit_command", { request }),
     undo: (requestId) => call(invokeFn, "undo", { requestId }),
