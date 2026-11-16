@@ -24,7 +24,7 @@ use crate::{
     ManagedRuntime, MediaError, MediaProbe,
     cache_key::{PreviewQuality, PreviewRange, preview_cache_key},
     encoder::EncoderKind,
-    export::{ExportRunner, ManagedExportRunner, build_preview_chunk_spec},
+    export::{ExportRunner, ManagedExportRunner, build_preview_chunk_spec_with_probe},
     probe::{build_probe_spec, parse_ffprobe_json},
     process::status_error,
     render_plan::RenderPlan,
@@ -257,13 +257,14 @@ impl<R: ExportRunner, P: ChunkProbe> PreviewChunkCache<R, P> {
         }
         let output = directory.join(format!("{key}.mp4"));
         // Even an existing cache hit must satisfy the same FFmpeg window bound.
-        let _ = build_preview_chunk_spec(
+        let _ = build_preview_chunk_spec_with_probe(
             &self.runtime,
             plan,
             EncoderKind::Libx264,
             &output,
             range.start,
             range.end,
+            Some(&|path| self.probe.inspect(&self.runtime, path)),
         )?;
         let _guard = self
             .gate
@@ -292,13 +293,14 @@ impl<R: ExportRunner, P: ChunkProbe> PreviewChunkCache<R, P> {
         ));
 
         let result = (|| {
-            let mut spec = build_preview_chunk_spec(
+            let mut spec = build_preview_chunk_spec_with_probe(
                 &self.runtime,
                 plan,
                 EncoderKind::Libx264,
                 &temp,
                 range.start,
                 range.end,
+                Some(&|path| self.probe.inspect(&self.runtime, path)),
             )?;
             // FFmpeg -fs is output-side and bounds temporary disk allocation.
             let output_arg = spec.args.pop().expect("FFmpeg output argument");
