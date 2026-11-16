@@ -544,6 +544,20 @@ impl Editor {
                 clip.transition = Some(*transition);
                 Ok(vec![ChangedEntity::Clip(*clip_id)])
             }),
+            EditCommand::RemoveTransition {
+                sequence_id,
+                track_id,
+                clip_id,
+            } => self.mutate_track_clips(*sequence_id, *track_id, |clips| {
+                let clip = find_clip_mut(clips, *clip_id)?;
+                if clip.transition.is_none() {
+                    return Err(DomainError::InvalidEdit {
+                        reason: "clip does not have a transition",
+                    });
+                }
+                clip.transition = None;
+                Ok(vec![ChangedEntity::Clip(*clip_id)])
+            }),
             EditCommand::AddTitle {
                 sequence_id,
                 track_id,
@@ -1342,6 +1356,80 @@ mod tests {
                 })
             );
         }
+    }
+
+    #[test]
+    fn remove_transition_is_atomic_rejects_absent_and_respects_undo_redo() {
+        let (project, sequence_id, track_id, clip_id, _) = fixture();
+        let mut editor = Editor::new(project).unwrap();
+        let remove = EditCommand::RemoveTransition {
+            sequence_id,
+            track_id,
+            clip_id,
+        };
+        assert!(editor.execute(request(0, remove.clone())).is_err());
+        assert_eq!(editor.revision(), ProjectRevision::new(0));
+
+        let original = Transition {
+            kind: TransitionKind::DipToBlack,
+            duration: time(600_000),
+        };
+        editor
+            .execute(request(
+                0,
+                EditCommand::AddTransition {
+                    sequence_id,
+                    track_id,
+                    clip_id,
+                    transition: original,
+                },
+            ))
+            .unwrap();
+        editor.execute(request(1, remove.clone())).unwrap();
+        assert_eq!(
+            editor.project().sequences[0].tracks[0].clips[0].transition,
+            None
+        );
+        assert_eq!(editor.revision(), ProjectRevision::new(2));
+        assert!(editor.execute(request(2, remove)).is_err());
+        assert_eq!(editor.revision(), ProjectRevision::new(2));
+        editor.undo(RequestId::new()).unwrap();
+        assert_eq!(
+            editor.project().sequences[0].tracks[0].clips[0].transition,
+            Some(original)
+        );
+        editor.redo(RequestId::new()).unwrap();
+        assert_eq!(
+            editor.project().sequences[0].tracks[0].clips[0].transition,
+            None
+        );
+    }
+
+    #[test]
+    fn remove_transition_rejects_locked_track_without_mutating_project() {
+        let (mut project, sequence_id, track_id, clip_id, _) = fixture();
+        let transition = Transition {
+            kind: TransitionKind::Fade,
+            duration: time(300_000),
+        };
+        project.sequences[0].tracks[0].clips[0].transition = Some(transition);
+        project.sequences[0].tracks[0].locked = true;
+        let mut editor = Editor::new(project).unwrap();
+        let original = editor.project().clone();
+        assert!(
+            editor
+                .execute(request(
+                    0,
+                    EditCommand::RemoveTransition {
+                        sequence_id,
+                        track_id,
+                        clip_id,
+                    }
+                ))
+                .is_err()
+        );
+        assert_eq!(editor.revision(), ProjectRevision::new(0));
+        assert_eq!(editor.project(), &original);
     }
 
     #[test]

@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent } from "react";
 
 import type {
   Clip,
@@ -20,6 +20,7 @@ import { snapTimelineTime } from "./snapping";
 import { WaveformOverlay } from "./WaveformOverlay";
 import { AudioFadeHandles } from "./AudioFadeHandles";
 import { TransitionDurationHandle } from "./TransitionDurationHandle";
+import { canEditTransition, parseTransitionKind, transitionForClip, TRANSITION_DRAG_MIME } from "../editing/transitions";
 import {
   durationUsToPixels,
   pixelDeltaToTimeUs,
@@ -90,6 +91,35 @@ export function ClipView({
   } | null>(null);
   const trimGesture = useRef<TrimGesture | null>(null);
   const [trimPreview, setTrimPreview] = useState<TrimPreview | null>(null);
+  const [transitionDropHover, setTransitionDropHover] = useState(false);
+
+  function canAcceptTransitionDrag(event: ReactDragEvent<HTMLDivElement>): boolean {
+    return canEditTransition(clip, trackLocked) &&
+      Array.from(event.dataTransfer?.types ?? []).includes(TRANSITION_DRAG_MIME);
+  }
+
+  function handleTransitionDragOver(event: ReactDragEvent<HTMLDivElement>): void {
+    if (!canAcceptTransitionDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    setTransitionDropHover(true);
+  }
+
+  function handleTransitionDrop(event: ReactDragEvent<HTMLDivElement>): void {
+    if (!canAcceptTransitionDrag(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setTransitionDropHover(false);
+    const kind = parseTransitionKind(event.dataTransfer.getData(TRANSITION_DRAG_MIME));
+    if (!kind) return;
+    transientStore.selectClip(clip.id);
+    transientStore.selectTrack(trackId);
+    void commitCommand({ AddTransition: {
+      sequence_id: sequenceId, track_id: trackId, clip_id: clip.id,
+      transition: transitionForClip(clip, kind),
+    } });
+  }
 
   const dragPreview =
     transient.drag?.clipId === clip.id ? transient.drag.previewTimeUs : null;
@@ -309,13 +339,18 @@ export function ClipView({
     <div
       className={`timeline-clip timeline-clip-${clip.kind.toLowerCase()}${
         trackLocked ? " is-locked" : ""
-      }${transient.drag?.clipId === clip.id &&
+      }${transitionDropHover ? " is-transition-drop-target" : ""}${transient.drag?.clipId === clip.id &&
         transient.drag.targetTrackId !== null && transient.drag.targetTrackId !== trackId
           ? " is-cross-track-source" : ""}`}
       aria-label={`${clip.kind} clip ${clip.id}`}
       data-testid={`clip-${clip.id}`}
       style={{ left, width }}
       tabIndex={trackLocked ? -1 : 0}
+      onDragOver={handleTransitionDragOver}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) setTransitionDropHover(false);
+      }}
+      onDrop={handleTransitionDrop}
       onPointerDown={startMove}
       onPointerMove={previewMove}
       onPointerUp={commitMove}
@@ -355,6 +390,13 @@ export function ClipView({
                 transition: { kind: "CrossDissolve",
                   duration: Math.min(300_000, clip.timeline_end - clip.timeline_start) } } });
             }}>T</button>
+        ) : null}
+        {(clip.kind === "Video" || clip.kind === "Image") && clip.transition ? (
+          <button type="button" aria-label={"Remove transition " + clip.id}
+            disabled={trackLocked} title="Remove transition"
+            onClick={() => void commitCommand({ RemoveTransition: {
+              sequence_id: sequenceId, track_id: trackId, clip_id: clip.id,
+            } })}>-T</button>
         ) : null}
         <button
           type="button"

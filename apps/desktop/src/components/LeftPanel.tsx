@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
-import type { MediaRef } from "../generated/ipc";
+import { useState, type ReactNode } from "react";
+import type { Clip, MediaRef, TransitionKind } from "../generated/ipc";
+import { TransitionPalette } from "./TransitionPalette";
 
 interface LeftPanelProps {
   media: MediaRef[];
@@ -12,12 +13,17 @@ interface LeftPanelProps {
   aiOpen?: boolean;
   onToggleAi?: () => void;
   aiContent?: ReactNode;
+  selectedClip?: Clip | null;
+  selectedTrackLocked?: boolean;
+  onApplyTransition?: (kind: TransitionKind) => void;
 }
 
 export function LeftPanel({
   media, onImport, onAddToTimeline, onAddText, onOpenSubtitles, addingText = false,
   busy = false, aiOpen = false, onToggleAi, aiContent,
+  selectedClip = null, selectedTrackLocked = false, onApplyTransition,
 }: LeftPanelProps) {
+  const [transitionsOpen, setTransitionsOpen] = useState(false);
   return (
     <aside className="left-panel panel" role="region" aria-label="Media and tools" data-testid="left-panel">
       <div className="panel-heading">
@@ -32,10 +38,20 @@ export function LeftPanel({
         </button>
         <button type="button" disabled={!onOpenSubtitles} onClick={onOpenSubtitles}
           title="Открыть редактор субтитров в свойствах">Субтитры</button>
-        <button type="button" aria-pressed={aiOpen} onClick={onToggleAi}>AI-инструменты</button>
+        <button type="button" aria-pressed={transitionsOpen}
+          onClick={() => setTransitionsOpen((open) => !open)}>Transitions</button>
+        <button type="button" aria-pressed={aiOpen && !transitionsOpen}
+          onClick={() => {
+            setTransitionsOpen(false);
+            if (!transitionsOpen || !aiOpen) onToggleAi?.();
+          }}>AI-инструменты</button>
       </div>
       <div className="media-list">
-        {aiOpen ? aiContent : media.length === 0 ? (
+        {transitionsOpen ? (
+          <TransitionPalette selectedClip={selectedClip}
+            selectedTrackLocked={selectedTrackLocked}
+            onApply={(kind) => onApplyTransition?.(kind)} />
+        ) : aiOpen ? aiContent : media.length === 0 ? (
           <p className="empty-copy">Перетащите файлы сюда или нажмите «Импорт».</p>
         ) : (
           media.map((item) => (

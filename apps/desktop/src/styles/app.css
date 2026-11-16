@@ -1608,3 +1608,26 @@ button {
   opacity: 0.4;
   cursor: default;
 }
+
+/* ZVE-018: drag-and-drop transition presets, with a visible valid clip target. */
+.transition-palette { padding: 10px; }
+.transition-preset-list { display: grid; gap: 8px; }
+.transition-preset {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; min-height: 58px; text-align: left;
+  padding: 9px 10px; border: 1px solid #475368; border-radius: 7px;
+  background: #252d39; color: #eef4ff; cursor: grab;
+}
+.transition-preset:hover, .transition-preset:focus-visible {
+  border-color: #78b7fb; background: #303d50;
+}
+.transition-preset:active { cursor: grabbing; }
+.transition-preset, .transition-preset * { user-select: none; -webkit-user-select: none; }
+.transition-preset[aria-disabled="true"] { opacity: .78; }
+.transition-preset span:last-child { display: grid; gap: 3px; }
+.transition-preset small { color: #aebed3; font-size: 11px; }
+.transition-preset-glyph { font-size: 27px; color: #8bc7ff; }
+.timeline-clip.is-transition-drop-target {
+  outline: 3px solid #66d9b0; outline-offset: -2px;
+  background-color: #28594d;
+}
