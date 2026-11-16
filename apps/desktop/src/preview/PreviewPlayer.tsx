@@ -1,10 +1,11 @@
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import type { Clip, MediaRef, ProjectId, ProjectRevision, Sequence, Track, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { OverlayHandles } from "./OverlayHandles";
 import { TitleOverlay } from "./TitleOverlay";
 import { PausedCompositeFrame } from "./PausedCompositeFrame";
+import { previewPictureStyle, transitionProgress } from "./transitionPreview";
 import { PreviewAudioTracks, previewAudioVolume, synchronizeAudioClock } from "./PreviewAudioTracks";
 import { adjacentEditBoundaryUs, collectEditBoundariesUs } from "./editNavigation";
 import {
@@ -80,17 +81,10 @@ function sourceTime(clip: Clip, timelineUs: number): number {
   return (clip.source_in + offset * rate) / 1_000_000;
 }
 
-// FFmpeg overlays a scaled picture at (W-w)/2 + position_x*W/2
-// (and similarly for Y). A full-frame object-fit:contain element already
-// centers its intrinsic picture; moving that FRAME-sized box by half-frame
-// percentages preserves FFmpeg offsets even for 4:3 sources in a 16:9 sequence.
-// Keep the native video element mounted: this is presentation only.
-function pictureStyle(clip: Clip) {
-  const opacity = Math.max(0, Math.min(1, clip.transform?.opacity ?? 1));
-  const x = (clip.transform?.position_x ?? 0) * 50;
-  const y = (clip.transform?.position_y ?? 0) * 50;
-  // Preserve the old compositor path for the common zero-offset case.
-  return x === 0 && y === 0 ? { opacity } : { opacity, transform: `translate(${x}%, ${y}%)` };
+// FFmpeg export and native Preview share clip-local transition timing.
+// The direct WebView2 picture stays mounted; exact paused frames use FFmpeg.
+function transitionFilterId(prefix: string, clip: Clip): string {
+  return `zve-white-${prefix}-${clip.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
 // The custom protocol never accepts filesystem paths; only UUIDs belonging
@@ -107,9 +101,10 @@ function supportsPresentedFrames(node: HTMLVideoElement | null): node is HTMLVid
 
 /** Follower decoder with gated embedded sound; foreground video remains the only timeline clock. */
 function SecondaryVideoLayer({
-  clip, trackMuted, src, playheadTimeUs, playing,
+  clip, trackMuted, src, playheadTimeUs, playing, filterPrefix,
 }: {
   clip: Clip; trackMuted: boolean; src: string; playheadTimeUs: number; playing: boolean;
+  filterPrefix: string;
 }) {
   const node = useRef<HTMLVideoElement>(null);
   const [failed, setFailed] = useState(false);
@@ -165,7 +160,7 @@ function SecondaryVideoLayer({
         ref={node}
         className="preview-media"
         src={src}
-        style={pictureStyle(clip)}
+        style={previewPictureStyle(clip, playheadTimeUs, transitionFilterId(filterPrefix, clip))}
         playsInline
         muted
         preload="auto"
@@ -214,6 +209,7 @@ export function PreviewPlayer({
   const [quality, setQuality] = useState<PreviewQuality>("Full");
   const [scale, setScale] = useState<PreviewScale>("Fit");
   const [playing, setPlaying] = useState(false);
+  const transitionFilterPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const [mediaError, setMediaError] = useState<string | null>(null);
   const fullscreenStageRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -349,7 +345,11 @@ export function PreviewPlayer({
       .filter((clip) => clip.kind === "Text" && clip.text &&
         clip.timeline_start <= playheadTimeUs && playheadTimeUs < clip.timeline_end)
       .map((clip) => ({ clip, track })));
-  const pausedComposite = pictureSelection.multipleVideos &&
+  const transitionVisible = pictureLayers.some(({ clip }) =>
+    clip.transition !== null && transitionProgress(clip, playheadTimeUs) < 1);
+  // Native FFmpeg gives exact color/alpha on a paused seek even for ONE clip.
+  // Unchanged single-layer playback keeps the lightweight direct decoder.
+  const pausedComposite = (pictureSelection.multipleVideos || transitionVisible) &&
     !playing && projectId !== null && revision !== null && !draggingTitle;
   // A still over a video must not replace the foreground transport decoder.
   // Readiness, embedded sound and rVFC continue to follow that same video.
@@ -590,6 +590,25 @@ export function PreviewPlayer({
             "--preview-aspect": sequence.width / sequence.height,
           } as CSSProperties}
         >
+          <svg className="preview-transition-defs" width="0" height="0" aria-hidden="true" focusable="false">
+            <defs>
+              {pictureLayers.filter(({ clip }) =>
+                clip.transition?.kind === "DipToWhite" &&
+                transitionProgress(clip, playheadTimeUs) < 1).map(({ clip }) => {
+                const amount = transitionProgress(clip, playheadTimeUs);
+                return (
+                  <filter key={clip.id} id={transitionFilterId(transitionFilterPrefix, clip)}
+                    colorInterpolationFilters="sRGB">
+                    <feComponentTransfer>
+                      <feFuncR type="linear" slope={amount} intercept={1 - amount} />
+                      <feFuncG type="linear" slope={amount} intercept={1 - amount} />
+                      <feFuncB type="linear" slope={amount} intercept={1 - amount} />
+                    </feComponentTransfer>
+                  </filter>
+                );
+              })}
+            </defs>
+          </svg>
           {videoSource && active ? (
             <div className="preview-still-layers">
               {(pictureLayers.length > 0 ? pictureLayers : [{ clip: active, track: activeTrack!, src: videoSource }])
@@ -599,7 +618,7 @@ export function PreviewPlayer({
               ref={video}
               className="preview-media"
               src={videoSource}
-              style={pictureStyle(active)}
+              style={previewPictureStyle(active, playheadTimeUs, transitionFilterId(transitionFilterPrefix, active))}
               playsInline
               preload="auto"
               onLoadedMetadata={() => {
@@ -698,6 +717,7 @@ export function PreviewPlayer({
                     src={layerSrc}
                     playheadTimeUs={playheadTimeUs}
                     playing={audioTransportPlaying}
+                    filterPrefix={transitionFilterPrefix}
                   />
                 ) : clip.kind === "Image" ? (
                   <img
@@ -705,7 +725,7 @@ export function PreviewPlayer({
                     className="preview-media"
                     src={layerSrc}
                     alt="Кадр изображения"
-                    style={pictureStyle(clip)}
+                    style={previewPictureStyle(clip, playheadTimeUs, transitionFilterId(transitionFilterPrefix, clip))}
                   />
                 ) : null)}
             </div>
@@ -717,12 +737,12 @@ export function PreviewPlayer({
                   className="preview-media"
                   src={layerSrc}
                   alt="Кадр изображения"
-                  style={pictureStyle(clip)}
+                  style={previewPictureStyle(clip, playheadTimeUs, transitionFilterId(transitionFilterPrefix, clip))}
                 />
               ))}
             </div>
           ) : image && src ? (
-            <img className="preview-media" src={src} alt="Кадр изображения" style={active ? pictureStyle(active) : undefined} />
+            <img className="preview-media" src={src} alt="Кадр изображения" style={active ? previewPictureStyle(active, playheadTimeUs, transitionFilterId(transitionFilterPrefix, active)) : undefined} />
           ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
           ) : null}
