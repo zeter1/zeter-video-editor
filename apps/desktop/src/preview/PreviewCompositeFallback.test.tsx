@@ -82,8 +82,8 @@ describe("Preview multi-video fallback", () => {
       .toBe("http://zeter-media.localhost/cccccccc-cccc-4ccc-8ccc-cccccccccccc");
     expect((layers[2] as HTMLImageElement).style.opacity).toBe("0.5");
     expect(container.querySelectorAll("video")).toHaveLength(2);
-    expect(screen.getByRole("status").textContent).toMatch(/два верхних/);
-    expect(screen.getByRole("status").textContent).toMatch(/экспорта/);
+    expect(screen.getByRole("status").textContent).toMatch(/FFmpeg/);
+    expect(screen.getByRole("status").textContent).toMatch(/прямой предпросмотр/);
     expect(onCommit).not.toHaveBeenCalled();
   });
 

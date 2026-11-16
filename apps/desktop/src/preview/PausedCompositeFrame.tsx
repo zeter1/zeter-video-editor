@@ -15,6 +15,11 @@ interface Props {
   sequenceId: SequenceId;
   playheadTimeUs: number;
   fps: number;
+  /** Moving two-video overlap: render FFmpeg picture, never a second audio clock. */
+  playing?: boolean;
+  /** Keep the cached timeline video at the same speed as the foreground clock. */
+  playbackRate?: number;
+  onVisibilityChange?: (visible: boolean) => void;
 }
 
 interface WindowRequest {
@@ -37,13 +42,15 @@ export function compositeChunkUrl(token: string): string {
 }
 
 /**
- * Exact FFmpeg PAUSED frames with one bounded, cancellable next-window prefetch.
- * Switching windows reuses an already-issued token; each token stays tied to
- * the current project/revision and has its own Rust cancellation handle.
- * Live A/V transport remains the direct decoder until native parity is proved.
+ * Exact FFmpeg preview frames with one bounded, cancellable next-window prefetch.
+ * Each cached window belongs to the current project/revision and has its own
+ * Rust cancellation handle. Paused seeks need an exact presented GPU frame;
+ * during Play a muted cached decoder follows the direct video's clock.
+ * The real source decoder remains the authoritative transport/audio source.
  */
 export function PausedCompositeFrame({
-  projectId, revision, sequenceId, playheadTimeUs, fps,
+  projectId, revision, sequenceId, playheadTimeUs, fps, playing = false,
+  playbackRate = 1, onVisibilityChange,
 }: Props) {
   const scope = `${projectId}:${revision}:${sequenceId}`;
   const windowStart = Math.floor(playheadTimeUs / WINDOW_US) * WINDOW_US;
@@ -52,6 +59,7 @@ export function PausedCompositeFrame({
   const requestsRef = useRef(new Map<number, WindowRequest>());
   const [loaded, setLoaded] = useState<Array<{ scope: string; chunk: Chunk }>>([]);
   const [presented, setPresented] = useState<{ token: string; timeUs: number } | null>(null);
+  const [liveFrame, setLiveFrame] = useState<{ token: string; mediaTime: number } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const pendingFrameRef = useRef<{ node: HTMLVideoElement; id: number } | null>(null);
   // WebView2 may report the *correct* GPU frame before firing seeked. Keep
@@ -118,6 +126,8 @@ export function PausedCompositeFrame({
     entry.chunk.start_us <= playheadTimeUs &&
     playheadTimeUs < entry.chunk.end_us)?.chunk ?? null;
   const targetSeconds = chunk ? (playheadTimeUs - chunk.start_us) / 1_000_000 : 0;
+  const targetSecondsRef = useRef(targetSeconds);
+  targetSecondsRef.current = targetSeconds;
 
   const clearPendingFrame = () => {
     const pending = pendingFrameRef.current;
@@ -141,7 +151,7 @@ export function PausedCompositeFrame({
 
   const watchPresentedFrame = () => {
     const node = video.current;
-    if (!node || !chunk || typeof node.requestVideoFrameCallback !== "function" ||
+    if (playing || !node || !chunk || typeof node.requestVideoFrameCallback !== "function" ||
         pendingFrameRef.current?.node === node) return;
 
     const token = chunk.token;
@@ -170,7 +180,7 @@ export function PausedCompositeFrame({
     clearPendingFrame();
     observedFrameRef.current = null;
     const node = video.current;
-    if (!node || !chunk) return;
+    if (!node || !chunk || playing) return;
     // Native paused playback may submit its sole frame before loadeddata
     // or seeked; subscribe before starting the seek so it cannot be missed.
     watchPresentedFrame();
@@ -178,7 +188,74 @@ export function PausedCompositeFrame({
       node.currentTime = Math.max(0, targetSeconds);
     }
     return () => { clearPendingFrame(); };
-  }, [chunk?.token, targetSeconds]);
+  }, [chunk?.token, targetSeconds, playing]);
+
+  // FFmpeg supplies only the picture. The original foreground video remains
+  // mounted underneath as the sole authoritative timeline and audio clock.
+  const synchronizeMovingFrame = () => {
+    const node = video.current;
+    if (!playing || !chunk || !node ||
+        node.readyState < HTMLMediaElement.HAVE_METADATA) return;
+    // Cached pixels are in sequence time. The primary decoder may run at
+    // 2x/0.5x; match its timeline rate without reading another wall clock.
+    node.playbackRate = Number.isFinite(playbackRate) && playbackRate > 0 ? playbackRate : 1;
+    // Seek only when drift exceeds the decoder jitter budget.
+    if (Math.abs(node.currentTime - targetSecondsRef.current) > 0.12) {
+      setLiveFrame(null);
+      node.currentTime = Math.max(0, targetSecondsRef.current);
+    }
+    if (node.paused) {
+      void node.play().catch(() => setLiveFrame(null));
+    }
+  };
+
+  const wasPlayingRef = useRef(false);
+  useEffect(() => {
+    const wasPlaying = wasPlayingRef.current;
+    wasPlayingRef.current = playing;
+    if (!playing) {
+      if (wasPlaying) video.current?.pause();
+    } else {
+      synchronizeMovingFrame();
+    }
+  }, [playing, chunk?.token, targetSeconds, playbackRate]);
+
+  useEffect(() => {
+    const node = video.current;
+    if (!playing || !chunk || !node) {
+      setLiveFrame(null);
+      return;
+    }
+    let cancelled = false;
+    let frameId: number | null = null;
+    const schedule = () => {
+      if (cancelled || typeof node.requestVideoFrameCallback !== "function") return;
+      frameId = node.requestVideoFrameCallback((_now, metadata) => {
+        if (cancelled || video.current !== node) return;
+        const aligned = !node.seeking &&
+          node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+          Math.abs(metadata.mediaTime - targetSecondsRef.current) <= Math.max(0.12, 1 / fps);
+        setLiveFrame(aligned ? { token: chunk.token, mediaTime: metadata.mediaTime } : null);
+        schedule();
+      });
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      if (frameId !== null) node.cancelVideoFrameCallback?.(frameId);
+      setLiveFrame(null);
+    };
+  }, [playing, chunk?.token, fps]);
+
+  // A compositor frame from an earlier seek/window must never cover the direct
+  // fallback. Playback tolerates only the same 120ms native clock jitter.
+  const isPresented = chunk !== null && (playing
+    ? liveFrame?.token === chunk.token &&
+      Math.abs(liveFrame.mediaTime - targetSeconds) <= Math.max(0.12, 1 / fps)
+    : presented?.token === chunk.token && presented.timeUs === playheadTimeUs);
+  useEffect(() => {
+    onVisibilityChange?.(isPresented);
+  }, [isPresented, onVisibilityChange]);
 
   return (
     <>
@@ -192,9 +269,12 @@ export function PausedCompositeFrame({
           playsInline
           preload="auto"
           aria-label="Точный FFmpeg кадр"
-          style={{ visibility: presented?.token === chunk.token &&
-            presented.timeUs === playheadTimeUs ? "visible" : "hidden" }}
+          style={{ visibility: isPresented ? "visible" : "hidden" }}
           onLoadedMetadata={() => {
+            if (playing) {
+              synchronizeMovingFrame();
+              return;
+            }
             confirmObservedFrame();
             watchPresentedFrame();
             // The effect may already have started this seek before metadata.
@@ -214,11 +294,13 @@ export function PausedCompositeFrame({
             watchPresentedFrame();
           }}
           onSeeking={() => {
-            // Preserve the early callback while the corresponding seek runs.
+            // Retire stale picture proof until the new native texture arrives.
+            setLiveFrame(null);
             setPresented(null);
             watchPresentedFrame();
           }}
           onError={() => {
+            setLiveFrame(null);
             clearPendingFrame();
             observedFrameRef.current = null;
             // A corrupt decoder response must never obscure the direct fallback.

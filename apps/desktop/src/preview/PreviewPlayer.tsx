@@ -209,6 +209,7 @@ export function PreviewPlayer({
   const [quality, setQuality] = useState<PreviewQuality>("Full");
   const [scale, setScale] = useState<PreviewScale>("Fit");
   const [playing, setPlaying] = useState(false);
+  const [liveCompositeVisible, setLiveCompositeVisible] = useState(false);
   const transitionFilterPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const [mediaError, setMediaError] = useState<string | null>(null);
   const fullscreenStageRef = useRef<HTMLDivElement>(null);
@@ -349,8 +350,8 @@ export function PreviewPlayer({
     clip.transition !== null && transitionProgress(clip, playheadTimeUs) < 1);
   // Native FFmpeg gives exact color/alpha on a paused seek even for ONE clip.
   // Unchanged single-layer playback keeps the lightweight direct decoder.
-  const pausedComposite = (pictureSelection.multipleVideos || transitionVisible) &&
-    !playing && projectId !== null && revision !== null && !draggingTitle;
+  const accurateComposite = (pictureSelection.multipleVideos || (!playing && transitionVisible)) &&
+    projectId !== null && revision !== null && !draggingTitle;
   // A still over a video must not replace the foreground transport decoder.
   // Readiness, embedded sound and rVFC continue to follow that same video.
   const movingLayer = pictureLayers.filter(({ clip }) => clip.kind === "Video").at(-1);
@@ -746,7 +747,7 @@ export function PreviewPlayer({
           ) : !hasTimelineContent ? (
             <span className="empty-copy">На позиции курсора нет видеоклипа.</span>
           ) : null}
-          {pausedComposite && projectId && revision !== null ? (
+          {accurateComposite && projectId && revision !== null ? (
             <PausedCompositeFrame
               key={`${projectId}:${revision}:${sequence.id}`}
               projectId={projectId}
@@ -754,6 +755,9 @@ export function PreviewPlayer({
               sequenceId={sequence.id}
               playheadTimeUs={playheadTimeUs}
               fps={sequence.fps}
+              playing={playing && pictureSelection.multipleVideos}
+              playbackRate={active?.speed ?? 1}
+              onVisibilityChange={setLiveCompositeVisible}
             />
           ) : null}
           {visibleTitles.length > 0 ? (
@@ -761,14 +765,14 @@ export function PreviewPlayer({
               width={sequence.width} height={sequence.height}
               titles={visibleTitles} selectedClipId={selectedClip?.id ?? null}
               onSelect={onSelectTitle} onCommit={onCommit}
-              hideGlyphs={pausedComposite}
+              hideGlyphs={accurateComposite && (!playing || liveCompositeVisible)}
               onDraggingChange={setDraggingTitle} />
           ) : null}
           {pictureSelection.multipleVideos ? (
             <span className="preview-composite-notice" role="status">
-              В этой области несколько видеодорожек. Во время воспроизведения отдельные декодеры
-              показывают два верхних движущихся слоя, и результат может отличаться от экспорта.
-              На паузе после подготовки используется точный FFmpeg-кадр.
+              Для нескольких видеодорожек FFmpeg готовит точный составной кадр.
+              Пока фрагмент загружается, виден прямой предпросмотр. Звук и время
+              воспроизведения остаются у основного видеодекодера.
             </span>
           ) : null}
           {mediaError ? <span className="preview-media-error" role="alert">{mediaError}</span> : null}
