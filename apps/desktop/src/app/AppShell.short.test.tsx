@@ -39,7 +39,7 @@ function base(): ProjectSnapshotDto {
   } };
 }
 
-function fixture() {
+function fixture(detectShortFace?: IpcClient["detectShortFace"]) {
   const store = createProjectStore();
   const transient = createTransientStore();
   store.applySnapshot(base());
@@ -60,6 +60,7 @@ function fixture() {
     projectSnapshot: vi.fn(async () => null),
     executeEditCommand, reconcileCommandResult,
     getJobState: vi.fn(), startExportMp4: vi.fn(), listExportTasks: vi.fn(async () => []),
+    detectShortFace,
   } as unknown as IpcClient;
   render(<AppShell client={client} projectStore={store} transientStore={transient} />);
   return { store, transient, executeEditCommand };
@@ -68,6 +69,24 @@ function fixture() {
 afterEach(() => vi.restoreAllMocks());
 
 describe("Create Short from selected timeline video", () => {
+  it("uses the local face focus via asynchronous IPC without changing the source", async () => {
+    const detect = vi.fn(async () => ({ x: 0.15, y: 0.2, width: 0.2, height: 0.2 }));
+    const { store, executeEditCommand } = fixture(detect);
+    fireEvent.click(screen.getByRole("button", { name: "Создать Short из клипа" }));
+    expect(detect).toHaveBeenCalledWith("project-1", 7, "seq-1", "clip-1");
+    await waitFor(() => expect(within(screen.getByRole("dialog", { name: "Create Short" }))
+      .getByRole("status").textContent).toContain("Лицо найдено"));
+    const left = within(screen.getByRole("dialog", { name: "Create Short" }))
+      .getByRole("spinbutton", { name: "Crop left" });
+    await waitFor(() => expect(Number((left as HTMLInputElement).value))
+      .toBeCloseTo(0.091796875, 6));
+    fireEvent.click(screen.getByRole("button", { name: /^Создать Short$/ }));
+    await waitFor(() => expect(executeEditCommand).toHaveBeenCalledTimes(1));
+    expect(store.getState().snapshot!.project.sequences[1].tracks[0].clips[0]
+      .transform.crop.left).toBeCloseTo(0.091796875, 6);
+    expect(store.getState().snapshot!.project.sequences[0]).toEqual(firstSequence);
+  });
+
   it("commits one Rust AddSequence with a manual 9:16 crop and selects the clone", async () => {
     const { store, transient, executeEditCommand } = fixture();
     fireEvent.click(screen.getByRole("button", { name: "Создать Short из клипа" }));

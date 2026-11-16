@@ -81,7 +81,11 @@ interface ShortCreationContext {
   revision: number;
   sequenceId: string;
   clipId: string;
+  sourceWidth: number;
+  sourceHeight: number;
   initialCrop: import("../generated/ipc").Crop;
+  autoCrop: import("../generated/ipc").Crop | null;
+  faceStatus: "searching" | "found" | "none" | "error";
 }
 
 function findSelectedClipContext(
@@ -222,9 +226,59 @@ export function AppShell({
       revision: snapshot.revision,
       sequenceId: activeSequence.id,
       clipId: selectedClip.id,
+      sourceWidth: selectedMedia.width,
+      sourceHeight: selectedMedia.height,
       initialCrop: portraitCropForMedia(selectedMedia.width, selectedMedia.height),
+      autoCrop: null,
+      faceStatus: "searching",
     });
   }
+
+  // A face suggestion is advisory. Never mutate the project until the
+  // editor accepts the crop through the ordinary revisioned AddSequence.
+  useEffect(() => {
+    const source = shortSource;
+    if (!source) return;
+    let cancelled = false;
+    const detect = client.detectShortFace;
+    if (!detect) {
+      setShortSource((current) => current?.clipId === source.clipId
+        ? { ...current, faceStatus: "error" } : current);
+      return;
+    }
+    void detect(source.projectId, source.revision, source.sequenceId, source.clipId)
+      .then((face) => {
+        if (cancelled) return;
+        setShortSource((current) => {
+          if (!current || current.projectId !== source.projectId ||
+              current.revision !== source.revision ||
+              current.sequenceId !== source.sequenceId || current.clipId !== source.clipId) {
+            return current;
+          }
+          if (!face) return { ...current, faceStatus: "none", autoCrop: null };
+          const { x, y, width, height } = face;
+          if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0 ||
+              x < 0 || y < 0 || x + width > 1 || y + height > 1) {
+            return { ...current, faceStatus: "error" };
+          }
+          return {
+            ...current,
+            autoCrop: portraitCropForMedia(current.sourceWidth, current.sourceHeight,
+              x + width / 2, y + height / 2),
+            faceStatus: "found",
+          };
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setShortSource((current) =>
+          current?.projectId === source.projectId &&
+          current.revision === source.revision &&
+          current.clipId === source.clipId
+            ? { ...current, faceStatus: "error" } : current);
+      });
+    return () => { cancelled = true; };
+  }, [client, shortSource?.projectId, shortSource?.revision,
+      shortSource?.sequenceId, shortSource?.clipId]);
 
   async function handleCreateShort(request: CreateShortRequestView): Promise<void> {
     const sourceContext = shortSource;
@@ -838,6 +892,7 @@ export function AppShell({
 
       {shortSource ? (
         <CreateShortDialog open initialCrop={shortSource.initialCrop}
+          autoCrop={shortSource.autoCrop} faceStatus={shortSource.faceStatus}
           busy={creatingShort}
           onCreate={(request) => void handleCreateShort(request)}
           onCancel={() => setShortSource(null)} />

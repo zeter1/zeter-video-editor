@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Crop } from "../generated/ipc";
 import { shiftPortraitCrop } from "./shortReframe";
 
@@ -13,25 +13,44 @@ export interface CreateShortRequestView {
 interface CreateShortDialogProps {
   open: boolean;
   initialCrop: CropView;
+  autoCrop?: CropView | null;
+  faceStatus?: "searching" | "found" | "none" | "error";
   onCreate: (request: CreateShortRequestView) => void;
   onCancel: () => void;
   busy?: boolean;
 }
 
-export function CreateShortDialog({ open, initialCrop, onCreate, onCancel, busy = false }: CreateShortDialogProps) {
+export function CreateShortDialog({
+  open, initialCrop, autoCrop = null, faceStatus = "none",
+  onCreate, onCancel, busy = false,
+}: CreateShortDialogProps) {
   const [crop, setCrop] = useState<CropView>(initialCrop);
+  const manuallyEdited = useRef(false);
 
   useEffect(() => {
+    manuallyEdited.current = false;
     setCrop(initialCrop);
   }, [initialCrop, open]);
 
+  // An asynchronous suggestion must never replace the user's manual framing.
+  useEffect(() => {
+    if (autoCrop && !manuallyEdited.current) setCrop(autoCrop);
+  }, [autoCrop]);
+
   if (!open) return null;
   const fields: ReadonlyArray<keyof CropView> = ["left", "top", "right", "bottom"];
+  const statusText = {
+    searching: "Поиск лица на исходном видео… Можно кадрировать вручную.",
+    found: "Лицо найдено. Область кадрирования предложена автоматически.",
+    none: "Лицо не найдено: используется кадрирование по центру.",
+    error: "Автопоиск лица недоступен. Ручное кадрирование работает.",
+  }[faceStatus];
 
   return (
     <section role="dialog" aria-label="Create Short" className="ai-short-dialog">
       <h3>Создать Short из клипа</h3>
       <p>1080 × 1920 · 9:16</p>
+      <p role="status">{statusText}</p>
       <p className="empty-copy">
         Область кадрирования рассчитана по размерам исходного видео.
         Смещайте её по горизонтали или вертикали. Соотношение 9:16 сохраняется;
@@ -54,13 +73,22 @@ export function CreateShortDialog({ open, initialCrop, onCreate, onCancel, busy 
                 step="0.001"
                 value={crop[key]}
                 disabled={1 - visible < 0.000001}
-                onChange={(event) => setCrop((current) =>
-                  shiftPortraitCrop(current, key, Number(event.target.value)))}
+                onChange={(event) => {
+                  manuallyEdited.current = true;
+                  setCrop((current) => shiftPortraitCrop(current, key, Number(event.target.value)));
+                }}
               />
             </label>
           );
         })}
-        <button type="button" onClick={() => setCrop(initialCrop)}>По центру</button>
+        <button type="button" onClick={() => {
+          manuallyEdited.current = true;
+          setCrop(initialCrop);
+        }}>По центру</button>
+        {autoCrop ? <button type="button" onClick={() => {
+          manuallyEdited.current = true;
+          setCrop(autoCrop);
+        }}>На лице</button> : null}
       </fieldset>
       <div>
         <button type="button" disabled={busy}

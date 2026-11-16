@@ -19,6 +19,7 @@ pub struct AppState {
     pub export_tasks: Mutex<Vec<ExportTaskMeta>>,
     pub export_gate: Arc<AsyncMutex<()>>,
     pub waveform_gate: Arc<AsyncMutex<()>>,
+    pub face_gate: Arc<AsyncMutex<()>>,
 }
 
 impl AppState {
@@ -30,6 +31,7 @@ impl AppState {
             export_tasks: Mutex::new(Vec::new()),
             export_gate: Arc::new(AsyncMutex::new(())),
             waveform_gate: Arc::new(AsyncMutex::new(())),
+            face_gate: Arc::new(AsyncMutex::new(())),
         }
     }
 }

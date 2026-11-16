@@ -11,7 +11,7 @@ mod worker;
 pub use error::AiError;
 pub use face::{
     CapabilityGatedFaceLocator, CenterCropFaceLocator, FaceBounds, FaceLocator,
-    initial_vertical_crop,
+    initial_vertical_crop, locate_primary_face_in_grayscale, select_primary_face,
 };
 pub use highlights::{HighlightCandidate, HighlightParams, HighlightSignal, rank_highlights};
 pub use model_manager::{

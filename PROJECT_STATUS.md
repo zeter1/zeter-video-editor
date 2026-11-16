@@ -1,3 +1,14 @@
+# CURRENT DEVELOPMENT — ZVE-022 Stage 2: on-device face-aware Short / 0.1.0-alpha.41 (2026-11-16)
+
+- **Происхождение:** Stage 1 PR #106 уже merged; проверенный GitHub/Windows `main` перед Stage 2: `285217f57e7de7efcd1ec46a14dc645449d33430`. Отдельный post-merge main CI #43859716143 на этом SHA — завершён SUCCESS. Чужие draft PR #93/#85/#84 не изменялись.
+- **Реальная функция:** ветка `feat/zve-022-local-face-aware-short-20261116`. Утверждённый ZVE-022 этап 2, один desktop bump alpha.40 → **alpha.41** штатным `scripts/set-version.mjs`. При открытии Create Short Rust Tauri IPC `detect_short_face` читает *текущий authoritative snapshot* project/revision/sequence/clip, декодирует средний исходный кадр ограниченным управляемым FFmpeg (gray <=640 px), затем выполняет локальный CPU SeetaFace detector из встроенной модели BSD-2-Clause. При наличии лица его нормализованный центр через `portraitCropForMedia` предлагает статический crop 9:16; при отсутствии лица/ошибке — прежнее центрирование с доступной ручной правкой. Несколько лиц: максимальная площадь, детерминированные tie-break; обнаружение не распознаёт личность, не отправляет видео в сеть. При ручном смещении поздний результат не сбрасывает Crop; кнопки «По центру» и «На лице» действуют явно. Обычный Rust `AddSequence`, Undo/Redo, отсутствие порчи исходника, формат `.vcut` и экспорт оставлены как в Stage 1.
+- **Проверки на Windows до финального коммита:** 5 Rust face detector tests, включая действительную NASA-фотографию (`x=0.34375,y=0.13085938,w=h=0.1875`), + Rust IPC dimension unit PASS; TypeScript/Vite build PASS; 4/4 dialog Vitest PASS; реальный `apps/desktop/e2e/create-short-face.spec.ts` Tauri/WebView2 с самостоятельно декодированным H.264 и managed FFmpeg, реальным Rust IPC/SeetaFace + ручной override/Undo/Redo/.vcut/FFprobe MP4 **1080×1920**, 1/1 PASS. На native H.264 лицо `x=0.34179688,y=0.13671875,w=h=0.1875`, применён crop `left=0.15429688` против геометрического центра `0.21875`. Лог `target/zve022-stage2-native-first.log`. После ревью/версионного bump требуется финальная регрессия и exact-HEAD CI; ничего не объявлять main до фактического merge.
+- **Совместимость/ограничения:** новый вызов только для Create Short и только при активном валидном исходном Video, никаких изменений формата проектов, пользовательских медиа или сетевых сервисов. Модель и лицензия в `crates/ai-engine/model`; THIRD_PARTY_NOTICE включён в Tauri bundle resources. Один статический репрезентативный кадр; нет динамического слежения/автовыбора при смене сцен. Без Release/tag/install/signing. Дамп кадров в постоянных файлах не создаётся.
+- **Поставка и gate:** код на названной feature-ветке; PR, локальный конечный regression/NSIS, SHA, exact-HEAD GitHub CI и финальное разрешённое слияние фиксировать по факту. До исполнения gates стадия «кандидат, не слита». Следующее действие — выполнить финальные Windows tests, сборку, code review, commit/PR, дождаться exact-HEAD CI и слить при соблюдении защиты ветки.
+- **Следующая новая продуктовая задача после Stage 2:** профессиональное **ZVE-023: пакетное создание нескольких независимых 9:16 Shorts из выделенных AI Highlight-кандидатов** (по нескольким исходным интервалам, отдельные именованные sequences, корректный time trim, Undo/Redo и batch экспорт через managed FFmpeg). Сначала сверить реальный список/highlight API и выбрать минимальный безопасный вертикальный product slice с Windows E2E; не путать его с уже выполненным единичным Create Short.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-022 Create Short 9:16 (этап 1) / 0.1.0-alpha.40 (2026-11-16)
 
 - **Verified baseline:** GitHub `main` == Windows `origin/main` == `5b54c74c78aaecd6ca1a844847505069d75125e9`, ZVE-021 PR #105 merged, post-merge Windows CI #43847614018 SUCCESS on that SHA. Unrelated drafts #93/#85/#84 untouched.
@@ -1211,7 +1222,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.40` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.41` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
