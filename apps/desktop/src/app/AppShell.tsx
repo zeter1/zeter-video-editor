@@ -237,6 +237,7 @@ export function AppShell({
     if (!snapshot || !source || !original || original.kind !== "Video" ||
         snapshot.project.id !== sourceContext.projectId ||
         snapshot.revision !== sourceContext.revision ||
+        transientStore.getState().selectedClipId !== sourceContext.clipId ||
         projectStore.getState().syncStatus !== "synced" ||
         resolveSequence(snapshot.project.sequences,
           transientStore.getState().selectedSequenceId)?.id !== sourceContext.sequenceId) {

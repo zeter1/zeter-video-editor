@@ -103,4 +103,14 @@ describe("Create Short from selected timeline video", () => {
     expect(store.getState().errorMessage).toMatch(/изменился/);
     expect(screen.queryByRole("dialog", { name: "Create Short" })).toBeNull();
   });
+
+  it("rejects a Short when another clip is selected while the dialog is open", () => {
+    const { store, transient, executeEditCommand } = fixture();
+    fireEvent.click(screen.getByRole("button", { name: "Создать Short из клипа" }));
+    transient.selectClip(null);
+    fireEvent.click(screen.getByRole("button", { name: /^Создать Short$/ }));
+    expect(executeEditCommand).not.toHaveBeenCalled();
+    expect(store.getState().errorMessage).toMatch(/изменился/);
+    expect(screen.queryByRole("dialog", { name: "Create Short" })).toBeNull();
+  });
 });
