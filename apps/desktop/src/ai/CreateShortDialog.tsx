@@ -15,13 +15,14 @@ interface CreateShortDialogProps {
   initialCrop: CropView;
   autoCrop?: CropView | null;
   faceStatus?: "searching" | "found" | "none" | "error";
+  highlightRange?: { start: number; end: number } | null;
   onCreate: (request: CreateShortRequestView) => void;
   onCancel: () => void;
   busy?: boolean;
 }
 
 export function CreateShortDialog({
-  open, initialCrop, autoCrop = null, faceStatus = "none",
+  open, initialCrop, autoCrop = null, faceStatus = "none", highlightRange = null,
   onCreate, onCancel, busy = false,
 }: CreateShortDialogProps) {
   const [crop, setCrop] = useState<CropView>(initialCrop);
@@ -48,8 +49,9 @@ export function CreateShortDialog({
 
   return (
     <section role="dialog" aria-label="Create Short" className="ai-short-dialog">
-      <h3>Создать Short из клипа</h3>
+      <h3>{highlightRange ? "Создать Short из хайлайта" : "Создать Short из клипа"}</h3>
       <p>1080 × 1920 · 9:16</p>
+      {highlightRange ? <p>Диапазон: {(highlightRange.start / 1_000_000).toFixed(1)}–{(highlightRange.end / 1_000_000).toFixed(1)} с</p> : null}
       <p role="status">{statusText}</p>
       <p className="empty-copy">
         Область кадрирования рассчитана по размерам исходного видео.

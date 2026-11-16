@@ -1,3 +1,14 @@
+# CURRENT DEVELOPMENT — ZVE-023: локальный Find Highlights → native Short / 0.1.0-alpha.42 (2026-11-16)
+
+- **Стартовый факт:** проверенные GitHub `main` == Windows `origin/main` == `640de784f8675bb8556560124d3f9809ef14bc3d`; Stage 2 ZVE-022 PR #107 уже merged. Создана ветка `feat/zve-023-highlights-to-short-20261116`, desktop `0.1.0-alpha.41` → `0.1.0-alpha.42` один раз штатным `set-version.mjs`. Несвязанные draft PR #93/#85/#84 не тронуты. Никаких tag/Release/sign/installer install.
+- **Реальная продуктовая функция:** `HighlightsWorkspace` и `highlightAnalysis` подключают прежний неиспользуемый `HighlightsPanel` через `AiWorkspace` к selected Video. Кнопка «Найти хайлайты» читает bounded <=1024 реальных peaks через уже существующий managed FFmpeg `get_audio_waveform` и использует собственные субтитры как дополнительный сигнал. Сильные фрагменты до 5 ранжируются по звуковой активности/динамике, с диапазонами, score и причинами. Видеофайлы без аудио с реальными субтитрами используют только subtitle evidence (с предупреждением); отсутствие данных не даёт фиктивных кандидатов. «Предпросмотр» меняет лишь транзиентный playhead и I/O. «Создать Short» открывает обычный face-aware/manual 9:16 crop dialog, но вызывает authoritative Rust `create_short_from_candidate` с revision и диапазоном; Rust пересекает все треки и субтитры, рассчитывает source trim с учётом speed, делает один атомарный AddSequence. Есть guards против устаревшей ревизии, другого проекта/клипа, повторного нажатия. Исходники и `.vcut` схема не меняются.
+- **Фактическая проверка Windows на working tree:** TypeScript/Vite PASS; frontend full Vitest **290/290** (до дополнительного subtitle fallback unit, который таргетированно 3/3 PASS); version-policy 8/8, version check PASS; cargo fmt --check PASS, cargo test --workspace PASS; реальный Tauri/WebView2 `e2e/create-short-highlight.spec.ts` **1/1 PASS** на заново кодированном H.264+AAC: local FFmpeg waveform → UI range → native Rust AddSequence → ручное crop → Undo/Redo → save/reopen `.vcut` → H.264/AAC MP4 **1080×1920**, FFprobe audio+video. Лог `target/zve023-native-first.log`. Полный новый native regression `target/zve023-native-full.log` и NSIS packaging gates ещё выполняются; не считать release готовым до факта.
+- **Известные ограничения:** кандидатный рейтинг — объяснимый локальный эвристический анализ уровня/изменения громкости и уже существующего текста, **не** смысловая модель речи или классификатор сцен. Статический face focus по репрезентативному среднему кадру выбранного исходного клипа, а не динамическое слежение за лицом внутри конкретного highlight; пользователь может вручную сместить crop. Большой исходник может потребовать время на FFmpeg waveform; анализ асинхронный. Нет массового auto-create/auto-export всех кандидатов.
+- **CI gate:** основной post-merge `main` Windows workflow #43868938215 на SHA `640de...` сначала FAILED на единственном 180s timeout `preview-secondary-video-audio.spec.ts` после 35 PASS, ещё 10 тестов каскадно потеряли CDP; запрошен rerun failed jobs, итог подлежит повторной проверке. Это независимое от ZVE-023 наблюдение, не игнорировать при PR merge. Feature PR/HEAD SHA и exact-head CI/NSIS/merge фиксировать после завершения.
+- **NEXT PRODUCT-CODE TASK AFTER ZVE-023 GATES — ZVE-024:** улучшить локальный Find Highlights за счёт реальной временной структуры транскрипта (слова/предложения/границы мысли и паузы), на основе уже имеющегося `TranscriptionRuntimePanel` и `crates/ai-engine/src/highlights.rs` (approved WORKING-DESIGN §14). Вход — настоящий timestamped transcript, не вымышленные speech boundaries; сохранить provenance/revision/выбор диапазонов, сравнить с текущим audio-only scoring, продемонстрировать отдельный native WebView2 сценарий (выбор кандидата→Short→Undo/Redo/.vcut/экспорт). Не запускать batch export или вне-MVP generative AI без отдельного решения.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-022 Stage 2: on-device face-aware Short / 0.1.0-alpha.41 (2026-11-16)
 
 - **Происхождение:** Stage 1 PR #106 уже merged; проверенный GitHub/Windows `main` перед Stage 2: `285217f57e7de7efcd1ec46a14dc645449d33430`. Отдельный post-merge main CI #43859716143 на этом SHA — завершён SUCCESS. Чужие draft PR #93/#85/#84 не изменялись.
@@ -1222,7 +1233,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.41` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.42` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

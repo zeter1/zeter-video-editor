@@ -1,46 +1,55 @@
-export interface HighlightCandidateView {
-  start: number;
-  end: number;
-  score: number;
-  reasons: string[];
-  source_revision: number;
-}
+import type { HighlightCandidate } from "../ipc/client";
+
+export type HighlightCandidateView = HighlightCandidate;
 
 interface HighlightsPanelProps {
   candidates: HighlightCandidateView[];
+  analyzing?: boolean;
+  analyzed?: boolean;
+  disabled?: boolean;
+  error?: string | null;
   onAnalyze: () => void;
+  onPreview?: (candidate: HighlightCandidateView) => void;
   onCreateShort: (candidate: HighlightCandidateView) => void;
 }
 
+function time(us: number): string {
+  return (us / 1_000_000).toFixed(1) + " с";
+}
+
 export function HighlightsPanel({
-  candidates,
-  onAnalyze,
-  onCreateShort,
+  candidates, analyzing = false, analyzed = false, disabled = false, error = null,
+  onAnalyze, onPreview, onCreateShort,
 }: HighlightsPanelProps) {
   return (
     <section className="ai-review-panel" aria-label="Highlights">
-      <button type="button" onClick={onAnalyze}>
-        Analyze highlights
+      <h4>Найти интересные фрагменты</h4>
+      <p className="empty-copy">
+        Локальная оценка по реальной звуковой активности и имеющимся субтитрам.
+        Содержание речи пока не оценивается — проверьте предложенные фрагменты.
+      </p>
+      <button type="button" disabled={disabled || analyzing} onClick={onAnalyze}>
+        {analyzing ? "Анализ звука…" : "Найти хайлайты"}
       </button>
-      {candidates.length === 0 ? (
-        <p className="empty-copy">No highlight candidates yet.</p>
-      ) : (
-        <div className="highlight-candidates">
-          {candidates.map((candidate, index) => (
-            <article key={String(candidate.start) + "-" + String(candidate.end) + "-" + String(index)}>
-              <strong>{Math.round(candidate.score * 100)}% score</strong>
-              <ul>
-                {candidate.reasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-              <button type="button" onClick={() => onCreateShort(candidate)}>
-                Create Short
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
+      {error ? <p role="alert">{error}</p> : null}
+      {!error && analyzed && candidates.length === 0 ? (
+        <p role="status">На выбранном видео не найдено фрагментов со звуком или субтитрами.</p>
+      ) : null}
+      <div className="highlight-candidates">
+        {candidates.map((candidate, index) => (
+          <article key={candidate.start + "-" + candidate.end + "-" + index}>
+            <strong>{time(candidate.start)} – {time(candidate.end)}</strong>
+            <span> · {Math.round(candidate.score * 100)}% по аудиосигналу</span>
+            <ul>
+              {candidate.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+            </ul>
+            <button type="button" disabled={disabled || analyzing}
+              onClick={() => onPreview?.(candidate)}>Предпросмотр фрагмента</button>
+            <button type="button" disabled={disabled || analyzing}
+              onClick={() => onCreateShort(candidate)}>Создать Short из хайлайта</button>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

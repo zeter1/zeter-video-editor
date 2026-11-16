@@ -23,6 +23,15 @@ export interface FaceBounds {
   height: number;
 }
 
+/** Revision-checked, explainable ranges used by native Create Short. */
+export interface HighlightCandidate {
+  start: number;
+  end: number;
+  score: number;
+  reasons: string[];
+  source_revision: number;
+}
+
 export interface IpcClient {
   projectNew(name: string): Promise<ProjectSnapshotDto>;
   projectOpen(path: string): Promise<ProjectSnapshotDto>;
@@ -34,6 +43,8 @@ export interface IpcClient {
   projectSnapshot(): Promise<ProjectSnapshotDto>;
   getAudioWaveform(projectId: string, mediaId: string, sourceInUs: number, sourceOutUs: number, buckets: number): Promise<number[]>;
   detectShortFace?: (projectId: string, revision: number, sequenceId: string, clipId: string) => Promise<FaceBounds | null>;
+  createShortFromCandidate(sourceSequenceId: string, candidate: HighlightCandidate,
+    requestId: RequestId, crop: import("../generated/ipc").Crop): Promise<CommandResultDto>;
   executeEditCommand(request: EditRequest): Promise<CommandResultDto>;
   undo(requestId: RequestId): Promise<CommandResultDto>;
   redo(requestId: RequestId): Promise<CommandResultDto>;
@@ -111,6 +122,8 @@ export function createIpcClient(invokeFn: Invoke = invoke as Invoke): IpcClient 
       call(invokeFn, "get_audio_waveform", { projectId, mediaId, sourceInUs, sourceOutUs, buckets }),
     detectShortFace: (projectId, revision, sequenceId, clipId) =>
       call(invokeFn, "detect_short_face", { projectId, revision, sequenceId, clipId }),
+    createShortFromCandidate: (sourceSequenceId, candidate, requestId, crop) =>
+      call(invokeFn, "create_short_from_candidate", { sourceSequenceId, candidate, requestId, crop }),
     executeEditCommand: (request) =>
       call(invokeFn, "execute_edit_command", { request }),
     undo: (requestId) => call(invokeFn, "undo", { requestId }),

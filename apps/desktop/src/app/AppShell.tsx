@@ -5,6 +5,8 @@ import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialo
 
 import { AiWorkspace } from "../ai/AiWorkspace";
 import { CreateShortDialog, type CreateShortRequestView } from "../ai/CreateShortDialog";
+import { HighlightsWorkspace } from "../ai/HighlightsWorkspace";
+import type { HighlightCandidateView } from "../ai/HighlightsPanel";
 import { createShortSequenceFromClip, portraitCropForMedia } from "../ai/shortReframe";
 import { createEmptySequence, resolveSequence } from "./sequenceWorkspace";
 import { InspectorPanel } from "../components/InspectorPanel";
@@ -86,6 +88,7 @@ interface ShortCreationContext {
   initialCrop: import("../generated/ipc").Crop;
   autoCrop: import("../generated/ipc").Crop | null;
   faceStatus: "searching" | "found" | "none" | "error";
+  candidate: HighlightCandidateView | null;
 }
 
 function findSelectedClipContext(
@@ -231,6 +234,41 @@ export function AppShell({
       initialCrop: portraitCropForMedia(selectedMedia.width, selectedMedia.height),
       autoCrop: null,
       faceStatus: "searching",
+      candidate: null,
+    });
+  }
+
+  function handlePreviewHighlight(candidate: HighlightCandidateView): void {
+    const snapshot = projectStore.getState().snapshot;
+    if (!snapshot || snapshot.revision !== candidate.source_revision ||
+        projectStore.getState().syncStatus !== "synced") return;
+    transientStore.setPlayheadTime(candidate.start);
+    transientStore.setExportRange(candidate.start, candidate.end);
+  }
+
+  function handleOpenHighlightShort(candidate: HighlightCandidateView): void {
+    const snapshot = projectStore.getState().snapshot;
+    const sequence = resolveSequence(snapshot?.project.sequences ?? [],
+      transientStore.getState().selectedSequenceId);
+    const clip = findSelectedClipContext(sequence,
+      transientStore.getState().selectedClipId)?.clip;
+    const media = snapshot?.project.media.find((item) => item.id === clip?.media_id);
+    if (!snapshot || !sequence || !clip || clip.kind !== "Video" ||
+        !media?.width || !media.height || creatingShortRef.current ||
+        projectStore.getState().syncStatus !== "synced" ||
+        candidate.source_revision !== snapshot.revision ||
+        !Number.isSafeInteger(candidate.start) || !Number.isSafeInteger(candidate.end) ||
+        candidate.start < clip.timeline_start || candidate.end > clip.timeline_end ||
+        candidate.start >= candidate.end) {
+      projectStore.setError("Хайлайт устарел или видео изменилось. Запустите анализ снова.");
+      return;
+    }
+    setShortSource({
+      projectId: snapshot.project.id, revision: snapshot.revision,
+      sequenceId: sequence.id, clipId: clip.id,
+      sourceWidth: media.width, sourceHeight: media.height,
+      initialCrop: portraitCropForMedia(media.width, media.height),
+      autoCrop: null, faceStatus: "searching", candidate,
     });
   }
 
@@ -294,35 +332,58 @@ export function AppShell({
         transientStore.getState().selectedClipId !== sourceContext.clipId ||
         projectStore.getState().syncStatus !== "synced" ||
         resolveSequence(snapshot.project.sequences,
-          transientStore.getState().selectedSequenceId)?.id !== sourceContext.sequenceId) {
+          transientStore.getState().selectedSequenceId)?.id !== sourceContext.sequenceId ||
+        (sourceContext.candidate !== null &&
+          (sourceContext.candidate.source_revision !== snapshot.revision ||
+           sourceContext.candidate.start < original.timeline_start ||
+           sourceContext.candidate.end > original.timeline_end ||
+           sourceContext.candidate.start >= sourceContext.candidate.end))) {
       projectStore.setError("Клип или проект изменился. Повторите создание Short.");
       setShortSource(null);
       return;
     }
     const name = `Short ${snapshot.project.sequences.length + 1}`;
-    let sequence: Sequence;
-    try {
-      sequence = createShortSequenceFromClip(source, original, name, request.crop);
-    } catch (error) {
-      projectStore.setError(error instanceof Error ? error.message : "Неверное кадрирование Short.");
-      return;
+    let sequence: Sequence | null = null;
+    if (!sourceContext.candidate) {
+      try {
+        sequence = createShortSequenceFromClip(source, original, name, request.crop);
+      } catch (error) {
+        projectStore.setError(error instanceof Error ? error.message : "Неверное кадрирование Short.");
+        return;
+      }
     }
     creatingShortRef.current = true;
     setCreatingShort(true);
     try {
-      const accepted = await handleEditCommand({ AddSequence: { sequence, index: null } });
-      if (accepted) {
-        if (projectStore.getState().snapshot?.project.sequences.some((item) => item.id === sequence.id)) {
-          transientStore.selectSequence(sequence.id);
-          const video = sequence.tracks.find((track) => track.kind === "Video");
-          if (video?.clips[0]) {
-            transientStore.selectTrack(video.id);
-            transientStore.selectClip(video.clips[0].id);
-          }
-        } else {
-          projectStore.setError("Не удалось получить новую последовательность. Обновите проект.");
-        }
+      let created: Sequence | null = sequence;
+      if (sourceContext.candidate) {
+        // The Rust backend validates source_revision and commits one atomic
+        // AddSequence, trimming ALL overlapping tracks and subtitles.
+        const originalIds = new Set(snapshot.project.sequences.map((item) => item.id));
+        const result = await client.createShortFromCandidate(
+          source.id, sourceContext.candidate, requestId(), request.crop);
+        await client.reconcileCommandResult(projectStore, result);
+        created = projectStore.getState().snapshot?.project.sequences.find(
+          (item) => !originalIds.has(item.id)) ?? null;
+      } else if (sequence && !(await handleEditCommand({
+        AddSequence: { sequence, index: null },
+      }))) {
+        created = null;
       }
+      if (created && projectStore.getState().snapshot?.project.sequences.some(
+        (item) => item.id === created.id)) {
+        transientStore.selectSequence(created.id);
+        const video = created.tracks.find((track) => track.kind === "Video" && track.clips.length > 0);
+        if (video?.clips[0]) {
+          transientStore.selectTrack(video.id);
+          transientStore.selectClip(video.clips[0].id);
+        }
+      } else if (created !== null || sourceContext.candidate) {
+        projectStore.setError("Не удалось получить новую последовательность. Обновите проект.");
+      }
+    } catch (error) {
+      projectStore.setError(appError(error)?.message ??
+        (error instanceof Error ? error.message : "Не удалось создать Short из хайлайта."));
     } finally {
       creatingShortRef.current = false;
       setCreatingShort(false);
@@ -894,6 +955,9 @@ export function AppShell({
         <CreateShortDialog open initialCrop={shortSource.initialCrop}
           autoCrop={shortSource.autoCrop} faceStatus={shortSource.faceStatus}
           busy={creatingShort}
+          highlightRange={shortSource.candidate ? {
+            start: shortSource.candidate.start, end: shortSource.candidate.end,
+          } : null}
           onCreate={(request) => void handleCreateShort(request)}
           onCancel={() => setShortSource(null)} />
       ) : null}
@@ -931,7 +995,18 @@ export function AppShell({
               onTranscriptionApplied={async (result) => {
                 await client.reconcileCommandResult(projectStore, result);
               }}
-              onTranscriptionError={(message) => projectStore.setError(message)} />
+              onTranscriptionError={(message) => projectStore.setError(message)}
+              highlightsContent={activeSequence && project && selectedClip?.kind === "Video" &&
+                  selectedMedia?.width && selectedMedia.height && projectState.revision !== null
+                ? <HighlightsWorkspace
+                    key={`${project.id}:${projectState.revision}:${activeSequence.id}:${selectedClip.id}`}
+                    client={client} projectId={project.id} revision={projectState.revision}
+                    sequence={activeSequence} clip={selectedClip}
+                    disabled={projectState.syncStatus !== "synced" || creatingShort || creatingSequence}
+                    onPreview={handlePreviewHighlight}
+                    onCreateShort={handleOpenHighlightShort}
+                  />
+                : null} />
           }
         />
         <PreviewPanel
