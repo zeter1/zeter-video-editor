@@ -306,6 +306,40 @@ describe("opaque cached FFmpeg paused Preview", () => {
     await waitFor(() => expect(current.style.visibility).toBe("visible"));
   });
 
+  it("renders a muted FFmpeg chunk during moving overlap only after a native presented frame", async () => {
+    invoke.mockImplementation(async (command: string) => command === "request_preview_chunk"
+      ? { token: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        start_us: 0, end_us: 4_000_000 }
+      : null);
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    try {
+      const { rerender } = render(
+        <PausedCompositeFrame {...props} playheadTimeUs={1_000_000} playing playbackRate={2} />,
+      );
+      const video = await screen.findByLabelText("Точный FFmpeg кадр") as HTMLVideoElement;
+      expect(video.muted).toBe(true);
+      expect(video.style.visibility).toBe("hidden");
+      Object.defineProperty(video, "readyState", { configurable: true, value: 2 });
+      fireEvent.loadedMetadata(video);
+      expect(video.playbackRate).toBe(2); // cached timeline frame rate tracks 2x master video
+      await waitFor(() => expect(play).toHaveBeenCalled());
+      submitFrame(1);
+      await waitFor(() => expect(video.style.visibility).toBe("visible"));
+
+      rerender(<PausedCompositeFrame {...props} playheadTimeUs={1_400_000} playing playbackRate={2} />);
+      expect(video.style.visibility).toBe("hidden"); // stale GPU frames are not exact compositing
+      submitFrame(1.4);
+      await waitFor(() => expect(video.style.visibility).toBe("visible"));
+
+      rerender(<PausedCompositeFrame {...props} playheadTimeUs={1_400_000} playing={false} />);
+      expect(pause).toHaveBeenCalled();
+    } finally {
+      play.mockRestore();
+      pause.mockRestore();
+    }
+  });
+
   it("retries a failed speculative window when it becomes foreground", async () => {
     let adjacentAttempts = 0;
     invoke.mockImplementation((command: string, args?: { playheadUs?: number }) => {
