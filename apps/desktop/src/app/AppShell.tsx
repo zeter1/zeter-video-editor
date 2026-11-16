@@ -4,6 +4,8 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 
 import { AiWorkspace } from "../ai/AiWorkspace";
+import { CreateShortDialog, type CreateShortRequestView } from "../ai/CreateShortDialog";
+import { createShortSequenceFromClip, portraitCropForMedia } from "../ai/shortReframe";
 import { createEmptySequence, resolveSequence } from "./sequenceWorkspace";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { ErrorDialog } from "../errors/ErrorDialog";
@@ -74,6 +76,14 @@ interface SelectedClipContext {
   trackId: TrackId;
 }
 
+interface ShortCreationContext {
+  projectId: string;
+  revision: number;
+  sequenceId: string;
+  clipId: string;
+  initialCrop: import("../generated/ipc").Crop;
+}
+
 function findSelectedClipContext(
   sequence: Sequence | null,
   selectedClipId: string | null,
@@ -107,6 +117,9 @@ export function AppShell({
   const [exportJob, setExportJob] = useState<ExportJobView | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [creatingSequence, setCreatingSequence] = useState(false);
+  const [creatingShort, setCreatingShort] = useState(false);
+  const creatingShortRef = useRef(false);
+  const [shortSource, setShortSource] = useState<ShortCreationContext | null>(null);
   const [addingText, setAddingText] = useState(false);
   const addingTextRef = useRef(false);
   const [portraitSequence, setPortraitSequence] = useState(false);
@@ -126,6 +139,10 @@ export function AppShell({
   );
   const selectedClip = selectedClipContext?.clip ?? null;
   const selectedTrackId = selectedClipContext?.trackId ?? null;
+  const selectedMedia = project?.media.find((item) => item.id === selectedClip?.media_id);
+  const canCreateShort = !!activeSequence && selectedClip?.kind === "Video" &&
+    !!selectedMedia?.width && !!selectedMedia?.height &&
+    projectState.syncStatus === "synced" && !creatingShort && !creatingSequence;
 
   async function applyToolbarMutation(
     mutation: () => Promise<import("../generated/ipc").CommandResultDto>,
@@ -193,6 +210,69 @@ export function AppShell({
       }
     } finally {
       setCreatingSequence(false);
+    }
+  }
+
+  function handleOpenShort(): void {
+    const snapshot = projectStore.getState().snapshot;
+    if (!canCreateShort || !snapshot || !activeSequence || !selectedClip ||
+        !selectedMedia?.width || !selectedMedia?.height || creatingShortRef.current) return;
+    setShortSource({
+      projectId: snapshot.project.id,
+      revision: snapshot.revision,
+      sequenceId: activeSequence.id,
+      clipId: selectedClip.id,
+      initialCrop: portraitCropForMedia(selectedMedia.width, selectedMedia.height),
+    });
+  }
+
+  async function handleCreateShort(request: CreateShortRequestView): Promise<void> {
+    const sourceContext = shortSource;
+    if (!sourceContext || creatingShortRef.current) return;
+    const snapshot = projectStore.getState().snapshot;
+    const source = snapshot?.project.sequences.find((item) => item.id === sourceContext.sequenceId);
+    const original = findSelectedClipContext(source ?? null, sourceContext.clipId)?.clip;
+    // The editor may have changed while the modal was open. Never apply
+    // its pending crop to a different source or stale Rust revision.
+    if (!snapshot || !source || !original || original.kind !== "Video" ||
+        snapshot.project.id !== sourceContext.projectId ||
+        snapshot.revision !== sourceContext.revision ||
+        transientStore.getState().selectedClipId !== sourceContext.clipId ||
+        projectStore.getState().syncStatus !== "synced" ||
+        resolveSequence(snapshot.project.sequences,
+          transientStore.getState().selectedSequenceId)?.id !== sourceContext.sequenceId) {
+      projectStore.setError("Клип или проект изменился. Повторите создание Short.");
+      setShortSource(null);
+      return;
+    }
+    const name = `Short ${snapshot.project.sequences.length + 1}`;
+    let sequence: Sequence;
+    try {
+      sequence = createShortSequenceFromClip(source, original, name, request.crop);
+    } catch (error) {
+      projectStore.setError(error instanceof Error ? error.message : "Неверное кадрирование Short.");
+      return;
+    }
+    creatingShortRef.current = true;
+    setCreatingShort(true);
+    try {
+      const accepted = await handleEditCommand({ AddSequence: { sequence, index: null } });
+      if (accepted) {
+        if (projectStore.getState().snapshot?.project.sequences.some((item) => item.id === sequence.id)) {
+          transientStore.selectSequence(sequence.id);
+          const video = sequence.tracks.find((track) => track.kind === "Video");
+          if (video?.clips[0]) {
+            transientStore.selectTrack(video.id);
+            transientStore.selectClip(video.clips[0].id);
+          }
+        } else {
+          projectStore.setError("Не удалось получить новую последовательность. Обновите проект.");
+        }
+      }
+    } finally {
+      creatingShortRef.current = false;
+      setCreatingShort(false);
+      setShortSource(null);
     }
   }
 
@@ -750,7 +830,18 @@ export function AppShell({
           disabled={!activeSequence || creatingSequence || projectState.syncStatus !== "synced"}>
           {creatingSequence ? "Создание…" : "+ Последовательность"}
         </button>
+        <button type="button" onClick={handleOpenShort} disabled={!canCreateShort}
+          title="Выберите видео с известными размерами на таймлайне">
+          Создать Short из клипа
+        </button>
       </div>
+
+      {shortSource ? (
+        <CreateShortDialog open initialCrop={shortSource.initialCrop}
+          busy={creatingShort}
+          onCreate={(request) => void handleCreateShort(request)}
+          onCancel={() => setShortSource(null)} />
+      ) : null}
 
       <div className="workspace-grid">
         <LeftPanel

@@ -1,3 +1,13 @@
+# CURRENT DEVELOPMENT — ZVE-022 Create Short 9:16 (этап 1) / 0.1.0-alpha.40 (2026-11-16)
+
+- **Verified baseline:** GitHub `main` == Windows `origin/main` == `5b54c74c78aaecd6ca1a844847505069d75125e9`, ZVE-021 PR #105 merged, post-merge Windows CI #43847614018 SUCCESS on that SHA. Unrelated drafts #93/#85/#84 untouched.
+- **Product feature / candidate:** branch `feat/zve-022-create-short-portrait-20261116`, alpha.39 → **alpha.40** (one `scripts/set-version.mjs` bump), `apps/desktop/src/ai/shortReframe.ts` computes fixed 9:16 source crop and clamps its manual X/Y shift; dialog `CreateShortDialog.tsx` is now connected to the selected Video in `AppShell.tsx` with dimension/revision/sync validation. One undoable Rust `AddSequence` commits a new 1080×1920 sequence containing a fresh-ID copy of the original trimmed video with source media, speed, color and audio preserved. Existing `.vcut` schema, Rust IPC and media remain unchanged. Full video/project data are not sent to any service.
+- **Actual Windows QA:** TypeScript/Vite build PASS; unit tests `shortReframe.test.ts` 4/4, `CreateShortDialog.test.tsx` 1/1, `AppShell.short.test.tsx` 2/2 PASS including stale snapshot guard. Real Tauri/WebView2 `e2e/create-short.spec.ts` PASS 1/1 with actual H.264 sample; tested source preservation, exact single AddSequence revision, original media, manual crop, Undo/Redo, .vcut save/reopen and FFmpeg MP4 export verified by FFprobe at **1080×1920**; log `target/zve022-native-v4.log`. The short fixture has overlapping clip action buttons; E2E intentionally dispatches the clip's click-selection event directly to avoid clicking the unrelated transition control. Full regression, candidate NSIS and exact-head CI still to record.
+- **Limits / mandatory next work:** **no local face detector/face-aware auto-target yet**; geometric center with manual 9:16 reframe is deliberately labelled Stage 1, not AI. Next ZVE-022 Stage 2 implement on-device face-center detection with no-face fallback and repeated-face tests, then expose it to Create Short. Do not merge the ZVE-022 Stage 1 PR without correct Windows CI and packaging gates, independent approval if rules require.
+- **GitHub workflow:** push feature branch and create draft PR with exact SHA; review diff/CI/reviews, only then allowed merge to main and post-merge CI. No tag, public release, signing or installer execution.
+
+---
+
 # CURRENT DEVELOPMENT — ZVE-021 audio-less video export + Preview (2026-11-16)
 
 - **Verified start:** GitHub `main` and Windows clean `origin/main` at `c0907ff645f851fe8336696663db9cb66a21f80b`; ZVE-020 PR #103 already MERGED, post-merge Windows Actions #43837143897 terminal SUCCESS on exactly that SHA. Historical ZVE-020 checkpoint below predates this merge; do not repeat ZVE-020.
@@ -1201,7 +1211,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.39` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.40` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
