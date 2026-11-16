@@ -88,6 +88,7 @@ function clientFixture() {
     projectSave: vi.fn(),
     projectSnapshot: vi.fn().mockResolvedValue(null),
     getAudioWaveform: vi.fn().mockResolvedValue(Array(512).fill(0)),
+    createShortFromCandidate: vi.fn(),
     executeEditCommand: vi.fn().mockResolvedValue({
       request_id: "completed", revision: 5, changed_entities: [{ Clip: "clip-1" }],
     }),

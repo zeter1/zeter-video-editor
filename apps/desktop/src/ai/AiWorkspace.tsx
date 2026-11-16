@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { ClipId, CommandResultDto, EditCommand, MediaId, Sequence, SubtitleSegment } from "../generated/ipc";
 import { TranscriptionRuntimePanel } from "./TranscriptionRuntimePanel";
 
@@ -10,6 +10,7 @@ interface AiWorkspaceProps {
   selectedClipId?: ClipId | null;
   onTranscriptionApplied?: (result: CommandResultDto) => Promise<void>;
   onTranscriptionError?: (message: string) => void;
+  highlightsContent?: ReactNode;
 }
 
 function parseTimeUs(seconds: string): number | null {
@@ -20,7 +21,7 @@ function parseTimeUs(seconds: string): number | null {
   return Number.isSafeInteger(result) ? result : null;
 }
 
-export function AiWorkspace({ sequence, playheadTimeUs, onCommit, mediaId, selectedClipId, onTranscriptionApplied, onTranscriptionError }: AiWorkspaceProps) {
+export function AiWorkspace({ sequence, playheadTimeUs, onCommit, mediaId, selectedClipId, onTranscriptionApplied, onTranscriptionError, highlightsContent }: AiWorkspaceProps) {
   const [text, setText] = useState("");
   const [start, setStart] = useState(() => (playheadTimeUs / 1_000_000).toFixed(2));
   const [end, setEnd] = useState(() => (playheadTimeUs / 1_000_000 + 2).toFixed(2));
@@ -68,8 +69,9 @@ export function AiWorkspace({ sequence, playheadTimeUs, onCommit, mediaId, selec
       <ul className="ai-capability-list">
         <li>Автосубтитры — доступен локальный запуск и просмотр, модель проверяется перед запуском.</li>
         <li>Удаление тишины — production backend из draft PR ещё не интегрирован.</li>
-        <li>Поиск хайлайтов — production backend из draft PR ещё не интегрирован.</li>
+        <li>Поиск хайлайтов — локальная оценка аудио выбранного видео, с ручным выбором и созданием Short.</li>
       </ul>
+      {highlightsContent ?? <p className="empty-copy">Для поиска хайлайтов выберите видеоклип на таймлайне.</p>}
       {sequence && mediaId && selectedClipId && onTranscriptionApplied && onTranscriptionError ? (
         <TranscriptionRuntimePanel
           key={`${sequence.id}:${selectedClipId}:${mediaId}`}

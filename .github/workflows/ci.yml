@@ -89,19 +89,34 @@ jobs:
         run: npm test -- --run
         working-directory: apps/desktop
 
-      # Run all normal native scenarios, then the real 206 byte-starvation
-      # regression in a FRESH WebView2/Tauri process. The latter is a deliberate
-      # full decoder/GPU/HTTP range starvation stress test; in a long-lived CI
-      # WebView2 session it can hang the entire CDP browser after 28 prior tests.
-      # Do not omit the case, weaken its strict 6-frame A/V assertions, or allow
-      # either command to fail silently: both must succeed to unblock NSIS.
-      - name: End-to-end MVP acceptance
+      # Run the SAME complete native acceptance suite across three Playwright
+      # shards. Each command starts a fresh Tauri/WebView2/CDP process, limiting
+      # long-lived native decoder/GPU state: CI has intermittently lost the
+      # preview/CDP browser at test 33-37 while the same tests pass individually.
+      # Sharding does NOT skip, relax, mock or retry tests: all 3 shards,
+      # BOTH original byte-starvation cases, and the sustained 2x A/V drift
+      # test must pass in fresh processes. The pre-play starvation has
+      # previously been followed by a CDP timeout in preview-secondary-video-audio;
+      # 2x A/V drift explicitly verifies real EOF restart before buffer events.
+      - name: End-to-end MVP acceptance (three fresh WebView2 sessions)
         shell: pwsh
         working-directory: apps/desktop
         run: |
           $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
           $env:ZETER_TEST_FFMPEG_DIR = Split-Path $paths.ffmpeg -Parent
-          npm run test:e2e -- --grep-invert 'actual mid-play 206 byte starvation'
+          for ($shard = 1; $shard -le 3; $shard++) {
+            Write-Host "Native E2E acceptance: fresh WebView2 process, shard $shard/3"
+            npm run test:e2e -- --grep-invert 'actual mid-play 206 byte starvation|real delayed media bytes recover|2x compositor frame stays aligned' --shard "$shard/3"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Native pre-play delayed-byte-starvation acceptance (isolated WebView2)
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
+          $env:ZETER_TEST_FFMPEG_DIR = Split-Path $paths.ffmpeg -Parent
+          npm run test:e2e -- --grep 'real delayed media bytes recover'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Native mid-play 206 byte-starvation acceptance (isolated WebView2)
@@ -111,6 +126,15 @@ jobs:
           $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
           $env:ZETER_TEST_FFMPEG_DIR = Split-Path $paths.ffmpeg -Parent
           npm run test:e2e -- --grep 'actual mid-play 206 byte starvation'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Native sustained 2x A/V drift acceptance (isolated WebView2)
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          $paths = Get-Content "$env:RUNNER_TEMP/ffmpeg-runtime/paths.json" | ConvertFrom-Json
+          $env:ZETER_TEST_FFMPEG_DIR = Split-Path $paths.ffmpeg -Parent
+          npm run test:e2e -- --grep '2x compositor frame stays aligned'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Tauri debug bundle smoke

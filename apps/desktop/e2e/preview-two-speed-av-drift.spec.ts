@@ -268,7 +268,39 @@ test("2x compositor frame stays aligned with independent WAV after forward/backw
   // The React transport must relock audio to presented frames after each
   // signal. A real spontaneous network stall remains a separate QA case.
   for (const signal of ["waiting", "stalled"] as const) {
+    if (signal === "waiting") {
+      // Deterministically cover the real Play-after-EOF branch before the
+      // first synthetic buffer signal, including on fast local machines.
+      await expect.poll(async () =>
+        (await page.getByRole("button", { name: "Воспроизвести", exact: true }).count()) > 0,
+      { timeout: 7_000, intervals: [100, 200, 400] }).toBe(true);
+      await expect(page.locator(".preview-controls .timecode")).toHaveText("3.000 с");
+    }
+    // The real 2x fixture is only 3s long. A six-frame sample gate plus slow
+    // hosted-runner CDP round-trips can legitimately reach natural EOF before
+    // either synthetic buffering event. Dispatching "playing" on a PAUSED
+    // native HTMLMediaElement does not start a decoder: explicitly restart
+    // with the user's real Play action, but ONLY after verified natural EOF.
+    // Any unexpected stop before EOF remains an E2E failure.
+    const beforeSignal = await page.evaluate(() => ({
+      timecode: document.querySelector(".preview-controls .timecode")?.textContent,
+      transport: document.querySelector(".preview-controls .play-button")?.getAttribute("aria-label"),
+      sourceTime: document.querySelector<HTMLVideoElement>("video.preview-media")?.currentTime ?? null,
+    }));
+    const endedBeforeSignal = beforeSignal.transport === "Воспроизвести" &&
+      beforeSignal.timecode === "3.000 с";
+    expect(beforeSignal.transport === "Пауза" || endedBeforeSignal,
+      "2x transport must not stop unexpectedly before a synthetic buffer signal").toBe(true);
+
     await scrub(0.45); // Leave enough timeline for six fresh frame samples.
+    const stoppedDuringScrub = await page.getByRole("button",
+      { name: "Воспроизвести", exact: true }).count() > 0;
+    if (stoppedDuringScrub) {
+      expect(endedBeforeSignal || (beforeSignal.sourceTime !== null &&
+        beforeSignal.sourceTime >= 5.7),
+      "Synthetic-buffering setup must not mask unexpected transport stops").toBe(true);
+      await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+    }
     const requestedAtMs = Date.now();
     await video.evaluate((node, nativeSignal) => {
       node.dispatchEvent(new Event(nativeSignal));
