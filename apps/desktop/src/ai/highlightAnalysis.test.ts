@@ -131,4 +131,16 @@ describe("rankLocalHighlights", () => {
     expect(rankLocalHighlights(noPunctuation, clip, Array(56).fill(0.2), 24)
       .some((item) => item.start === 12_500_000)).toBe(false);
   });
+  it("preserves the existing ZVE-024 pause-based Short end despite nearby sentence punctuation", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 28_000_000, source_in: 0, source_out: 28_000_000 };
+    const timed = { subtitle_segments: [
+      { start: 0, end: 12_000_000, text: "Начало рассказа. Конец первой мысли." },
+      { start: 12_500_000, end: 20_000_000, text: "Новая важная реплика после паузы." },
+      { start: 20_700_000, end: 27_000_000, text: "Продолжение второй мысли." },
+    ] } as Sequence;
+    const candidate = rankLocalHighlights(timed, clip, Array(56).fill(0.2), 25)
+      .find((item) => item.start === 12_500_000);
+    expect(candidate).toMatchObject({ start: 12_500_000, end: 27_500_000 });
+    expect(candidate!.reasons).toContain("Начало реплики после паузы");
+  });
 });

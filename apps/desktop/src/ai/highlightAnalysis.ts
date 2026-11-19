@@ -116,17 +116,22 @@ export function rankLocalHighlights(
   const phrases = phraseBoundaries(segments);
   const candidates = starts.map((offset) => {
     const nominalStart = clip.timeline_start + offset;
-    // Preserve the clip's first frame; elsewhere prefer an actual phrase
-    // beginning after a documented >=500ms subtitle gap, if near the cut.
+    // Keep the clip's first frame. Elsewhere prefer documented >=500ms
+    // pause edges; use timed sentence boundaries when no nearby pause fits.
     const start = offset === 0 ? nominalStart : (() => {
       const pause = nearestPause(nominalStart, pauseStarts);
       return pause === nominalStart ? nearestPause(nominalStart, phrases.starts) : pause;
     })();
     const nominalEnd = Math.min(clip.timeline_end, start + span);
+    // Pause-aligned Starts retain ZVE-024's nominal window end unless a real
+    // pause is also near that end. A merely punctuated trailing subtitle
+    // must not shorten the established pause-based Short by itself.
+    const preservePauseWindow = start !== clip.timeline_start && pauseStarts.includes(start);
     const endCandidate = nominalEnd === clip.timeline_end
       ? nominalEnd : (() => {
         const pause = nearestPause(nominalEnd, pauseEnds);
-        return pause === nominalEnd ? nearestPause(nominalEnd, phrases.ends) : pause;
+        return pause === nominalEnd && !preservePauseWindow
+          ? nearestPause(nominalEnd, phrases.ends) : pause;
       })();
     // A boundary must never collapse a useful Short into a tiny fragment.
     const end = endCandidate - start >= Math.min(span, 8 * SECOND)

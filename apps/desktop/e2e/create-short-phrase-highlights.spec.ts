@@ -22,7 +22,7 @@ type NativeProject = {
   };
 };
 
-test("ZVE-025 timed subtitle pauses -> native Short -> Undo/Redo -> .vcut -> MP4", async () => {
+test("ZVE-025 real timed phrase boundaries -> native Short -> Undo/Redo -> .vcut -> MP4", async () => {
   test.setTimeout(240_000);
   const { page, state } = await connectTauri();
   const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
