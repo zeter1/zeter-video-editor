@@ -120,7 +120,7 @@ export function rankLocalHighlights(
     // pause edges; use timed sentence boundaries when no nearby pause fits.
     const start = offset === 0 ? nominalStart : (() => {
       const pause = nearestPause(nominalStart, pauseStarts);
-      return pause === nominalStart ? nearestPause(nominalStart, phrases.starts) : pause;
+      return pauseStarts.includes(pause) ? pause : nearestPause(nominalStart, phrases.starts);
     })();
     const nominalEnd = Math.min(clip.timeline_end, start + span);
     // Pause-aligned Starts retain ZVE-024's nominal window end unless a real
@@ -130,7 +130,7 @@ export function rankLocalHighlights(
     const endCandidate = nominalEnd === clip.timeline_end
       ? nominalEnd : (() => {
         const pause = nearestPause(nominalEnd, pauseEnds);
-        return pause === nominalEnd && !preservePauseWindow
+        return !pauseEnds.includes(pause) && !preservePauseWindow
           ? nearestPause(nominalEnd, phrases.ends) : pause;
       })();
     // A boundary must never collapse a useful Short into a tiny fragment.

@@ -143,4 +143,27 @@ describe("rankLocalHighlights", () => {
     expect(candidate).toMatchObject({ start: 12_500_000, end: 27_500_000 });
     expect(candidate!.reasons).toContain("Начало реплики после паузы");
   });
+  it("prioritizes exact pause timestamps over nearby sentence edges", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 25_000_000, source_in: 0, source_out: 25_000_000 };
+    const startPause = { subtitle_segments: [
+      { start: 0, end: 8_800_000, text: "Первая мысль." },
+      { start: 9_000_000, end: 9_300_000, text: "продолжение" },
+      { start: 10_000_000, end: 17_000_000, text: "Новая реплика." },
+      { start: 17_300_000, end: 24_000_000, text: "финал" },
+    ] } as Sequence;
+    const starts = rankLocalHighlights(startPause, clip, Array(50).fill(0.2), 26);
+    expect(starts.some((item) => item.start === 10_000_000 &&
+      item.reasons.includes("Начало реплики после паузы"))).toBe(true);
+    expect(starts.some((item) => item.start === 9_000_000)).toBe(false);
+
+    const endPause = { subtitle_segments: [
+      { start: 0, end: 14_800_000, text: "Законченная мысль." },
+      { start: 14_900_000, end: 15_000_000, text: "добавление" },
+      { start: 15_600_000, end: 22_000_000, text: "Следующая реплика" },
+    ] } as Sequence;
+    const first = rankLocalHighlights(endPause, clip, Array(50).fill(0.2), 27)
+      .find((item) => item.start === 0);
+    expect(first).toMatchObject({ start: 0, end: 15_000_000 });
+    expect(first!.reasons).toContain("Пауза перед следующей репликой");
+  });
 });
