@@ -87,4 +87,48 @@ describe("rankLocalHighlights", () => {
     expect(rankLocalHighlights({ subtitle_segments: timed.subtitle_segments.slice(1) } as Sequence,
       video, new Array(80).fill(0), 12)).toEqual([]);
   });
+
+  it("snaps to genuine sentence-segment timestamps without inventing word times or Whisper confidence", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 28_000_000, source_in: 0, source_out: 28_000_000 };
+    const transcript = { subtitle_segments: [
+      { start: 0, end: 12_300_000, text: "Завершённая первая фраза." },
+      { start: 12_500_000, end: 20_000_000, text: "Важная новая мысль." },
+      { start: 20_200_000, end: 27_200_000, text: "Продолжение." },
+    ] } as Sequence;
+    const waveform = Array(56).fill(0.2);
+    const audioOnly = rankLocalHighlights({ subtitle_segments: [] } as unknown as Sequence, clip, waveform, 22);
+    expect(audioOnly.some((candidate) => candidate.start === 12_500_000)).toBe(false);
+    const candidate = rankLocalHighlights(transcript, clip, waveform, 22)
+      .find((item) => item.start === 12_500_000);
+    expect(candidate).toMatchObject({ start: 12_500_000, end: 27_200_000, source_revision: 22 });
+    expect(candidate!.reasons).toContain("Начало фразы по таймкодам субтитров");
+    expect(candidate!.reasons).toContain("Субтитры покрывают 99% фрагмента");
+    expect(candidate!.reasons.join(" ")).not.toMatch(/уверенность Whisper|точность распознавания/);
+  });
+
+  it("does not split a long subtitle by punctuation without per-word timestamps", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 28_000_000, source_in: 0, source_out: 28_000_000 };
+    const long = { subtitle_segments: [
+      { start: 0, end: 28_000_000, text: "Первая фраза. Вторая фраза." },
+    ] } as Sequence;
+    const ranked = rankLocalHighlights(long, clip, Array(56).fill(0.2), 23);
+    expect(ranked.flatMap((item) => item.reasons)).not.toContain("Начало фразы по таймкодам субтитров");
+    expect(ranked.flatMap((item) => item.reasons)).not.toContain("Конец фразы по таймкодам субтитров");
+  });
+
+  it("does not claim phrase boundaries for overlapping subtitle intervals or unpunctuated text", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 28_000_000, source_in: 0, source_out: 28_000_000 };
+    const base = { subtitle_segments: [
+      { start: 0, end: 20_000_000, text: "Первая длинная фраза." },
+      { start: 12_500_000, end: 18_000_000, text: "Наложенный текст." },
+    ] } as Sequence;
+    const ranked = rankLocalHighlights(base, clip, Array(56).fill(0.2), 24);
+    expect(ranked.flatMap((item) => item.reasons)).not.toContain("Начало фразы по таймкодам субтитров");
+    const noPunctuation = { subtitle_segments: [
+      { start: 0, end: 12_300_000, text: "Одна мысль без знака" },
+      { start: 12_500_000, end: 27_200_000, text: "другая мысль" },
+    ] } as Sequence;
+    expect(rankLocalHighlights(noPunctuation, clip, Array(56).fill(0.2), 24)
+      .some((item) => item.start === 12_500_000)).toBe(false);
+  });
 });
