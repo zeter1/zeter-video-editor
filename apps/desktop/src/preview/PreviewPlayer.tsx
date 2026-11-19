@@ -101,10 +101,10 @@ function supportsPresentedFrames(node: HTMLVideoElement | null): node is HTMLVid
 
 /** Follower decoder with gated embedded sound; foreground video remains the only timeline clock. */
 function SecondaryVideoLayer({
-  clip, trackMuted, src, playheadTimeUs, playing, filterPrefix,
+  clip, trackMuted, src, playheadTimeUs, playing, soundEnabled, filterPrefix,
 }: {
   clip: Clip; trackMuted: boolean; src: string; playheadTimeUs: number; playing: boolean;
-  filterPrefix: string;
+  soundEnabled: boolean; filterPrefix: string;
 }) {
   const node = useRef<HTMLVideoElement>(null);
   const [failed, setFailed] = useState(false);
@@ -113,8 +113,12 @@ function SecondaryVideoLayer({
   const timeRef = useRef(playheadTimeUs);
   timeRef.current = playheadTimeUs;
   const synchronize = (current: HTMLVideoElement, timeUs: number): void => {
-    setSoundReady(synchronizeAudioClock(current, clip, timeUs, playing, pendingSeekRef) &&
-      current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA);
+    const ready = synchronizeAudioClock(current, clip, timeUs, playing, pendingSeekRef) &&
+      current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+    // If a stalled foreground catches up with a silently primed follower,
+    // never expose audio from the follower's old source position while seeking.
+    if (!ready) current.muted = true;
+    setSoundReady(ready);
   };
 
   useEffect(() => {
@@ -123,15 +127,16 @@ function SecondaryVideoLayer({
     current.playbackRate = clip.speed > 0 ? clip.speed : 1;
     // A source-clock jump is not audible until seeked acknowledges it.
     synchronize(current, playheadTimeUs);
-  }, [clip, playheadTimeUs, playing]);
+  }, [clip, playheadTimeUs, playing, soundEnabled]);
 
   useEffect(() => {
     const current = node.current;
     if (!current) return;
-    // Never leak an old frame's sound after seek, pause, mute or stall.
-    current.muted = !playing || !soundReady || trackMuted || clip.audio.muted;
+    // Prime the secondary decoder silently while the foreground is preparing.
+    // Only the trusted foreground-frame clock grants audible output.
+    current.muted = !soundEnabled || !soundReady || trackMuted || clip.audio.muted;
     current.volume = previewAudioVolume(clip, playheadTimeUs);
-  }, [clip, trackMuted, playheadTimeUs, playing, soundReady]);
+  }, [clip, trackMuted, playheadTimeUs, playing, soundEnabled, soundReady]);
 
   useEffect(() => {
     const current = node.current;
@@ -717,7 +722,8 @@ export function PreviewPlayer({
                     trackMuted={track.muted}
                     src={layerSrc}
                     playheadTimeUs={playheadTimeUs}
-                    playing={audioTransportPlaying}
+                    playing={playing}
+                    soundEnabled={audioTransportPlaying}
                     filterPrefix={transitionFilterPrefix}
                   />
                 ) : clip.kind === "Image" ? (

@@ -51,7 +51,10 @@ test("native audio fade handles commit Rust history and survive .vcut reopen", a
   const y = bbox.y + bbox.height / 2;
   const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.getAttribute("aria-label") ?? document.elementFromPoint(x, y)?.className ?? "none", { x, y });
   expect(hit, "Fade grip must be the native pointer hit target").toBe(`Fade in ${clip.id}`);
-  await page.mouse.move(x, y);
+  // Locator hover waits for a stable, actionable native target before the
+  // first pointerdown. Raw mouse.move can race WebView2 layout immediately
+  // after waveform rendering, losing the capture before any fade drag.
+  await handle.hover();
   await page.mouse.down();
   await page.mouse.move(x + 38, y, { steps: 5 });
   await expect.poll(async () => Number(await handle.getAttribute("aria-valuenow")))

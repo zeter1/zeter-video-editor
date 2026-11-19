@@ -55,6 +55,28 @@ describe("AudioFadeHandles", () => {
     expect((commit.mock.calls[0][0] as any).SetAudioState.audio.fade_out).toBe(400_000);
   });
 
+  it("captures the pointer before selection can synchronously rerender the timeline", () => {
+    const commit = vi.fn(async (_command: EditCommand) => undefined);
+    let captured = false;
+    const select = vi.fn(() => expect(captured).toBe(true));
+    render(<AudioFadeHandles clip={clip()} widthPx={200} sequenceId="seq"
+      trackId="track" locked={false} commitCommand={commit} onSelect={select} />);
+    const handle = screen.getByRole("slider", { name: "Fade in fade-clip" });
+    Object.defineProperty(handle, "setPointerCapture", {
+      configurable: true,
+      value: (pointerId: number) => {
+        expect(pointerId).toBe(7);
+        captured = true;
+      },
+    });
+    fireEvent.pointerDown(handle, { pointerId: 7, button: 0, clientX: 20 });
+    expect(select).toHaveBeenCalledOnce();
+    fireEvent.pointerMove(handle, { pointerId: 7, clientX: 55 });
+    expect(Number(handle.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
+    fireEvent.pointerUp(handle, { pointerId: 7, clientX: 55 });
+    expect(commit).toHaveBeenCalledOnce();
+  });
+
   it("never mutates a locked clip", () => {
     const { commit } = setup(true);
     const handle = screen.getByRole("slider", { name: "Fade in fade-clip" });
