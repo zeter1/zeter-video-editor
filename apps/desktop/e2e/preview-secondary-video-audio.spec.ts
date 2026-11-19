@@ -37,13 +37,13 @@ test("native lower video audio follows Play/mute/Pause without altering the proj
   if (!source || !source.media_id) throw new Error("Missing synthetic embedded-AAC video");
   const lowerId = randomUUID(), upperId = randomUUID();
   bottom.clips = [{
-    ...source, id: lowerId, timeline_start: 0, timeline_end: 3_000_000,
-    source_in: 0, source_out: 3_000_000,
+    ...source, id: lowerId, timeline_start: 0, timeline_end: 5_500_000,
+    source_in: 0, source_out: 5_500_000,
     audio: { ...source.audio, muted: false, volume: 0.4 },
   }];
   overlay.clips = [{
-    ...source, id: upperId, timeline_start: 0, timeline_end: 3_000_000,
-    source_in: 0, source_out: 3_000_000,
+    ...source, id: upperId, timeline_start: 0, timeline_end: 5_500_000,
+    source_in: 0, source_out: 5_500_000,
     audio: { ...source.audio, muted: true }, // only the lower video should sound
   }];
   track("Audio").clips = [];
@@ -66,15 +66,34 @@ test("native lower video audio follows Play/mute/Pause without altering the proj
   await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
   // The native follower must advance and become audible after source seek,
   // while the foreground's explicitly muted clip remains silent.
-  await expect.poll(() => follower.evaluate((node) => {
-    const video = node as HTMLVideoElement;
-    return !video.muted && !video.paused && !video.seeking &&
-      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.currentTime > 0;
-  }), { timeout: 20_000, intervals: [50, 100, 250] }).toBe(true);
+  try {
+    await expect.poll(() => follower.evaluate((node) => {
+      const video = node as HTMLVideoElement;
+      return !video.muted && !video.paused && !video.seeking &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.currentTime > 0;
+    }), { timeout: 20_000, intervals: [50, 100, 250] }).toBe(true);
+  } catch (error) {
+    // Keep the strict native audio gate. A CI-only failure needs decoder and
+    // transport state, not a longer timeout or a synthetic audio assertion.
+    const diagnostic = await page.evaluate(() => ({
+      transport: document.querySelector(".play-button")?.getAttribute("aria-label"),
+      timecode: document.querySelector(".timecode")?.textContent,
+      videos: [...document.querySelectorAll("video")].map((video) => ({
+        label: video.getAttribute("aria-label"), currentTime: video.currentTime,
+        duration: video.duration, paused: video.paused, seeking: video.seeking,
+        readyState: video.readyState, networkState: video.networkState,
+        muted: video.muted, ended: video.ended, errorCode: video.error?.code ?? null,
+      })),
+    })).catch(() => ({ error: "WebView2 CDP unavailable during diagnostic" }));
+    console.error("Native secondary AAC state on failure:", JSON.stringify(diagnostic));
+    throw error;
+  }
   await expect(follower).toHaveJSProperty("volume", 0.4);
   await expect(foreground).toHaveJSProperty("muted", true);
 
   await page.getByRole("button", { name: "Пауза", exact: true }).click();
+  // Verify the user transport itself stopped, not only that mute removed sound.
+  await expect(page.getByRole("button", { name: "Воспроизвести", exact: true })).toBeVisible();
   await expect(follower).toHaveJSProperty("muted", true);
   await expect.poll(() => follower.evaluate((node) => (node as HTMLVideoElement).paused),
     { timeout: 8_000 }).toBe(true);

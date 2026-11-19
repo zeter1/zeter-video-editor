@@ -55,10 +55,12 @@ export function AudioFadeHandles({ clip, widthPx, sequenceId, trackId, locked,
   function begin(side: Side, event: PointerEvent<HTMLButtonElement>): void {
     event.stopPropagation();
     if (locked || pending.current || event.button !== 0) return;
-    onSelect();
+    // Secure pointer capture before selection notifies external subscribers.
+    // A synchronous timeline render must not swallow the first drag event.
     gesture.current = { side, pointerId: event.pointerId,
       x: event.clientX, initial: fades[side] };
     event.currentTarget.setPointerCapture?.(event.pointerId);
+    onSelect();
   }
 
   function drag(event: PointerEvent<HTMLButtonElement>): void {

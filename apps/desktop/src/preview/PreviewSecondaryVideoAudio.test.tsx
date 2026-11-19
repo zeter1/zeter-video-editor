@@ -105,4 +105,23 @@ describe("secondary video embedded audio", () => {
     rerender(<PreviewPlayer {...props} />);
     expect(follower.muted).toBe(false);
   });
+
+  it("primes the lower decoder silently while the foreground is still buffering", () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    render(<PreviewPlayer sequence={sequence} media={media} selectedClip={null}
+      selectedTrackId={null} playheadTimeUs={0} onSeek={vi.fn()} onCommit={vi.fn()} />);
+    const lowerVideo = screen.getByLabelText("Нижний видеослой") as HTMLVideoElement;
+    Object.defineProperty(lowerVideo, "readyState", {
+      configurable: true, value: HTMLMediaElement.HAVE_CURRENT_DATA,
+    });
+    // Foreground never acknowledges a frame: the secondary decoder may warm up
+    // but its embedded sound must remain muted until the trusted clock starts.
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
+    fireEvent.loadedMetadata(lowerVideo);
+    fireEvent.seeked(lowerVideo); // native source-in seek acknowledged
+    fireEvent.canPlay(lowerVideo);
+    expect(lowerVideo.muted).toBe(true);
+    expect(play.mock.instances).toContain(lowerVideo);
+  });
 });
