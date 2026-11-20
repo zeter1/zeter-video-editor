@@ -286,4 +286,52 @@ describe("rankLocalHighlights", () => {
     expect(first).toMatchObject({ start: 0, end: 15_000_000 });
     expect(first!.reasons).toContain("Пауза перед следующей репликой");
   });
+
+  it("finishes adjacent unpunctuated subtitle lines before a 30-second cap", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 40_000_000,
+      source_in: 0, source_out: 40_000_000 };
+    const timed = { subtitle_segments: [
+      { start: 0, end: 28_600_000, text: "Первая реплика без точки" },
+      { start: 28_800_000, end: 32_500_000, text: "Связанная следующая реплика" },
+      { start: 32_700_000, end: 39_000_000, text: "Продолжение" },
+    ] } as Sequence;
+    const first = rankLocalHighlights(timed, clip, Array(80).fill(0.2), 36,
+      { maxDurationSeconds: 30, minSubtitleCoveragePercent: 0 })
+      .find((item) => item.start === 0);
+    expect(first).toMatchObject({ start: 0, end: 28_600_000 });
+    expect(first!.reasons).toContain("Короткий фрагмент заканчивается после полной реплики");
+    expect(first!.reasons).not.toContain("Конец внутри реплики по таймкодам — возможен обрыв");
+  });
+
+  it("uses complete subtitle ends at 45 seconds, including without sentence punctuation", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 65_000_000,
+      source_in: 0, source_out: 65_000_000 };
+    const timed = { subtitle_segments: [
+      { start: 0, end: 42_800_000, text: "Начальная длинная речь" },
+      { start: 42_900_000, end: 49_000_000, text: "Следующая реплика" },
+    ] } as Sequence;
+    const first = rankLocalHighlights(timed, clip, Array(130).fill(0.2), 37,
+      { maxDurationSeconds: 45, minSubtitleCoveragePercent: 0 })
+      .find((item) => item.start === 0);
+    expect(first).toMatchObject({ end: 42_800_000 });
+    expect(first!.end - first!.start).toBeLessThanOrEqual(45_000_000);
+  });
+
+  it("refuses false complete edges inside overlapping subtitles and keeps audio-only fallback", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 40_000_000,
+      source_in: 0, source_out: 40_000_000 };
+    const overlapping = { subtitle_segments: [
+      { start: 0, end: 28_600_000, text: "Длинная реплика" },
+      { start: 28_200_000, end: 33_000_000, text: "Наложенная реплика" },
+    ] } as Sequence;
+    const options = { maxDurationSeconds: 30 as const, minSubtitleCoveragePercent: 0 as const };
+    const first = rankLocalHighlights(overlapping, clip, Array(80).fill(0.2), 38, options)
+      .find((item) => item.start === 0)!;
+    expect(first.end).toBe(30_000_000);
+    expect(first.reasons).toContain("Конец внутри реплики по таймкодам — возможен обрыв");
+    expect(first.reasons).not.toContain("Короткий фрагмент заканчивается после полной реплики");
+    expect(rankLocalHighlights({ subtitle_segments: [] } as unknown as Sequence,
+      clip, Array(80).fill(0.2), 38, options).find((item) => item.start === 0)?.end)
+      .toBe(30_000_000);
+  });
 });
