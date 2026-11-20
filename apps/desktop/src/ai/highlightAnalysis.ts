@@ -2,10 +2,20 @@ import type { Clip, Sequence } from "../generated/ipc";
 import type { HighlightCandidateView } from "./HighlightsPanel";
 
 const SECOND = 1_000_000;
-const WINDOW_US = 15 * SECOND;
 const STEP_US = 10 * SECOND;
 const PAUSE_US = 500_000;
 const MAX_SNAP_US = 2 * SECOND;
+
+// UI-only selection parameters. No project schema or Rust IPC changes.
+export interface HighlightSearchOptions {
+  maxDurationSeconds: 15 | 30 | 45;
+  minSubtitleCoveragePercent: 0 | 25 | 50 | 75;
+}
+
+export const DEFAULT_HIGHLIGHT_OPTIONS: HighlightSearchOptions = {
+  maxDurationSeconds: 15,
+  minSubtitleCoveragePercent: 0,
+};
 
 type TimedSegment = Sequence["subtitle_segments"][number];
 
@@ -58,8 +68,8 @@ function phraseBoundaries(segments: readonly TimedSegment[]): { starts: number[]
   return { starts, ends };
 }
 
-/** Time coverage from the union of subtitle intervals, never an ASR confidence. */
-function subtitleCoveragePercent(segments: readonly TimedSegment[], start: number, end: number): number {
+/** Unrounded union of timed subtitle intervals; not an ASR confidence score. */
+function subtitleCoverageFraction(segments: readonly TimedSegment[], start: number, end: number): number {
   let until = start;
   let covered = 0;
   for (const segment of segments) {
@@ -71,7 +81,7 @@ function subtitleCoveragePercent(segments: readonly TimedSegment[], start: numbe
       until = right;
     }
   }
-  return Math.round(100 * covered / (end - start));
+  return covered / (end - start);
 }
 
 function nearestPause(at: number, pauses: readonly number[]): number {
@@ -93,17 +103,20 @@ export function rankLocalHighlights(
   clip: Clip,
   peaks: readonly number[],
   revision: number,
+  options: HighlightSearchOptions = DEFAULT_HIGHLIGHT_OPTIONS,
 ): HighlightCandidateView[] {
   const duration = clip.timeline_end - clip.timeline_start;
   if (clip.kind !== "Video" || !Number.isSafeInteger(revision) ||
       !Number.isSafeInteger(duration) || duration <= 0 ||
       !Number.isSafeInteger(clip.source_out - clip.source_in) ||
       clip.source_out <= clip.source_in || peaks.length < 1 ||
-      peaks.length > 1024 || peaks.some((peak) => !Number.isFinite(peak) || peak < 0 || peak > 1)) {
+      peaks.length > 1024 || !([15, 30, 45] as number[]).includes(options.maxDurationSeconds) ||
+      !([0, 25, 50, 75] as number[]).includes(options.minSubtitleCoveragePercent) ||
+      peaks.some((peak) => !Number.isFinite(peak) || peak < 0 || peak > 1)) {
     return [];
   }
 
-  const span = Math.min(duration, WINDOW_US);
+  const span = Math.min(duration, options.maxDurationSeconds * SECOND);
   const lastStart = duration - span;
   const starts: number[] = [];
   for (let at = 0; at < lastStart; at += STEP_US) starts.push(at);
@@ -145,8 +158,11 @@ export function rankLocalHighlights(
           ? nearestPause(nominalEnd, phrases.ends) : pause;
       })();
     // A boundary must never collapse a useful Short into a tiny fragment.
-    const end = endCandidate - start >= Math.min(span, 8 * SECOND)
-      ? endCandidate : nominalEnd;
+    // The chosen duration is a hard maximum. A pause after the requested
+    // end must not silently add extra footage to the created Short.
+    const boundedEnd = Math.min(endCandidate, nominalEnd);
+    const end = boundedEnd - start >= Math.min(span, 8 * SECOND)
+      ? boundedEnd : nominalEnd;
     const actualSpan = end - start;
     // Waveform samples belong to the source in/out; proportionally map to
     // the edited timeline, including clip speed, before choosing peak indices.
@@ -177,9 +193,17 @@ export function rankLocalHighlights(
     // Text density alone can overrank a tiny subtitled fragment (including a
     // long caption on a very short interval). Reward genuine union coverage,
     // without interpreting subtitles as ASR confidence or semantic relevance.
-    const coverage = subtitleCoveragePercent(segments, start, end) / 100;
+    const coverage = subtitleCoverageFraction(segments, start, end);
+    const coveragePercent = Math.round(100 * coverage);
     const startOnPause = start !== clip.timeline_start && pauseStarts.includes(start);
     const endOnPause = pauseEnds.includes(end);
+    // A cut inside a real timed subtitle may interrupt speech. It is not
+    // evidence of an exact word boundary or the semantic end of a thought.
+    // Clip edges are unavoidable and must not be penalized.
+    const startCrossesSpeech = start > clip.timeline_start &&
+      segments.some((segment) => segment.start < start && start < segment.end);
+    const endCrossesSpeech = end < clip.timeline_end &&
+      segments.some((segment) => segment.start < end && end < segment.end);
     const startOnPhrase = !startOnPause && phrases.starts.includes(start);
     const endOnPhrase = end !== clip.timeline_end && !endOnPause && phrases.ends.includes(end);
     const boundarySignal = (Number(startOnPause || startOnPhrase) +
@@ -189,27 +213,32 @@ export function rankLocalHighlights(
     // marginally denser window that starts mid-phrase. True >=500ms pauses
     // have stronger evidence than punctuation-only sentence boundaries.
     const cleanStartBonus = startOnPause ? 0.08 : startOnPhrase ? 0.04 : 0;
-    const score = Math.min(1, active * 0.36 + levelSignal * 0.24 +
+    const cutPenalty = Number(startCrossesSpeech) * 0.05 + Number(endCrossesSpeech) * 0.05;
+    const score = Math.max(0, Math.min(1, active * 0.36 + levelSignal * 0.24 +
       Math.min(1, dynamics / 0.25) * 0.12 +
       textSignal * 0.05 + coverage * 0.13 + boundarySignal * 0.1 +
-      cleanStartBonus);
+      cleanStartBonus) - cutPenalty);
     const reasons: string[] = [];
     if (active >= 0.5) reasons.push("Активный звуковой фрагмент");
     if (dynamics >= 0.08) reasons.push("Перепады громкости");
     if (subtitles.length > 0) {
       reasons.push("Есть текст субтитров");
-      reasons.push(`Субтитры покрывают ${subtitleCoveragePercent(segments, start, end)}% фрагмента`);
+      reasons.push(`Субтитры покрывают ${coveragePercent}% фрагмента`);
     }
     if (startOnPause) reasons.push("Начало реплики после паузы");
     if (endOnPause) reasons.push("Пауза перед следующей репликой");
     if (startOnPhrase) reasons.push("Начало фразы по таймкодам субтитров");
     if (endOnPhrase) reasons.push("Конец фразы по таймкодам субтитров");
+    if (startCrossesSpeech) reasons.push("Начало внутри реплики по таймкодам — возможен обрыв");
+    if (endCrossesSpeech) reasons.push("Конец внутри реплики по таймкодам — возможен обрыв");
     if (reasons.length === 0 && mean >= 0.005) reasons.push("Ненулевой аудиосигнал");
     return {
       start, end, score, reasons, source_revision: revision,
       hasEvidence: mean >= 0.005 || subtitles.length > 0,
+      coverage,
     };
-  }).filter((candidate) => candidate.hasEvidence)
+  }).filter((candidate) => candidate.hasEvidence &&
+    candidate.coverage >= options.minSubtitleCoveragePercent / 100)
     .sort((a, b) => b.score - a.score || a.start - b.start);
 
   const selected: HighlightCandidateView[] = [];
@@ -217,8 +246,9 @@ export function rankLocalHighlights(
     if (selected.every((other) =>
       Math.max(0, Math.min(other.end, candidate.end) - Math.max(other.start, candidate.start)) <
         (candidate.end - candidate.start) * 0.5)) {
-      const { hasEvidence: _unused, ...view } = candidate;
+      const { hasEvidence: _unused, coverage: _coverage, ...view } = candidate;
       void _unused;
+      void _coverage;
       selected.push(view);
       if (selected.length >= 5) break;
     }
