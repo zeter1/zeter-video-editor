@@ -1,3 +1,13 @@
+# CURRENT PRODUCT DEVELOPMENT — ZVE-030: precise manual Short in/out before Create / 0.1.0-alpha.49 (2026-11-20)
+
+- **BASE / BRANCH:** GitHub and clean Windows main `c47b4913171a7b92bbbd43ac08bf6c9f3c9021ee`, PR #115 ZVE-029 MERGED. Post-merge main Actions run #44771834639 Windows job COMPLETED/SUCCESS. New Windows branch `feat/zve-030-manual-short-boundaries-20261120`. Original old draft PRs #85/#93 remain separate/unmerged.
+- **PRODUCT:** `CreateShortDialog.tsx` adds frame-by-frame start/end editing via HH:MM:SS:FF and two timeline-frame sliders, with strict selected 15/30/45s limit, clip bounds, >=1 frame, visible validation, reset to exact unrounded suggestion, and transient preview. `HighlightsPanel.tsx` passes actual selected limit through `HighlightsWorkspace.tsx`; `AppShell.tsx` checks pending project/clip/revision/sequence/FPS/range before passing edited candidate to existing Rust Create Short (one atomic AddSequence). Source media, project schema, Rust IPC, multi-track trim, undo and 9:16 FFmpeg contract unchanged. No cloud/new model/AGPL code.
+- **WINDOWS TDD AND ACCEPTANCE:** 3 relevant unit tests intentionally RED before code (log `target/zve030-red-20261120.log`) then 10/10 focused PASS (`target/zve030-focused-20261120.log`); TypeScript/Vite build PASS (`target/zve030-build-20261120.log`). Genuine local Tauri/WebView2 E2E 1/1 PASS after adjusting 0–29.0s suggested AAC waveform Short to 0.5–28.5s, preview no Rust revision mutation, Undo/Redo, .vcut save/reopen, real FFmpeg H264/AAC 28.0s MP4 1080x1920 independently FFprobed (`target/zve030-native-short-20261120.log`). This E2E used alpha.48 source before metadata-only alpha.49 version bump, so repeat exact-final validation.
+- **VERSION / SOURCE:** alpha.49 bump via `scripts/set-version.mjs` once; version checker passed. FilmCraft `crates/edit/src/transcript.rs`: clamped sequence-time/frame-aware editing; Concat `src/crates/concat/src/panes/captions.rs`: local confirmed one-undo-step workflow. Independent implementation; AGPL code/assets not copied.
+- **REMAINING GATES:** complete alpha.49 frontend/Rust/version suites, exact-source native Windows full regression (4 shards + isolated stress), unsigned DEBUG EXE and NSIS/hash, code review, commit/push/draft PR, exact-head GitHub Actions terminal SUCCESS, then permissioned protected merge/readback and Google checkpoint. No install, signing, tag, release, auto-update. **NEXT PRODUCT-CODE TASK AFTER ZVE-030:** ZVE-031: editable on-screen range handles with magnetic snapping to genuine subtitle/audio pause edges and optional snap disable; deterministic frame-time validation, no destructive edits, full Windows preview/Undo/.vcut/FFmpeg acceptance.
+
+---
+
 # CURRENT PRODUCT DEVELOPMENT — ZVE-029: measured waveform + subtitle Short boundaries / 0.1.0-alpha.48 (2026-11-20)
 
 - **VERIFIED BASE:** clean Windows/GitHub main `dfbdb10989df89cdb2be3f368da5d9a0594f361c` with ZVE-028 PR #114 merged. New branch `feat/zve-029-waveform-subtitle-boundaries-20261120` at this base. Prior older draft PRs #85/#93 are not shipped. Main post-merge CI #44733405942 was IN_PROGRESS at the initial check; do not claim its outcome without readback.
@@ -1328,7 +1338,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.48` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.49` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
