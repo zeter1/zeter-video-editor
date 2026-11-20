@@ -45,6 +45,20 @@ function pauseBoundaries(segments: readonly TimedSegment[]): Array<{ start: numb
   return boundaries;
 }
 
+/** Complete timed subtitle ends, not mid-word guesses. Consecutive intervals
+ * are separate opportunities; overlapping intervals share their union end. */
+function completeSubtitleEnds(segments: readonly TimedSegment[]): number[] {
+  const ends: number[] = [];
+  let coveredUntil = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < segments.length; i++) {
+    coveredUntil = Math.max(coveredUntil, segments[i].end);
+    if (coveredUntil <= (segments[i + 1]?.start ?? Number.POSITIVE_INFINITY)) {
+      ends.push(coveredUntil);
+    }
+  }
+  return ends;
+}
+
 /** A sentence boundary is real only at the edge of a timed subtitle segment.
  * Punctuation *within* one segment supplies no word-level timing evidence.
  * Overlapping segments cannot provide a new phrase edge. */
@@ -124,6 +138,7 @@ export function rankLocalHighlights(
 
   const segments = validTimedSegments(sequence, clip);
   const pauses = pauseBoundaries(segments);
+  const completedEnds = completeSubtitleEnds(segments);
   const pauseStarts = pauses.map((pause) => pause.start);
   const pauseEnds = pauses.map((pause) => pause.end);
   const phrases = phraseBoundaries(segments);
@@ -161,8 +176,18 @@ export function rankLocalHighlights(
     // The chosen duration is a hard maximum. A pause after the requested
     // end must not silently add extra footage to the created Short.
     const boundedEnd = Math.min(endCandidate, nominalEnd);
-    const end = boundedEnd - start >= Math.min(span, 8 * SECOND)
+    const initialEnd = boundedEnd - start >= Math.min(span, 8 * SECOND)
       ? boundedEnd : nominalEnd;
+    // For longer Shorts, do not cut into the next timed utterance when the
+    // preceding complete subtitle ends within 3 seconds. Stay under the hard
+    // cap; preserve the older 15-second selection and audio-only fallback.
+    const wouldCutSpeech = initialEnd < clip.timeline_end && segments.some((segment) =>
+      segment.start < initialEnd && initialEnd < segment.end);
+    const safeFloor = Math.max(start + Math.min(span, 8 * SECOND), initialEnd - 3 * SECOND);
+    const lastComplete = options.maxDurationSeconds > 15 && wouldCutSpeech
+      ? completedEnds.filter((point) => point >= safeFloor && point < initialEnd).at(-1)
+      : undefined;
+    const end = lastComplete ?? initialEnd;
     const actualSpan = end - start;
     // Waveform samples belong to the source in/out; proportionally map to
     // the edited timeline, including clip speed, before choosing peak indices.
@@ -229,6 +254,7 @@ export function rankLocalHighlights(
     if (endOnPause) reasons.push("Пауза перед следующей репликой");
     if (startOnPhrase) reasons.push("Начало фразы по таймкодам субтитров");
     if (endOnPhrase) reasons.push("Конец фразы по таймкодам субтитров");
+    if (lastComplete !== undefined) reasons.push("Короткий фрагмент заканчивается после полной реплики");
     if (startCrossesSpeech) reasons.push("Начало внутри реплики по таймкодам — возможен обрыв");
     if (endCrossesSpeech) reasons.push("Конец внутри реплики по таймкодам — возможен обрыв");
     if (reasons.length === 0 && mean >= 0.005) reasons.push("Ненулевой аудиосигнал");

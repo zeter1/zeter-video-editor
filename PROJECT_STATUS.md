@@ -1,3 +1,14 @@
+# CURRENT PRODUCT DEVELOPMENT — ZVE-028: complete timed-utterance Shorts / 0.1.0-alpha.47 (2026-11-20)
+
+- **BASE / BRANCH:** verified clean GitHub/Windows main `13056110b101fa8bf6b95e75a235f4237a035a54` after #113 MERGED; exact PR #113 CI #44710533681 and post-merge main CI #44721602270 COMPLETED/SUCCESS. Current Windows branch `feat/zve-028-complete-utterance-shorts-20261120` was created from this main. Two old unrelated PRs #85/#93 remain open; their work is not assumed shipped.
+- **PRODUCT:** `highlightAnalysis.ts` independently computes real complete subtitle interval ends from sorted union of overlapping intervals. For max 30/45-second Highlights, if a nominal cut lies inside a timed utterance, move it backwards by <=3s to the most recent complete utterance end, within the original strict duration and >=8-second useful minimum. If there is no safe end, retain the cut and clear existing truncation warning. Do not infer word timestamps or semantic AI, do not change 15-second default, audio-only fallback, project model, Rust IPC, .vcut schema, user source files or cloud. `HighlightsPanel.tsx` explains behavior and reason.
+- **TDD:** added three cases for 30s (30.0 -> 28.6), 45s (45.0 -> 42.8), overlapping subtitles never causing false complete ends, and audio-only fallback. Two tests RED before product code (`target/zve028-tdd-red-20261120.log`), then 22/22 GREEN (`target/zve028-tdd-green-20261120.log`). All 315/315 Vitest (64 files), TypeScript/Vite build, Rust workspace, cargo fmt, version-policy 8/8, version consistency passed locally (logs under `target/zve028-*-20261120.log`). Exact final source checks to repeat after changes.
+- **REAL NATIVE WINDOWS ACCEPTANCE:** new `apps/desktop/e2e/create-short-complete-utterances.spec.ts` PASSED 1/1 on actual Tauri/WebView2, not a mocked editor: creates 41.8s H.264/AAC media, analyzes timed captions, shows candidate 0-28.6s, checks preview is non-mutating, creates Rust 1080x1920 Short, Undo/Redo, saves and reopens .vcut, exports real MP4 H.264/AAC checked by FFprobe (log `target/zve028-native-short-20261120.log`). Full exact-source 4-shard + 4-isolated Windows suite is still required before merge; do not report as passed prematurely.
+- **SOURCE IDEAS:** verified FilmCraft `crates/edit/src/transcript.rs` coverage and exact transcript times and Concat `src/crates/concat/src/panes/captions.rs` local captions/command model. Only independently implemented an analogous bounded subtitle-interval boundary heuristic; NO Concat AGPL code or assets copied.
+- **GITHUB / RELEASE GATES:** new desktop version set exactly once to 0.1.0-alpha.47 via scripts/set-version.mjs; CHANGELOG entry present. PR/push/CI exact new SHA, full native matrix, final Windows DEBUG EXE/NSIS and hashes still pending when this checkpoint written. No install, signature, tag, public release or auto-update authorized.
+- **NEXT PRODUCT-CODE TASK ZVE-029:** after ZVE-028 gates/merge, refine safe Short start/end ranking where genuine subtitle intervals conflict with waveform pause evidence; keep explicit confidence limitations and strict duration, prove native 9:16 MP4 plus Undo/Redo and save/reopen without any new AI model or schema.
+
+---
 # CURRENT PRODUCT DEVELOPMENT — ZVE-027: configurable speech-safe Shorts / 0.1.0-alpha.46 (2026-11-20)
 
 - **STARTING POINT:** verified GitHub `main` and clean Windows checkout at `9056b75044fdab6bf472e4df4bd7edbaf49d6b8e`, after ZVE-026 product PR #112 MERGED. Previous post-merge `main` CI [#44704310258](https://github.com/zeter1/zeter-video-editor/actions/runs/44704310258) was independently confirmed terminal SUCCESS. New dedicated Windows worktree branch: `feat/zve-027-short-selection-controls-20261120`. Existing ZVE-026 code was not repeated.
@@ -1307,7 +1318,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.46` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.47` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

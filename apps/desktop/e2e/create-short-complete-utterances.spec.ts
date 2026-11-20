@@ -1,0 +1,169 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { expect, test } from "@playwright/test";
+import { connectTauri, invokeTauri } from "./tauri";
+
+type NativeProject = {
+  revision: number;
+  project: {
+    sequences: Array<{
+      id: string; width: number; height: number;
+      tracks: Array<{ id: string; kind: string; clips: Array<{
+        id: string; kind: string; media_id: string;
+        source_in: number; source_out: number;
+        timeline_start: number; timeline_end: number; speed: number;
+        transform: { crop: { left: number; right: number; top: number; bottom: number } };
+      }> }>;
+      subtitle_segments: unknown[]; markers: unknown[];
+    }>;
+    media: Array<{ id: string; absolute_path: string; file_size: number;
+      duration: number | null; width: number | null; height: number | null }>;
+  };
+};
+
+test("ZVE-028 completes adjacent timed utterances at Short duration cap -> native Undo/Redo -> .vcut -> MP4", async () => {
+  test.setTimeout(300_000);
+  const { page, state } = await connectTauri();
+  const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
+  const ffprobe = path.join(state.runtimeDir, "ffprobe.exe");
+  const directory = path.dirname(state.workflowProjectPath);
+  const sourcePath = path.join(directory, "zve028-timed-aac.mp4");
+  const projectPath = path.join(directory, "zve028-highlights.vcut");
+  const savePath = path.join(directory, "zve028-highlights-saved.vcut");
+  const exportPath = path.join(directory, "zve028-short-export.mp4");
+
+  // Genuine local audio activity, not mocked AI candidates or synthetic IPC.
+  execFileSync(ffmpeg, [
+    "-hide_banner", "-loglevel", "error", "-y",
+    "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30",
+    "-f", "lavfi", "-i", "sine=frequency=700:sample_rate=48000",
+    "-t", "41.8", "-c:v", "libx264", "-preset", "ultrafast",
+    "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k",
+    "-shortest", sourcePath,
+  ], { windowsHide: true });
+
+  const fixture = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as NativeProject;
+  const source = fixture.project.sequences[0];
+  const videoTrack = source.tracks.find((track) => track.kind === "Video" && track.clips.length > 0);
+  if (!videoTrack) throw Error("Native project is missing a Video track");
+  const original = videoTrack.clips[0];
+  const media = fixture.project.media.find((item) => item.id === original.media_id);
+  if (!media) throw Error("Native project is missing source media");
+  media.absolute_path = sourcePath;
+  media.file_size = statSync(sourcePath).size;
+  media.width = 640;
+  media.height = 360;
+  media.duration = 41_800_000;
+  original.source_in = 0;
+  original.source_out = 40_000_000;
+  original.timeline_start = 0;
+  original.timeline_end = 40_000_000;
+  original.speed = 1;
+  videoTrack.clips = [original];
+  for (const track of source.tracks) {
+    if (track !== videoTrack) track.clips = [];
+  }
+  source.subtitle_segments = [
+    { start: 0, end: 28_600_000, text: "Первая длинная реплика без точки" },
+    { start: 28_800_000, end: 32_500_000, text: "Связанная следующая реплика" },
+    { start: 32_700_000, end: 39_000_000, text: "Дальнейшее продолжение" },
+  ];
+  source.markers = [];
+  fixture.revision = 0;
+  writeFileSync(projectPath, JSON.stringify(fixture, null, 2));
+
+  await invokeTauri(page, "project_open", { path: projectPath });
+  await page.reload();
+  const before = await invokeTauri<NativeProject>(page, "project_snapshot");
+  await page.getByTestId(`clip-${original.id}`).dispatchEvent("click");
+  await page.getByRole("button", { name: "AI-инструменты" }).click();
+  const analyze = page.getByRole("button", { name: "Найти хайлайты" });
+  await expect(analyze).toBeEnabled();
+  await analyze.click();
+  // Change options on the same analyzed waveform; there is no second Analyze click.
+  await page.getByRole("combobox", { name: "Максимальная длительность Short" })
+    .selectOption("30");
+  await page.getByRole("combobox", { name: "Минимальное покрытие субтитрами" })
+    .selectOption("75");
+  const article = page.locator(".highlight-candidates article")
+    .filter({ hasText: "0.0 с – 28.6 с" });
+  const candidate = article.getByRole("button", { name: "Создать Short из хайлайта" });
+  await expect(candidate).toBeEnabled({ timeout: 90_000 });
+  await expect(article.getByText("Есть текст субтитров")).toBeVisible();
+  await expect(article.getByText(/Кандидат №\d+ из/)).toBeVisible();
+  await expect(article.getByText("Субтитры покрывают 100% фрагмента")).toBeVisible();
+  await expect(article.getByText("Короткий фрагмент заканчивается после полной реплики")).toBeVisible();
+  // Range preview is only transient, never a project edit.
+  await article.getByRole("button", { name: "Предпросмотр фрагмента" }).click();
+  expect((await invokeTauri<NativeProject>(page, "project_snapshot")).revision).toBe(before.revision);
+
+  await candidate.click();
+  const dialog = page.getByRole("dialog", { name: "Create Short" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Создать Short из хайлайта")).toBeVisible();
+  await dialog.getByRole("spinbutton", { name: "Crop left" }).fill("0.20");
+  await dialog.getByRole("button", { name: "Создать Short" }).click();
+
+  await expect.poll(async () =>
+    (await invokeTauri<NativeProject>(page, "project_snapshot")).project.sequences.length,
+  ).toBe(before.project.sequences.length + 1);
+  const created = await invokeTauri<NativeProject>(page, "project_snapshot");
+  expect(created.revision).toBe(before.revision + 1);
+  expect(created.project.sequences[0]).toEqual(before.project.sequences[0]);
+  const short = created.project.sequences.at(-1)!;
+  expect([short.width, short.height]).toEqual([1080, 1920]);
+  const shortClip = short.tracks.flatMap((track) => track.clips)
+    .find((clip) => clip.kind === "Video")!;
+  expect(shortClip.id).not.toBe(original.id);
+  expect(shortClip.media_id).toBe(original.media_id);
+  expect(shortClip.source_in).toBe(0);
+  expect(shortClip.source_out).toBe(28_600_000);
+  expect(shortClip.timeline_start).toBe(0);
+  expect(shortClip.timeline_end).toBe(28_600_000);
+  expect(short.subtitle_segments.length).toBeGreaterThan(0);
+  expect(shortClip.transform.crop.left).toBeCloseTo(0.20, 5);
+  await expect(page.getByRole("combobox", { name: "Последовательность" })).toHaveValue(short.id);
+
+  await page.getByRole("button", { name: "Отменить" }).click();
+  await expect.poll(async () =>
+    (await invokeTauri<NativeProject>(page, "project_snapshot")).project.sequences.length,
+  ).toBe(before.project.sequences.length);
+  await page.getByRole("button", { name: "Повторить" }).click();
+  await expect.poll(async () =>
+    (await invokeTauri<NativeProject>(page, "project_snapshot")).project.sequences.length,
+  ).toBe(before.project.sequences.length + 1);
+
+  await invokeTauri(page, "project_save", { path: savePath });
+  await invokeTauri(page, "project_open", { path: savePath });
+  await page.reload();
+  const restored = await invokeTauri<NativeProject>(page, "project_snapshot");
+  const restoredClip = restored.project.sequences.at(-1)!.tracks
+    .flatMap((track) => track.clips).find((clip) => clip.kind === "Video")!;
+  expect(restoredClip.transform.crop.left).toBeCloseTo(0.20, 5);
+  expect(restoredClip.source_out).toBe(28_600_000);
+  expect(restored.project.sequences[0]).toEqual(before.project.sequences[0]);
+
+  const exportJob = await invokeTauri<{ job_id: string }>(
+    page, "start_export_mp4", { sequenceId: short.id, outputPath: exportPath });
+  await expect.poll(async () => {
+    const current = await invokeTauri<{ state: string; failure?: unknown }>(
+      page, "get_job_state", { jobId: exportJob.job_id });
+    if (current.state === "Failed" || current.state === "Cancelled") {
+      throw Error("Real ZVE-028 FFmpeg export failed: " + JSON.stringify(current));
+    }
+    return current.state;
+  }, { timeout: 160_000 }).toBe("Completed");
+  const info = JSON.parse(execFileSync(ffprobe, [
+    "-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration",
+    "-of", "json", exportPath,
+  ], { encoding: "utf8", windowsHide: true })) as {
+    streams: Array<{ codec_type: string; width?: number; height?: number }>;
+    format: { duration: string };
+  };
+  expect(info.streams.find((stream) => stream.codec_type === "video"))
+    .toMatchObject({ width: 1080, height: 1920 });
+  expect(info.streams.some((stream) => stream.codec_type === "audio")).toBe(true);
+  expect(Number(info.format.duration)).toBeGreaterThan(28.4);
+  expect(Number(info.format.duration)).toBeLessThan(28.8);
+});
