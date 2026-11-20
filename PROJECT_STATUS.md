@@ -1,3 +1,13 @@
+# CURRENT PRODUCT DEVELOPMENT — ZVE-029: measured waveform + subtitle Short boundaries / 0.1.0-alpha.48 (2026-11-20)
+
+- **VERIFIED BASE:** clean Windows/GitHub main `dfbdb10989df89cdb2be3f368da5d9a0594f361c` with ZVE-028 PR #114 merged. New branch `feat/zve-029-waveform-subtitle-boundaries-20261120` at this base. Prior older draft PRs #85/#93 are not shipped. Main post-merge CI #44733405942 was IN_PROGRESS at the initial check; do not claim its outcome without readback.
+- **PRODUCT RESULT:** For 30/45-second Short suggestions, `highlightAnalysis.ts` detects real >=500ms quiet FFmpeg waveform buckets flanked by active audio, samples up to 48 quiet-to-active starts and allows quiet-onset ends near the window limit. Rejects proposed audio pause windows overlapping any valid timed subtitle (including overlapping captions). Verified complete subtitle-utterance ends outrank coarse waveform cuts. Ties with genuine subtitle pause edges increase transparent relative ranking; displayed reasons distinguish measured audio silence from transcript evidence. Audio-only clips can now end before a hard cap at a measured quiet region. Existing 15-second defaults, revision-scoped cache, filter limits, Core/IPC, .vcut schema and FFmpeg export contract unchanged. These are amplitude-based possible edit points, not word timestamps or semantic speech judgments.
+- **TDD:** 3 new focused regressions (audio-only start/end, conflicting overlapping captions, agreement without fake word times). Before product patch: 2 expected RED failures in `target/zve029-red-20261120.log`. After patch: focused 25/25 GREEN. Later full frontend at alpha.48: 64 files/318 tests PASS (`target/zve029-all-vitest-20261120.log`), TS/Vite PASS, policy 8/8 PASS, `cargo fmt --all -- --check` PASS, `cargo test --workspace` PASS, version consistency alpha.48 PASS.
+- **REAL NATIVE WINDOWS:** dedicated WebView2 E2E `create-short-waveform-boundaries.spec.ts` created actual H264/AAC 41.8s synthetic media with FFmpeg-filtered 1s quiet at source 28.5–29.5s; independent FFmpeg `silencedetect` measured 28.501333–29.504s. The FFmpeg waveform preview quantizes that pause to 29.0s candidate cut, not an invented 28.5s exact timestamp. An initial strict native assertion failed looking for 28.5s, corrected against independently observed real audio/visible candidate. Retest PASSED 1/1 (31.7s test) with new UI range 0–29.0s → native Short 1080x1920, Preview no Rust mutation, Undo/Redo, save/reopen .vcut and actual FFmpeg H264/AAC MP4 validated by FFprobe. E2E ran at alpha.47 before metadata-only alpha.48 bump; exact-final-source entire native suite and final DEBUG NSIS still required for merge.
+- **REFERENCE / LICENSE:** independently adapted FilmCraft `crates/edit/src/transcript.rs` idea of authoritative sequence-time coverage and Concat `src/crates/concat/src/panes/captions.rs` emphasis on undoable local captions. Concat is AGPL-3.0-or-later; no code/assets copied. The Zeter algorithm uses only its existing stack and original code.
+- **GATES / NEXT:** full four-shard native Windows E2E plus four isolated media/AAC/2x stress checks, unsigned DEBUG EXE/NSIS exact HEAD, hashes, GitHub push/draft PR, self-review, exact-HEAD Actions terminal SUCCESS, then permitted merge/readback. No install, signature, tag, Release or auto-update. Following product idea ZVE-030: editable preview range handles for suggested Shorts with explicit frame-aware confirmation, without weakening original project/undo/export contracts.
+
+---
 # CURRENT PRODUCT DEVELOPMENT — ZVE-028: complete timed-utterance Shorts / 0.1.0-alpha.47 (2026-11-20)
 
 - **BASE / BRANCH:** verified clean GitHub/Windows main `13056110b101fa8bf6b95e75a235f4237a035a54` after #113 MERGED; exact PR #113 CI #44710533681 and post-merge main CI #44721602270 COMPLETED/SUCCESS. Current Windows branch `feat/zve-028-complete-utterance-shorts-20261120` was created from this main. Two old unrelated PRs #85/#93 remain open; their work is not assumed shipped.
@@ -1318,7 +1328,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.47` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.48` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

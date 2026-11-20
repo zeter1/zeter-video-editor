@@ -6,6 +6,14 @@
 
 > Версия исходного кода или тестовой сборки **не равнозначна опубликованному релизу**. Статус выпуска указан в каждом разделе. GitHub Actions DEBUG/NSIS artifact — не подписанный публичный выпуск.
 
+## [0.1.0-alpha.48] — 2026-11-20
+
+> Предварительная версия разработки, пока не опубликована публично.
+
+### Изменено
+
+- ZVE-029: reconcile measured quiet waveform gaps with timed subtitles for speech-safe 30/45-second Shorts; preserve 15-second defaults and native export parity.
+
 ## [0.1.0-alpha.47] — 2026-11-20
 
 > Предварительная версия разработки, пока не опубликована публично.

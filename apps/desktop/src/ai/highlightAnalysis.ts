@@ -5,6 +5,8 @@ const SECOND = 1_000_000;
 const STEP_US = 10 * SECOND;
 const PAUSE_US = 500_000;
 const MAX_SNAP_US = 2 * SECOND;
+const QUIET_PEAK = 0.012;
+const ACTIVE_PEAK = 0.04;
 
 // UI-only selection parameters. No project schema or Rust IPC changes.
 export interface HighlightSearchOptions {
@@ -98,6 +100,33 @@ function subtitleCoverageFraction(segments: readonly TimedSegment[], start: numb
   return covered / (end - start);
 }
 
+/** Detect sustained low-level regions in actual FFmpeg peak buckets. A quiet
+ * region is only a *possible edit point*, not proof of speech or word timing.
+ * Ignore gaps that conflict with any authoritative timed subtitle (including
+ * overlapping segments), and require audible levels on both sides. */
+function waveformQuietGaps(
+  peaks: readonly number[], clip: Clip, segments: readonly TimedSegment[],
+): Array<{ start: number; end: number }> {
+  const duration = clip.timeline_end - clip.timeline_start;
+  const bucketUs = duration / peaks.length;
+  const gaps: Array<{ start: number; end: number }> = [];
+  for (let i = 0; i < peaks.length;) {
+    if (peaks[i] > QUIET_PEAK) { i++; continue; }
+    let j = i + 1;
+    while (j < peaks.length && peaks[j] <= QUIET_PEAK) j++;
+    if ((j - i) * bucketUs >= PAUSE_US && i > 0 && j < peaks.length &&
+        peaks[i - 1] >= ACTIVE_PEAK && peaks[j] >= ACTIVE_PEAK) {
+      const start = Math.round(clip.timeline_start + i * bucketUs);
+      const end = Math.round(clip.timeline_start + j * bucketUs);
+      if (!segments.some((segment) => segment.start < end && segment.end > start)) {
+        gaps.push({ start, end });
+      }
+    }
+    i = j;
+  }
+  return gaps;
+}
+
 function nearestPause(at: number, pauses: readonly number[]): number {
   let nearest = at;
   let distance = MAX_SNAP_US + 1;
@@ -139,6 +168,12 @@ export function rankLocalHighlights(
   const segments = validTimedSegments(sequence, clip);
   const pauses = pauseBoundaries(segments);
   const completedEnds = completeSubtitleEnds(segments);
+  // The 15-second default deliberately retains its proven selection policy.
+  // Longer Shorts additionally consider genuine low-level waveform buckets.
+  const quietGaps = options.maxDurationSeconds > 15
+    ? waveformQuietGaps(peaks, clip, segments) : [];
+  const quietStarts = quietGaps.map((gap) => gap.end);
+  const quietEnds = quietGaps.map((gap) => gap.start);
   const pauseStarts = pauses.map((pause) => pause.start);
   const pauseEnds = pauses.map((pause) => pause.end);
   const phrases = phraseBoundaries(segments);
@@ -151,6 +186,14 @@ export function rankLocalHighlights(
   const stride = Math.max(1, Math.ceil(phraseStarts.length / 48));
   for (let i = 0; i < phraseStarts.length; i += stride) {
     starts.push(phraseStarts[i] - clip.timeline_start);
+  }
+  // Waveform-only content has no transcript boundaries to snap to. Sample at
+  // most 48 observed quiet-to-active edges, never inside a timed utterance.
+  const quietStride = Math.max(1, Math.ceil(quietStarts.length / 48));
+  for (let i = 0; i < quietStarts.length; i += quietStride) {
+    if (quietStarts[i] <= clip.timeline_end - Math.min(span, 8 * SECOND)) {
+      starts.push(quietStarts[i] - clip.timeline_start);
+    }
   }
   const uniqueStarts = [...new Set(starts)].sort((a, b) => a - b);
   const candidates = uniqueStarts.map((offset) => {
@@ -178,6 +221,13 @@ export function rankLocalHighlights(
     const boundedEnd = Math.min(endCandidate, nominalEnd);
     const initialEnd = boundedEnd - start >= Math.min(span, 8 * SECOND)
       ? boundedEnd : nominalEnd;
+    // If the older subtitle policy leaves a full 30/45s end, a measured
+    // quiet onset just before the cap can avoid a hard audio cut. Never infer
+    // a cut inside a timed utterance or expand the selected duration.
+    const quietEnd = nearestPause(nominalEnd, quietEnds);
+    const audioEnd = initialEnd === nominalEnd && quietEnds.includes(quietEnd) &&
+      quietEnd < nominalEnd && quietEnd - start >= Math.min(span, 8 * SECOND)
+      ? quietEnd : undefined;
     // For longer Shorts, do not cut into the next timed utterance when the
     // preceding complete subtitle ends within 3 seconds. Stay under the hard
     // cap; preserve the older 15-second selection and audio-only fallback.
@@ -187,7 +237,8 @@ export function rankLocalHighlights(
     const lastComplete = options.maxDurationSeconds > 15 && wouldCutSpeech
       ? completedEnds.filter((point) => point >= safeFloor && point < initialEnd).at(-1)
       : undefined;
-    const end = lastComplete ?? initialEnd;
+    // A completed timed utterance outranks a coarse waveform bucket edge.
+    const end = lastComplete ?? audioEnd ?? initialEnd;
     const actualSpan = end - start;
     // Waveform samples belong to the source in/out; proportionally map to
     // the edited timeline, including clip speed, before choosing peak indices.
@@ -222,6 +273,10 @@ export function rankLocalHighlights(
     const coveragePercent = Math.round(100 * coverage);
     const startOnPause = start !== clip.timeline_start && pauseStarts.includes(start);
     const endOnPause = pauseEnds.includes(end);
+    const startOnWavePause = quietStarts.includes(start);
+    const endOnWavePause = quietEnds.includes(end);
+    const matchedEvidence = (startOnWavePause && startOnPause) ||
+      (endOnWavePause && endOnPause);
     // A cut inside a real timed subtitle may interrupt speech. It is not
     // evidence of an exact word boundary or the semantic end of a thought.
     // Clip edges are unavoidable and must not be penalized.
@@ -238,11 +293,13 @@ export function rankLocalHighlights(
     // marginally denser window that starts mid-phrase. True >=500ms pauses
     // have stronger evidence than punctuation-only sentence boundaries.
     const cleanStartBonus = startOnPause ? 0.08 : startOnPhrase ? 0.04 : 0;
+    const waveformBonus = Number(startOnWavePause) * 0.04 +
+      Number(endOnWavePause) * 0.035 + Number(matchedEvidence) * 0.025;
     const cutPenalty = Number(startCrossesSpeech) * 0.05 + Number(endCrossesSpeech) * 0.05;
     const score = Math.max(0, Math.min(1, active * 0.36 + levelSignal * 0.24 +
       Math.min(1, dynamics / 0.25) * 0.12 +
       textSignal * 0.05 + coverage * 0.13 + boundarySignal * 0.1 +
-      cleanStartBonus) - cutPenalty);
+      cleanStartBonus + waveformBonus) - cutPenalty);
     const reasons: string[] = [];
     if (active >= 0.5) reasons.push("Активный звуковой фрагмент");
     if (dynamics >= 0.08) reasons.push("Перепады громкости");
@@ -252,6 +309,9 @@ export function rankLocalHighlights(
     }
     if (startOnPause) reasons.push("Начало реплики после паузы");
     if (endOnPause) reasons.push("Пауза перед следующей репликой");
+    if (startOnWavePause) reasons.push("Начало после тихого участка аудио");
+    if (endOnWavePause) reasons.push("Конец перед тихим участком аудио");
+    if (matchedEvidence) reasons.push("Тихий участок аудио совпадает с границей субтитров");
     if (startOnPhrase) reasons.push("Начало фразы по таймкодам субтитров");
     if (endOnPhrase) reasons.push("Конец фразы по таймкодам субтитров");
     if (lastComplete !== undefined) reasons.push("Короткий фрагмент заканчивается после полной реплики");

@@ -334,4 +334,61 @@ describe("rankLocalHighlights", () => {
       clip, Array(80).fill(0.2), 38, options).find((item) => item.start === 0)?.end)
       .toBe(30_000_000);
   });
+
+  it("finds source-backed quiet gaps for audio-only Short starts and ends", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 60_000_000,
+      source_in: 0, source_out: 60_000_000 };
+    const peaks = Array(120).fill(0.2);
+    peaks[40] = 0; peaks[41] = 0; // Real waveform bins: 20.0s to 21.0s.
+    const empty = { subtitle_segments: [] } as unknown as Sequence;
+    const ranked = rankLocalHighlights(empty, clip, peaks, 39,
+      { maxDurationSeconds: 30, minSubtitleCoveragePercent: 0 });
+    expect(ranked.find((item) => item.start === 21_000_000)?.reasons)
+      .toContain("Начало после тихого участка аудио");
+    const beforeGap = Array(80).fill(0.2);
+    beforeGap[57] = 0; beforeGap[58] = 0; // 28.5s to 29.5s.
+    const endClip = { ...clip, timeline_end: 40_000_000, source_out: 40_000_000 };
+    const first = rankLocalHighlights(empty, endClip, beforeGap, 39,
+      { maxDurationSeconds: 30, minSubtitleCoveragePercent: 0 })
+      .find((item) => item.start === 0);
+    expect(first).toMatchObject({ start: 0, end: 28_500_000 });
+    expect(first!.reasons).toContain("Конец перед тихим участком аудио");
+  });
+
+  it("rejects waveform pauses inside timed speech, including overlapping captions", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 60_000_000,
+      source_in: 0, source_out: 60_000_000 };
+    const peaks = Array(120).fill(0.2);
+    peaks[40] = 0; peaks[41] = 0;
+    const timed = { subtitle_segments: [
+      { start: 0, end: 23_000_000, text: "Речь продолжается без подтверждённой паузы" },
+      { start: 18_000_000, end: 22_000_000, text: "Наложенная реплика" },
+    ] } as Sequence;
+    const ranked = rankLocalHighlights(timed, clip, peaks, 40,
+      { maxDurationSeconds: 30, minSubtitleCoveragePercent: 0 });
+    expect(ranked.some((item) => item.start === 21_000_000)).toBe(false);
+    expect(ranked.flatMap((item) => item.reasons))
+      .not.toContain("Начало после тихого участка аудио");
+  });
+
+  it("uses waveform/subtitle agreement without inventing word times or overriding 15s defaults", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 60_000_000,
+      source_in: 0, source_out: 60_000_000 };
+    const peaks = Array(120).fill(0.2);
+    peaks[40] = 0; peaks[41] = 0;
+    const timed = { subtitle_segments: [
+      { start: 0, end: 20_000_000, text: "Первое высказывание" },
+      { start: 21_000_000, end: 55_000_000, text: "Следующее высказывание" },
+    ] } as Sequence;
+    const candidate = rankLocalHighlights(timed, clip, peaks, 41,
+      { maxDurationSeconds: 30, minSubtitleCoveragePercent: 0 })
+      .find((item) => item.start === 21_000_000);
+    expect(candidate).toBeDefined();
+    expect(candidate!.reasons).toContain("Начало реплики после паузы");
+    expect(candidate!.reasons).toContain("Тихий участок аудио совпадает с границей субтитров");
+    expect(candidate!.reasons.join(" ")).not.toMatch(/таймкоды слов|уверенность Whisper/);
+    const legacy = rankLocalHighlights({ subtitle_segments: [] } as unknown as Sequence,
+      clip, peaks, 41);
+    expect(legacy.some((item) => item.start === 21_000_000)).toBe(false);
+  });
 });
