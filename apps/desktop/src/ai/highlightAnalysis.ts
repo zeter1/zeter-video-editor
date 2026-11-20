@@ -114,7 +114,18 @@ export function rankLocalHighlights(
   const pauseStarts = pauses.map((pause) => pause.start);
   const pauseEnds = pauses.map((pause) => pause.end);
   const phrases = phraseBoundaries(segments);
-  const candidates = starts.map((offset) => {
+  // The 10-second grid alone can miss a well-timed phrase by more than the
+  // 2-second snap radius. Add a bounded sample of genuine subtitle sentence
+  // starts as independent choices; never invent a timestamp within a segment.
+  // Keep the grid even when the transcript is missing, untimed or enormous.
+  const phraseStarts = phrases.starts.filter((point) =>
+    point > clip.timeline_start && point <= clip.timeline_end - Math.min(span, 8 * SECOND));
+  const stride = Math.max(1, Math.ceil(phraseStarts.length / 48));
+  for (let i = 0; i < phraseStarts.length; i += stride) {
+    starts.push(phraseStarts[i] - clip.timeline_start);
+  }
+  const uniqueStarts = [...new Set(starts)].sort((a, b) => a - b);
+  const candidates = uniqueStarts.map((offset) => {
     const nominalStart = clip.timeline_start + offset;
     // Keep the clip's first frame. Elsewhere prefer documented >=500ms
     // pause edges; use timed sentence boundaries when no nearby pause fits.
@@ -149,6 +160,13 @@ export function rankLocalHighlights(
     const changing = values.length > 1
       ? values.slice(1).reduce((sum, peak, i) => sum + Math.abs(peak - values[i]), 0) / (values.length - 1)
       : 0;
+    // Sustained loud/quiet contrasts are interesting even when transitions are
+    // rare and the adjacent-difference average would wash them out. Quantiles
+    // discount isolated noisy spikes; these are actual bounded waveform peaks.
+    const sortedPeaks = [...values].sort((a, b) => a - b);
+    const spread = sortedPeaks[Math.floor((sortedPeaks.length - 1) * 0.9)] -
+      sortedPeaks[Math.floor((sortedPeaks.length - 1) * 0.1)];
+    const dynamics = Math.max(changing, spread * 0.5);
     const subtitles = segments.filter((segment) => segment.end > start && segment.start < end);
     // Count only time-aligned text, not full phrases outside this window.
     const textChars = subtitles.reduce((sum, segment) => {
@@ -156,6 +174,10 @@ export function rankLocalHighlights(
       return sum + segment.text.trim().length * overlap / (segment.end - segment.start);
     }, 0);
     const textSignal = Math.min(1, textChars / (actualSpan / SECOND) / 14);
+    // Text density alone can overrank a tiny subtitled fragment (including a
+    // long caption on a very short interval). Reward genuine union coverage,
+    // without interpreting subtitles as ASR confidence or semantic relevance.
+    const coverage = subtitleCoveragePercent(segments, start, end) / 100;
     const startOnPause = start !== clip.timeline_start && pauseStarts.includes(start);
     const endOnPause = pauseEnds.includes(end);
     const startOnPhrase = !startOnPause && phrases.starts.includes(start);
@@ -163,11 +185,17 @@ export function rankLocalHighlights(
     const boundarySignal = (Number(startOnPause || startOnPhrase) +
       Number(endOnPause || endOnPhrase)) / 2;
     const levelSignal = Math.min(1, mean / 0.35);
+    // A real cut at the beginning of an utterance is more useful than a
+    // marginally denser window that starts mid-phrase. True >=500ms pauses
+    // have stronger evidence than punctuation-only sentence boundaries.
+    const cleanStartBonus = startOnPause ? 0.08 : startOnPhrase ? 0.04 : 0;
     const score = Math.min(1, active * 0.36 + levelSignal * 0.24 +
-      Math.min(1, changing / 0.25) * 0.12 + textSignal * 0.18 + boundarySignal * 0.1);
+      Math.min(1, dynamics / 0.25) * 0.12 +
+      textSignal * 0.05 + coverage * 0.13 + boundarySignal * 0.1 +
+      cleanStartBonus);
     const reasons: string[] = [];
     if (active >= 0.5) reasons.push("Активный звуковой фрагмент");
-    if (changing >= 0.08) reasons.push("Перепады громкости");
+    if (dynamics >= 0.08) reasons.push("Перепады громкости");
     if (subtitles.length > 0) {
       reasons.push("Есть текст субтитров");
       reasons.push(`Субтитры покрывают ${subtitleCoveragePercent(segments, start, end)}% фрагмента`);

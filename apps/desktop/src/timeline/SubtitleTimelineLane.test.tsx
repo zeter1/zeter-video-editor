@@ -81,6 +81,23 @@ describe("ZVE-010 timeline subtitles", () => {
     expect(transientStore.getState().selectedSubtitleIndex).toBe(0);
   });
 
+  it("captures the subtitle trim pointer before notifying selection subscribers", () => {
+    const { transientStore } = setup();
+    const operations: string[] = [];
+    const originalSelect = transientStore.selectSubtitle.bind(transientStore);
+    const selectSpy = vi.spyOn(transientStore, "selectSubtitle").mockImplementation((index) => {
+      operations.push("select");
+      originalSelect(index);
+    });
+    const handle = screen.getByRole("button", { name: "Изменить начало субтитра 1" });
+    Object.assign(handle, {
+      setPointerCapture: vi.fn(() => operations.push("capture")),
+    });
+    fireEvent.pointerDown(handle, { pointerId: 77, button: 0, isPrimary: true, clientX: 100 });
+    expect(operations.slice(0, 2)).toEqual(["capture", "select"]);
+    selectSpy.mockRestore();
+  });
+
   it("previews pointer trim without changing Rust until release, then commits once", async () => {
     const { commitCommand } = setup();
     const handle = screen.getByRole("button", { name: "Изменить конец субтитра 2" });
