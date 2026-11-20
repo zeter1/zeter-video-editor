@@ -178,6 +178,79 @@ describe("rankLocalHighlights", () => {
     expect(ranked.flatMap((candidate) => candidate.reasons)).not.toContain("Есть текст субтитров");
   });
 
+  it("keeps the chosen maximum Short duration even when a pause is just after the window", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 40_000_000, source_in: 0, source_out: 40_000_000 };
+    const timed = { subtitle_segments: [
+      { start: 0, end: 30_500_000, text: "Длинная непрерывная реплика" },
+      { start: 31_200_000, end: 34_000_000, text: "Следующая реплика" },
+    ] } as Sequence;
+    const results = rankLocalHighlights(timed, clip, Array(80).fill(0.2), 34, {
+      maxDurationSeconds: 30, minSubtitleCoveragePercent: 0,
+    });
+    expect(results.find((item) => item.start === 0)).toBeDefined();
+    expect(results.every((item) => item.end - item.start <= 30_000_000)).toBe(true);
+  });
+
+  it("enforces actual subtitle coverage before rounding the displayed percentage", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 30_000_000, source_in: 0, source_out: 30_000_000 };
+    const timed = { subtitle_segments: [
+      { start: 0, end: 22_350_000, text: "Подтверждённые 74,5 процента времени" },
+    ] } as Sequence;
+    const waveform = Array(60).fill(0.2);
+    expect(rankLocalHighlights(timed, clip, waveform, 35, {
+      maxDurationSeconds: 30, minSubtitleCoveragePercent: 0,
+    })[0].reasons).toContain("Субтитры покрывают 75% фрагмента");
+    expect(rankLocalHighlights(timed, clip, waveform, 35, {
+      maxDurationSeconds: 30, minSubtitleCoveragePercent: 75,
+    })).toEqual([]);
+  });
+
+  it("warns and downranks only genuine mid-subtitle cuts, never invented word timings", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 35_000_000, source_in: 0, source_out: 35_000_000 };
+    const longSpeech = { subtitle_segments: [
+      { start: 0, end: 28_000_000, text: "Длинная непрерывная речь" },
+    ] } as Sequence;
+    const exactSpeech = { subtitle_segments: [
+      { start: 0, end: 15_000_000, text: "Длинная непрерывная речь" },
+    ] } as Sequence;
+    const waveform = Array(70).fill(0.2);
+    const midCut = rankLocalHighlights(longSpeech, clip, waveform, 33)
+      .find((item) => item.start === 0)!;
+    const cleanCut = rankLocalHighlights(exactSpeech, clip, waveform, 33)
+      .find((item) => item.start === 0)!;
+    expect(midCut.reasons).toContain("Конец внутри реплики по таймкодам — возможен обрыв");
+    expect(cleanCut.reasons).not.toContain("Конец внутри реплики по таймкодам — возможен обрыв");
+    expect(midCut.score).toBeLessThan(cleanCut.score);
+  });
+
+  it("supports a selected 30-second Short window while retaining the 15-second default", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 40_000_000, source_in: 0, source_out: 40_000_000 };
+    const empty = { subtitle_segments: [] } as unknown as Sequence;
+    const waveform = Array(80).fill(0.2);
+    expect(rankLocalHighlights(empty, clip, waveform, 31).some((item) =>
+      item.start === 0 && item.end === 15_000_000)).toBe(true);
+    const longer = rankLocalHighlights(empty, clip, waveform, 31, {
+      maxDurationSeconds: 30, minSubtitleCoveragePercent: 0,
+    });
+    expect(longer.some((item) => item.start === 0 && item.end === 30_000_000)).toBe(true);
+    expect(longer.every((item) => item.end - item.start <= 30_000_000)).toBe(true);
+  });
+
+  it("applies a minimum genuine union coverage threshold before limiting the candidate list", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 40_000_000, source_in: 0, source_out: 40_000_000 };
+    const timed = { subtitle_segments: [
+      { start: 0, end: 15_000_000, text: "Речь начинается." },
+      { start: 15_000_000, end: 27_000_000, text: "Продолжается." },
+      { start: 28_000_000, end: 30_000_000, text: "Заканчивается." },
+    ] } as Sequence;
+    const options = { maxDurationSeconds: 30 as const, minSubtitleCoveragePercent: 75 as const };
+    const filtered = rankLocalHighlights(timed, clip, Array(80).fill(0.2), 32, options);
+    expect(filtered.some((item) => item.start === 0 && item.end === 30_000_000)).toBe(true);
+    expect(filtered.every((item) => item.reasons.some((reason) => /Субтитры покрывают (?:7[5-9]|[89]\d|100)%/.test(reason)))).toBe(true);
+    expect(rankLocalHighlights({ subtitle_segments: [] } as unknown as Sequence,
+      clip, Array(80).fill(0.2), 32, options)).toEqual([]);
+  });
+
   it("preserves the existing ZVE-024 pause-based Short end despite nearby sentence punctuation", () => {
     const clip = { ...video, timeline_start: 0, timeline_end: 28_000_000, source_in: 0, source_out: 28_000_000 };
     const timed = { subtitle_segments: [

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Clip, Sequence } from "../generated/ipc";
 import type { IpcClient } from "../ipc/client";
 import { HighlightsPanel, type HighlightCandidateView } from "./HighlightsPanel";
-import { rankLocalHighlights } from "./highlightAnalysis";
+import {
+  DEFAULT_HIGHLIGHT_OPTIONS, rankLocalHighlights, type HighlightSearchOptions,
+} from "./highlightAnalysis";
 
 interface HighlightsWorkspaceProps {
   client: IpcClient;
@@ -19,12 +21,22 @@ interface HighlightsWorkspaceProps {
 export function HighlightsWorkspace({
   client, projectId, revision, sequence, clip, disabled, onPreview, onCreateShort,
 }: HighlightsWorkspaceProps) {
-  const [candidates, setCandidates] = useState<HighlightCandidateView[]>([]);
+  const [analysis, setAnalysis] = useState<{
+    projectId: string; clipId: string; revision: number; peaks: readonly number[];
+  } | null>(null);
+  const [options, setOptions] = useState<HighlightSearchOptions>(DEFAULT_HIGHLIGHT_OPTIONS);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analyzed, setAnalyzed] = useState(false);
   const pending = useRef(false);
   const live = useRef(true);
+  // Re-rank from the previously analyzed waveform when an editor changes a
+  // filter. Do not re-run FFmpeg or display results for another clip/revision.
+  const currentAnalysis = analysis?.projectId === projectId && analysis.clipId === clip.id &&
+    analysis.revision === revision ? analysis : null;
+  const candidates = useMemo(() => currentAnalysis
+    ? rankLocalHighlights(sequence, clip, currentAnalysis.peaks, revision, options)
+    : [], [currentAnalysis, sequence, clip, revision, options]);
 
   useEffect(() => {
     live.current = true;
@@ -37,7 +49,7 @@ export function HighlightsWorkspace({
     pending.current = true;
     setRunning(true);
     setError(null);
-    setCandidates([]);
+    setAnalysis(null);
     setAnalyzed(false);
     try {
       const seconds = (clip.source_out - clip.source_in) / 1_000_000;
@@ -47,14 +59,15 @@ export function HighlightsWorkspace({
         projectId, clip.media_id, clip.source_in, clip.source_out, buckets,
       );
       if (!live.current) return;
-      setCandidates(rankLocalHighlights(sequence, clip, peaks, revision));
+      setAnalysis({ projectId, clipId: clip.id, revision, peaks });
       setAnalyzed(true);
     } catch {
       if (live.current) {
         // Silent footage can still contain real, previously authored subtitle
         // evidence. Never invent peaks; show that only text was considered.
-        const textOnly = rankLocalHighlights(sequence, clip, Array(64).fill(0), revision);
-        setCandidates(textOnly);
+        const silentPeaks = Array(64).fill(0);
+        const textOnly = rankLocalHighlights(sequence, clip, silentPeaks, revision);
+        setAnalysis({ projectId, clipId: clip.id, revision, peaks: silentPeaks });
         setAnalyzed(true);
         setError(textOnly.length > 0
           ? "Аудио недоступно: кандидаты определены только по существующим субтитрам."
@@ -70,8 +83,10 @@ export function HighlightsWorkspace({
     <HighlightsPanel
       candidates={candidates}
       analyzing={running}
-      analyzed={analyzed}
+      analyzed={analyzed && currentAnalysis !== null}
       disabled={disabled}
+      options={options}
+      onOptionsChange={setOptions}
       error={error}
       onAnalyze={() => void analyze()}
       onPreview={onPreview}
