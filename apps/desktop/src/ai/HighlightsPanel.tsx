@@ -25,8 +25,12 @@ export function HighlightsPanel({
     <section className="ai-review-panel" aria-label="Highlights">
       <h4>Найти интересные фрагменты</h4>
       <p className="empty-copy">
-        Локальная оценка по звуковой активности и временным границам субтитров:
-        паузы помогают не разрезать реплику при создании Short. Текст может быть
+        Локальное сравнение фрагментов по активности и динамике звука,
+        фактическому покрытию субтитрами и подтверждённым границам реплик.
+        Рейтинг относительный: высокий балл не означает точное распознавание
+        речи или понимание смысла. Паузы и соседние фразы с настоящими
+        таймкодами помогают не разрезать мысль при создании Short, даже
+        вне стандартной 10-секундной сетки. Текст может быть
         создан вручную или локальным Whisper. После применения в проекте
         сохраняются таймкоды и текст, но не происхождение модели, уверенность
         распознавания или таймкоды отдельных слов. Границы внутри длинной
@@ -42,6 +46,7 @@ export function HighlightsPanel({
       <div className="highlight-candidates">
         {candidates.map((candidate, index) => (
           <article key={candidate.start + "-" + candidate.end + "-" + index}>
+            <span>Кандидат №{index + 1} из {candidates.length} · </span>
             <strong>{time(candidate.start)} – {time(candidate.end)}</strong>
             <span> · {Math.round(candidate.score * 100)}% по доступным признакам</span>
             <ul>

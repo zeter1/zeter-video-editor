@@ -131,6 +131,53 @@ describe("rankLocalHighlights", () => {
     expect(rankLocalHighlights(noPunctuation, clip, Array(56).fill(0.2), 24)
       .some((item) => item.start === 12_500_000)).toBe(false);
   });
+  it("discovers a real adjacent timed phrase missed by the ten-second sampling grid", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 60_000_000, source_in: 0, source_out: 60_000_000 };
+    const transcript = { subtitle_segments: [
+      { start: 0, end: 13_900_000, text: "Предыдущая мысль." },
+      { start: 14_100_000, end: 25_000_000, text: "Важная новая мысль." },
+      { start: 25_200_000, end: 40_000_000, text: "Её продолжение." },
+    ] } as Sequence;
+    const ranked = rankLocalHighlights(transcript, clip, Array(120).fill(0.2), 28);
+    const phrase = ranked.find((candidate) => candidate.start === 14_100_000);
+    expect(phrase).toBeDefined();
+    expect(phrase!.reasons).toContain("Начало фразы по таймкодам субтитров");
+    expect(phrase!.end).toBeGreaterThan(phrase!.start);
+  });
+
+  it("does not let a text-heavy, barely covered interval beat sustained timed speech on identical audio", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 50_000_000, source_in: 0, source_out: 50_000_000 };
+    const transcript = { subtitle_segments: [
+      { start: 0, end: 14_000_000, text: "а" },
+      { start: 14_000_000, end: 20_000_000, text: "б" },
+      { start: 20_000_000, end: 21_000_000, text: "Очень длинная запись ".repeat(60) },
+    ] } as Sequence;
+    const ranked = rankLocalHighlights(transcript, clip, Array(100).fill(0.2), 29);
+    const sustained = ranked.find((candidate) => candidate.start === 0);
+    const fragmentary = ranked.find((candidate) => candidate.start === 20_000_000);
+    expect(sustained).toBeDefined();
+    expect(fragmentary).toBeDefined();
+    expect(sustained!.reasons).toContain("Субтитры покрывают 100% фрагмента");
+    expect(fragmentary!.reasons).toContain("Субтитры покрывают 7% фрагмента");
+    expect(sustained!.score).toBeGreaterThan(fragmentary!.score);
+  });
+
+  it("detects sustained real waveform dynamics without fabricating transcript evidence", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 40_000_000, source_in: 0, source_out: 40_000_000 };
+    const waveform = Array(80).fill(0.2);
+    for (let i = 40; i < 55; i++) waveform[i] = 0.05;
+    for (let i = 55; i < 70; i++) waveform[i] = 0.35;
+    for (let i = 70; i < 80; i++) waveform[i] = 0.05;
+    const ranked = rankLocalHighlights({ subtitle_segments: [] } as unknown as Sequence, clip, waveform, 30);
+    const steady = ranked.find((candidate) => candidate.start === 0);
+    const contrast = ranked.find((candidate) => candidate.start === 20_000_000);
+    expect(steady).toBeDefined();
+    expect(contrast).toBeDefined();
+    expect(contrast!.score).toBeGreaterThan(steady!.score + 0.05);
+    expect(contrast!.reasons).toContain("Перепады громкости");
+    expect(ranked.flatMap((candidate) => candidate.reasons)).not.toContain("Есть текст субтитров");
+  });
+
   it("preserves the existing ZVE-024 pause-based Short end despite nearby sentence punctuation", () => {
     const clip = { ...video, timeline_start: 0, timeline_end: 28_000_000, source_in: 0, source_out: 28_000_000 };
     const timed = { subtitle_segments: [

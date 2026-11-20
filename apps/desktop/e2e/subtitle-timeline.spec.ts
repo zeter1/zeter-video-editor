@@ -71,6 +71,9 @@ test("native WebView2 subtitle timeline: select, keyboard/pointer trims, Undo/Re
   // Native pointer capture: the whole drag must remain an unsaved preview
   // until release. One pointer gesture produces precisely one Rust revision.
   const startHandle = page.getByRole("button", { name: "Изменить начало субтитра " + number });
+  // Ensure WebView2 has a stable, interactive native handle before raw mouse
+  // movement; keep the original strict Rust revision and trim assertions.
+  await startHandle.hover();
   const bounds = await startHandle.boundingBox();
   if (!bounds) throw new Error("Subtitle trim handle is missing");
   const x = bounds.x + bounds.width / 2;

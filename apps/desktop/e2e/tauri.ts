@@ -48,10 +48,20 @@ export async function connectTauri(): Promise<{
   }
 
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${state.port}`);
-  const pages = browser.contexts().flatMap((context) => context.pages());
-  const page = pages.find((candidate) => candidate.url() !== "about:blank") ?? pages[0];
+  // CDP /json/version can respond before Tauri's actual WebView2 page target
+  // exists. Wait for a real, live page rather than sampling contexts() once.
+  const deadline = Date.now() + 15_000;
+  let page: Page | undefined;
+  while (Date.now() < deadline) {
+    page = browser.contexts().flatMap((context) => context.pages())
+      .find((candidate) => !candidate.isClosed() && candidate.url() !== "about:blank");
+    if (page) break;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
   if (!page) {
-    throw new Error("Tauri WebView2 exposed no Playwright page");
+    const urls = browser.contexts().flatMap((context) => context.pages())
+      .map((candidate) => candidate.url());
+    throw new Error(`Tauri WebView2 page did not appear within 15 s (targets: ${JSON.stringify(urls)})`);
   }
   await page.waitForLoadState("domcontentloaded");
   await page.waitForFunction(

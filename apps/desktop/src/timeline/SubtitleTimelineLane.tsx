@@ -126,10 +126,12 @@ export function SubtitleTimelineLane({
       index, edge, pointerId: event.pointerId, clientX: event.clientX,
       original: sequence.subtitle_segments[index],
     };
+    // Capture the live pointer before selection notifies external subscribers:
+    // a synchronous re-render may otherwise lose the trim gesture on WebView2.
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     transientStore.selectSubtitle(index);
     const segment = sequence.subtitle_segments[index];
     setPreview({ index, start: segment.start, end: segment.end });
-    event.currentTarget.setPointerCapture?.(event.pointerId);
   }
 
   function moveTrim(event: PointerEvent<HTMLButtonElement>): Preview | null {

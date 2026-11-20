@@ -24,6 +24,8 @@ describe("HighlightsPanel", () => {
 
     expect(screen.getByText(/strong speech density/i)).toBeTruthy();
     expect(screen.getByText(/thought boundary/i)).toBeTruthy();
+    expect(screen.getByText(/Кандидат №1 из 1/)).toBeTruthy();
+    expect(screen.getByText(/Рейтинг относительный/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Создать Short из хайлайта" }));
     expect(onCreateShort).toHaveBeenCalledTimes(1);
   });
