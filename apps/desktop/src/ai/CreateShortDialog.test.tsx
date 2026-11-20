@@ -66,4 +66,54 @@ describe("CreateShortDialog", () => {
     expect(screen.getByRole("status").textContent).toContain("недоступен");
     expect(screen.getByRole("button", { name: "Создать Short" })).not.toHaveProperty("disabled", true);
   });
+
+  const highlightProps = {
+    open: true, initialCrop: center, onCancel: vi.fn(),
+    highlightRange: { start: 0, end: 29_000_000 },
+    rangeConstraints: { min: 0, max: 41_800_000, maxDurationUs: 30_000_000, fps: 30 },
+  };
+
+  it("previews a frame-accurate manual Short range without committing and sends it with crop", () => {
+    const onCreate = vi.fn();
+    const onPreviewRange = vi.fn();
+    render(<CreateShortDialog {...highlightProps} onCreate={onCreate} onPreviewRange={onPreviewRange} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Конец Short (HH:MM:SS:FF)" }),
+      { target: { value: "00:00:28:15" } });
+    fireEvent.click(screen.getByRole("button", { name: "Предпросмотр выбранных границ" }));
+    expect(onPreviewRange).toHaveBeenCalledWith({ start: 0, end: 28_500_000 });
+    expect(onCreate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Создать Short" }));
+    expect(onCreate).toHaveBeenCalledWith({
+      crop: center, width: 1080, height: 1920,
+      range: { start: 0, end: 28_500_000 },
+    });
+  });
+
+  it("rejects reversed, out-of-clip, over-limit and malformed manual range before IPC", () => {
+    const onCreate = vi.fn();
+    render(<CreateShortDialog {...highlightProps} onCreate={onCreate} />);
+    const start = screen.getByRole("textbox", { name: "Начало Short (HH:MM:SS:FF)" });
+    const end = screen.getByRole("textbox", { name: "Конец Short (HH:MM:SS:FF)" });
+    for (const value of ["00:00:00:00", "00:00:31:00", "00:00:42:00", "not-a-timecode", "00:00:28:30"]) {
+      fireEvent.change(end, { target: { value } });
+      expect(screen.getByRole("button", { name: "Создать Short" }))
+        .toHaveProperty("disabled", true);
+    }
+    fireEvent.change(end, { target: { value: "00:00:30:00" } });
+    fireEvent.change(start, { target: { value: "00:00:30:01" } });
+    expect(screen.getByRole("button", { name: "Создать Short" }))
+      .toHaveProperty("disabled", true);
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("resets edited boundaries to the unrounded original suggestion", () => {
+    const onCreate = vi.fn();
+    render(<CreateShortDialog {...highlightProps}
+      highlightRange={{ start: 0, end: 28_600_000 }} onCreate={onCreate} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Конец Short (HH:MM:SS:FF)" }),
+      { target: { value: "00:00:28:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Вернуть предложенные границы" }));
+    fireEvent.click(screen.getByRole("button", { name: "Создать Short" }));
+    expect(onCreate).toHaveBeenCalledWith({ crop: center, width: 1080, height: 1920 });
+  });
 });

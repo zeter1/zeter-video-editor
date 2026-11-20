@@ -4,7 +4,8 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 
 import { AiWorkspace } from "../ai/AiWorkspace";
-import { CreateShortDialog, type CreateShortRequestView } from "../ai/CreateShortDialog";
+import { CreateShortDialog, validShortRange,
+  type CreateShortRequestView, type ShortRangeConstraints } from "../ai/CreateShortDialog";
 import { HighlightsWorkspace } from "../ai/HighlightsWorkspace";
 import type { HighlightCandidateView } from "../ai/HighlightsPanel";
 import { createShortSequenceFromClip, portraitCropForMedia } from "../ai/shortReframe";
@@ -89,6 +90,7 @@ interface ShortCreationContext {
   autoCrop: import("../generated/ipc").Crop | null;
   faceStatus: "searching" | "found" | "none" | "error";
   candidate: HighlightCandidateView | null;
+  rangeConstraints: ShortRangeConstraints | null;
 }
 
 function findSelectedClipContext(
@@ -234,7 +236,7 @@ export function AppShell({
       initialCrop: portraitCropForMedia(selectedMedia.width, selectedMedia.height),
       autoCrop: null,
       faceStatus: "searching",
-      candidate: null,
+      candidate: null, rangeConstraints: null,
     });
   }
 
@@ -246,7 +248,7 @@ export function AppShell({
     transientStore.setExportRange(candidate.start, candidate.end);
   }
 
-  function handleOpenHighlightShort(candidate: HighlightCandidateView): void {
+  function handleOpenHighlightShort(candidate: HighlightCandidateView, maxDurationSeconds: 15 | 30 | 45): void {
     const snapshot = projectStore.getState().snapshot;
     const sequence = resolveSequence(snapshot?.project.sequences ?? [],
       transientStore.getState().selectedSequenceId);
@@ -259,7 +261,8 @@ export function AppShell({
         candidate.source_revision !== snapshot.revision ||
         !Number.isSafeInteger(candidate.start) || !Number.isSafeInteger(candidate.end) ||
         candidate.start < clip.timeline_start || candidate.end > clip.timeline_end ||
-        candidate.start >= candidate.end) {
+        candidate.start >= candidate.end ||
+        candidate.end - candidate.start > maxDurationSeconds * 1_000_000) {
       projectStore.setError("Хайлайт устарел или видео изменилось. Запустите анализ снова.");
       return;
     }
@@ -269,6 +272,10 @@ export function AppShell({
       sourceWidth: media.width, sourceHeight: media.height,
       initialCrop: portraitCropForMedia(media.width, media.height),
       autoCrop: null, faceStatus: "searching", candidate,
+      rangeConstraints: {
+        min: clip.timeline_start, max: clip.timeline_end,
+        maxDurationUs: maxDurationSeconds * 1_000_000, fps: sequence.fps,
+      },
     });
   }
 
@@ -324,6 +331,8 @@ export function AppShell({
     const snapshot = projectStore.getState().snapshot;
     const source = snapshot?.project.sequences.find((item) => item.id === sourceContext.sequenceId);
     const original = findSelectedClipContext(source ?? null, sourceContext.clipId)?.clip;
+    const requestedCandidate = sourceContext.candidate && request.range
+      ? { ...sourceContext.candidate, ...request.range } : sourceContext.candidate;
     // The editor may have changed while the modal was open. Never apply
     // its pending crop to a different source or stale Rust revision.
     if (!snapshot || !source || !original || original.kind !== "Video" ||
@@ -333,11 +342,13 @@ export function AppShell({
         projectStore.getState().syncStatus !== "synced" ||
         resolveSequence(snapshot.project.sequences,
           transientStore.getState().selectedSequenceId)?.id !== sourceContext.sequenceId ||
-        (sourceContext.candidate !== null &&
-          (sourceContext.candidate.source_revision !== snapshot.revision ||
-           sourceContext.candidate.start < original.timeline_start ||
-           sourceContext.candidate.end > original.timeline_end ||
-           sourceContext.candidate.start >= sourceContext.candidate.end))) {
+        (requestedCandidate !== null &&
+          (requestedCandidate.source_revision !== snapshot.revision ||
+           !sourceContext.rangeConstraints ||
+           source.fps !== sourceContext.rangeConstraints.fps ||
+           sourceContext.rangeConstraints.min !== original.timeline_start ||
+           sourceContext.rangeConstraints.max !== original.timeline_end ||
+           !validShortRange(requestedCandidate, sourceContext.rangeConstraints)))) {
       projectStore.setError("Клип или проект изменился. Повторите создание Short.");
       setShortSource(null);
       return;
@@ -361,7 +372,7 @@ export function AppShell({
         // AddSequence, trimming ALL overlapping tracks and subtitles.
         const originalIds = new Set(snapshot.project.sequences.map((item) => item.id));
         const result = await client.createShortFromCandidate(
-          source.id, sourceContext.candidate, requestId(), request.crop);
+          source.id, requestedCandidate!, requestId(), request.crop);
         await client.reconcileCommandResult(projectStore, result);
         created = projectStore.getState().snapshot?.project.sequences.find(
           (item) => !originalIds.has(item.id)) ?? null;
@@ -958,6 +969,16 @@ export function AppShell({
           highlightRange={shortSource.candidate ? {
             start: shortSource.candidate.start, end: shortSource.candidate.end,
           } : null}
+          rangeConstraints={shortSource.rangeConstraints}
+          onPreviewRange={(range) => {
+            const snapshot = projectStore.getState().snapshot;
+            if (!shortSource.candidate || !shortSource.rangeConstraints ||
+                !snapshot || snapshot.project.id !== shortSource.projectId ||
+                snapshot.revision !== shortSource.revision ||
+                !validShortRange(range, shortSource.rangeConstraints)) return;
+            transientStore.setPlayheadTime(range.start);
+            transientStore.setExportRange(range.start, range.end);
+          }}
           onCreate={(request) => void handleCreateShort(request)}
           onCancel={() => setShortSource(null)} />
       ) : null}

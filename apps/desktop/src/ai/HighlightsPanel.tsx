@@ -11,7 +11,7 @@ interface HighlightsPanelProps {
   error?: string | null;
   onAnalyze: () => void;
   onPreview?: (candidate: HighlightCandidateView) => void;
-  onCreateShort: (candidate: HighlightCandidateView) => void;
+  onCreateShort: (candidate: HighlightCandidateView, maxDurationSeconds: 15 | 30 | 45) => void;
   options?: HighlightSearchOptions;
   onOptionsChange?: (options: HighlightSearchOptions) => void;
 }
@@ -87,7 +87,7 @@ export function HighlightsPanel({
             <button type="button" disabled={disabled || analyzing}
               onClick={() => onPreview?.(candidate)}>Предпросмотр фрагмента</button>
             <button type="button" disabled={disabled || analyzing}
-              onClick={() => onCreateShort(candidate)}>Создать Short из хайлайта</button>
+              onClick={() => onCreateShort(candidate, options.maxDurationSeconds)}>Создать Short из хайлайта</button>
           </article>
         ))}
       </div>

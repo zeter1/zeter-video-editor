@@ -14,7 +14,7 @@ interface HighlightsWorkspaceProps {
   clip: Clip;
   disabled: boolean;
   onPreview: (candidate: HighlightCandidateView) => void;
-  onCreateShort: (candidate: HighlightCandidateView) => void;
+  onCreateShort: (candidate: HighlightCandidateView, maxDurationSeconds: 15 | 30 | 45) => void;
 }
 
 /** Read-only FFmpeg waveform analysis; creation is a separate confirmed native edit. */

@@ -22,7 +22,7 @@ type NativeProject = {
   };
 };
 
-test("ZVE-029 uses real AAC waveform silence to end a Short before hard cap -> native Undo/Redo -> .vcut -> MP4", async () => {
+test("ZVE-029/030 analyzes real AAC pause, manually sets Short in/out frames -> preview -> Undo/Redo -> .vcut -> MP4", async () => {
   test.setTimeout(300_000);
   const { page, state } = await connectTauri();
   const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
@@ -97,6 +97,16 @@ test("ZVE-029 uses real AAC waveform silence to end a Short before hard cap -> n
   const dialog = page.getByRole("dialog", { name: "Create Short" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("Создать Short из хайлайта")).toBeVisible();
+  // Correct the suggestion frame-by-frame before committing any Rust command.
+  await dialog.getByRole("textbox", { name: "Начало Short (HH:MM:SS:FF)" })
+    .fill("00:00:00:15");
+  const endField = dialog.getByRole("textbox", { name: "Конец Short (HH:MM:SS:FF)" });
+  await endField.fill("00:00:31:00");
+  await expect(dialog.getByRole("button", { name: "Создать Short" })).toBeDisabled();
+  await endField.fill("00:00:28:15");
+  await expect(dialog.getByText("Длительность: 28.000 с")).toBeVisible();
+  await dialog.getByRole("button", { name: "Предпросмотр выбранных границ" }).click();
+  expect((await invokeTauri<NativeProject>(page, "project_snapshot")).revision).toBe(before.revision);
   await dialog.getByRole("spinbutton", { name: "Crop left" }).fill("0.20");
   await dialog.getByRole("button", { name: "Создать Short" }).click();
 
@@ -112,10 +122,10 @@ test("ZVE-029 uses real AAC waveform silence to end a Short before hard cap -> n
     .find((clip) => clip.kind === "Video")!;
   expect(shortClip.id).not.toBe(original.id);
   expect(shortClip.media_id).toBe(original.media_id);
-  expect(shortClip.source_in).toBe(0);
-  expect(shortClip.source_out).toBe(29_000_000);
+  expect(shortClip.source_in).toBe(500_000);
+  expect(shortClip.source_out).toBe(28_500_000);
   expect(shortClip.timeline_start).toBe(0);
-  expect(shortClip.timeline_end).toBe(29_000_000);
+  expect(shortClip.timeline_end).toBe(28_000_000);
   expect(short.subtitle_segments.length).toBe(0);
   expect(shortClip.transform.crop.left).toBeCloseTo(0.20, 5);
   await expect(page.getByRole("combobox", { name: "Последовательность" })).toHaveValue(short.id);
@@ -136,7 +146,8 @@ test("ZVE-029 uses real AAC waveform silence to end a Short before hard cap -> n
   const restoredClip = restored.project.sequences.at(-1)!.tracks
     .flatMap((track) => track.clips).find((clip) => clip.kind === "Video")!;
   expect(restoredClip.transform.crop.left).toBeCloseTo(0.20, 5);
-  expect(restoredClip.source_out).toBe(29_000_000);
+  expect(restoredClip.source_in).toBe(500_000);
+  expect(restoredClip.source_out).toBe(28_500_000);
   expect(restored.project.sequences[0]).toEqual(before.project.sequences[0]);
 
   const exportJob = await invokeTauri<{ job_id: string }>(
@@ -159,6 +170,6 @@ test("ZVE-029 uses real AAC waveform silence to end a Short before hard cap -> n
   expect(info.streams.find((stream) => stream.codec_type === "video"))
     .toMatchObject({ width: 1080, height: 1920 });
   expect(info.streams.some((stream) => stream.codec_type === "audio")).toBe(true);
-  expect(Number(info.format.duration)).toBeGreaterThan(28.8);
-  expect(Number(info.format.duration)).toBeLessThan(29.2);
+  expect(Number(info.format.duration)).toBeGreaterThan(27.8);
+  expect(Number(info.format.duration)).toBeLessThan(28.2);
 });
