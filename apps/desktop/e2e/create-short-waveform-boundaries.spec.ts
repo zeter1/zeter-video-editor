@@ -131,7 +131,18 @@ test("ZVE-031 drags a real audio-pause Short handle -> preview -> Undo/Redo -> .
   await dialog.getByRole("button", { name: "Предпросмотр выбранных границ" }).click();
   expect((await invokeTauri<NativeProject>(page, "project_snapshot")).revision).toBe(before.revision);
   await dialog.getByRole("spinbutton", { name: "Crop left" }).fill("0.20");
-  await dialog.getByRole("button", { name: "Создать Short" }).click();
+  const createButton = dialog.getByRole("button", { name: "Создать Short" });
+  // CI regression: the editor's underlying Import button intercepted this click
+  // when the Short dialog was accidentally rendered as an app-shell grid row.
+  const confirmationHasPointer = await createButton.evaluate((element) => {
+    element.scrollIntoView({ block: "center" });
+    const bounds = element.getBoundingClientRect();
+    const hit = document.elementFromPoint(bounds.left + bounds.width / 2,
+      bounds.top + bounds.height / 2);
+    return hit === element || element.contains(hit);
+  });
+  expect(confirmationHasPointer, "Short confirmation must receive real pointer events above the editor").toBe(true);
+  await createButton.click();
 
   await expect.poll(async () =>
     (await invokeTauri<NativeProject>(page, "project_snapshot")).project.sequences.length,

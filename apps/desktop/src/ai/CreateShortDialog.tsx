@@ -132,7 +132,8 @@ export function CreateShortDialog({
   }[faceStatus];
 
   return (
-    <section role="dialog" aria-label="Create Short" className="ai-short-dialog">
+    <div className="ai-short-dialog-backdrop">
+      <section role="dialog" aria-label="Create Short" className="ai-short-dialog">
       <h3>{highlightRange ? "Создать Short из хайлайта" : "Создать Short из клипа"}</h3>
       <p>1080 × 1920 · 9:16</p>
       {highlightRange ? <p>Предложение: {(highlightRange.start / 1_000_000).toFixed(1)}–{(highlightRange.end / 1_000_000).toFixed(1)} с</p> : null}
@@ -300,6 +301,7 @@ export function CreateShortDialog({
         </button>
         <button type="button" disabled={busy} onClick={onCancel}>Отмена</button>
       </div>
-    </section>
+      </section>
+    </div>
   );
 }
