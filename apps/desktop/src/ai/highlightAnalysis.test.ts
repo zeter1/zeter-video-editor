@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Clip, Sequence } from "../generated/ipc";
-import { rankLocalHighlights } from "./highlightAnalysis";
+import { collectShortSnapPoints, rankLocalHighlights } from "./highlightAnalysis";
 
 const video = {
   kind: "Video", timeline_start: 5_000_000, timeline_end: 45_000_000,
@@ -390,5 +390,40 @@ describe("rankLocalHighlights", () => {
     const legacy = rankLocalHighlights({ subtitle_segments: [] } as unknown as Sequence,
       clip, peaks, 41);
     expect(legacy.some((item) => item.start === 21_000_000)).toBe(false);
+  });
+});
+
+describe("collectShortSnapPoints", () => {
+  it("only exposes union edges of actual timed subtitles, never nested or invalid phrase times", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 40_000_000 };
+    const seq = { subtitle_segments: [
+      { start: 5_000_000, end: 20_000_000, text: "Long phrase." },
+      { start: 10_000_000, end: 11_000_000, text: "Nested." },
+      { start: 22_000_000, end: 24_000_000, text: "Next." },
+      { start: 30_000_000, end: 29_000_000, text: "Invalid." },
+    ] } as Sequence;
+    expect(collectShortSnapPoints(seq, clip, Array(80).fill(0.2))).toEqual([
+      { timeUs: 5_000_000, evidence: "subtitle" },
+      { timeUs: 20_000_000, evidence: "subtitle" },
+      { timeUs: 22_000_000, evidence: "subtitle" },
+      { timeUs: 24_000_000, evidence: "subtitle" },
+    ]);
+  });
+  it("uses >=500ms measured quiet edges unless an authoritative utterance overlaps", () => {
+    const clip = { ...video, timeline_start: 0, timeline_end: 40_000_000 };
+    const peaks = Array(80).fill(0.2); peaks[57] = 0; peaks[58] = 0;
+    const silent = { subtitle_segments: [] } as unknown as Sequence;
+    expect(collectShortSnapPoints(silent, clip, peaks)).toEqual([
+      { timeUs: 28_500_000, evidence: "audio" },
+      { timeUs: 29_500_000, evidence: "audio" },
+    ]);
+    const speech = { subtitle_segments: [
+      { start: 28_000_000, end: 30_000_000, text: "Continuous speech." },
+    ] } as Sequence;
+    expect(collectShortSnapPoints(speech, clip, peaks)).toEqual([
+      { timeUs: 28_000_000, evidence: "subtitle" },
+      { timeUs: 30_000_000, evidence: "subtitle" },
+    ]);
+    expect(collectShortSnapPoints(silent, clip, [0.2, Number.NaN])).toEqual([]);
   });
 });

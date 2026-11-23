@@ -1,24 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { Crop } from "../generated/ipc";
 import { shiftPortraitCrop } from "./shortReframe";
 import { formatTimecode, parseTimecode } from "../timeline/timecode";
-
-export interface ShortRangeView { start: number; end: number }
-export interface ShortRangeConstraints {
-  min: number;
-  max: number;
-  maxDurationUs: number;
-  fps: number;
-}
-
-export function validShortRange(range: ShortRangeView | null, limits: ShortRangeConstraints): boolean {
-  if (!range || !Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) ||
-      ![limits.min, limits.max, limits.maxDurationUs, limits.fps].every(Number.isFinite) ||
-      limits.fps <= 0 || limits.maxDurationUs <= 0) return false;
-  const duration = range.end - range.start;
-  return range.start >= limits.min && range.end <= limits.max &&
-    duration >= Math.round(1_000_000 / limits.fps) && duration <= limits.maxDurationUs;
-}
+import { snapShortFrame, validShortRange, type ShortSnapPoint } from "./shortRangeSnap";
+import type { ShortRangeView, ShortRangeConstraints } from "./shortRangeSnap";
+export { validShortRange };
+export type { ShortRangeView, ShortRangeConstraints };
 
 export type CropView = Crop;
 
@@ -36,6 +23,7 @@ interface CreateShortDialogProps {
   faceStatus?: "searching" | "found" | "none" | "error";
   highlightRange?: ShortRangeView | null;
   rangeConstraints?: ShortRangeConstraints | null;
+  snapPoints?: readonly ShortSnapPoint[];
   onPreviewRange?: (range: ShortRangeView) => void;
   onCreate: (request: CreateShortRequestView) => void;
   onCancel: () => void;
@@ -44,7 +32,7 @@ interface CreateShortDialogProps {
 
 export function CreateShortDialog({
   open, initialCrop, autoCrop = null, faceStatus = "none", highlightRange = null,
-  rangeConstraints = null, onPreviewRange, onCreate, onCancel, busy = false,
+  rangeConstraints = null, snapPoints = [], onPreviewRange, onCreate, onCancel, busy = false,
 }: CreateShortDialogProps) {
   const [crop, setCrop] = useState<CropView>(initialCrop);
   const [startText, setStartText] = useState("");
@@ -52,6 +40,11 @@ export function CreateShortDialog({
   const [startEdited, setStartEdited] = useState(false);
   const [endEdited, setEndEdited] = useState(false);
   const manuallyEdited = useRef(false);
+  const draggedEdge = useRef<"start" | "end" | null>(null);
+  const pointerOrigin = useRef<number | null>(null);
+  const pointerMoved = useRef(false);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [snapInfo, setSnapInfo] = useState<string | null>(null);
 
   useEffect(() => {
     setStartText(highlightRange && rangeConstraints
@@ -60,6 +53,11 @@ export function CreateShortDialog({
       ? formatTimecode(highlightRange.end, rangeConstraints.fps) : "");
     setStartEdited(false);
     setEndEdited(false);
+    setSnapEnabled(true);
+    setSnapInfo(null);
+    draggedEdge.current = null;
+    pointerOrigin.current = null;
+    pointerMoved.current = false;
   }, [open, highlightRange?.start, highlightRange?.end, rangeConstraints?.fps]);
 
   // Unchanged suggestions retain their exact original microsecond endpoints,
@@ -74,6 +72,45 @@ export function CreateShortDialog({
   const selectedRange = validRange && range
     ? { start: range.start as number, end: range.end as number } : null;
   const editedRange = startEdited || endEdited;
+  const rangePercent = (timeUs: number): number => {
+    if (!rangeConstraints || rangeConstraints.max <= rangeConstraints.min) return 0;
+    return Math.max(0, Math.min(100,
+      (timeUs - rangeConstraints.min) * 100 / (rangeConstraints.max - rangeConstraints.min)));
+  };
+  const visualStart = range?.start ?? highlightRange?.start ?? 0;
+  const visualEnd = range?.end ?? highlightRange?.end ?? 0;
+  const tickStride = Math.max(1, Math.ceil((snapPoints.length - 1) / 63));
+  const visibleSnapPoints = snapPoints.filter((_, index) =>
+    index % tickStride === 0 || index === snapPoints.length - 1);
+
+  const minFrame = rangeConstraints ? Math.ceil(rangeConstraints.min * rangeConstraints.fps / 1_000_000) : 0;
+  const maxFrame = rangeConstraints ? Math.floor(rangeConstraints.max * rangeConstraints.fps / 1_000_000) : 0;
+
+  function changeFrame(edge: "start" | "end", frame: number, pointer: boolean): void {
+    if (!rangeConstraints || !Number.isSafeInteger(frame)) return;
+    const constrained = Math.max(minFrame, Math.min(maxFrame, frame));
+    const opposite = edge === "start" ? range?.end : range?.start;
+    const result = pointer && snapEnabled && typeof opposite === "number"
+      ? snapShortFrame(edge, constrained, opposite, rangeConstraints, snapPoints)
+      : { timeUs: Math.round(constrained * 1_000_000 / rangeConstraints.fps), evidence: null };
+    if (edge === "start") {
+      setStartText(formatTimecode(result.timeUs, rangeConstraints.fps));
+      setStartEdited(true);
+    } else {
+      setEndText(formatTimecode(result.timeUs, rangeConstraints.fps));
+      setEndEdited(true);
+    }
+    setSnapInfo(result.evidence === "audio"
+      ? "Привязано к паузе аудио"
+      : result.evidence === "subtitle" ? "Привязано к границе субтитров" : null);
+  }
+
+  function moveHandle(event: ReactPointerEvent<HTMLButtonElement>, edge: "start" | "end"): void {
+    const track = event.currentTarget.parentElement?.getBoundingClientRect();
+    if (!track || track.width <= 0) return;
+    const fraction = Math.max(0, Math.min(1, (event.clientX - track.left) / track.width));
+    changeFrame(edge, Math.round(minFrame + fraction * (maxFrame - minFrame)), true);
+  }
 
   useEffect(() => {
     manuallyEdited.current = false;
@@ -107,37 +144,93 @@ export function CreateShortDialog({
           <label>Начало Short (HH:MM:SS:FF)
             <input type="text" aria-label="Начало Short (HH:MM:SS:FF)" value={startText}
               aria-invalid={!validRange}
-              onChange={(event) => { setStartText(event.target.value); setStartEdited(true); }} />
+              onChange={(event) => { setStartText(event.target.value); setStartEdited(true); setSnapInfo(null); }} />
           </label>
           <label>Конец Short (HH:MM:SS:FF)
             <input type="text" aria-label="Конец Short (HH:MM:SS:FF)" value={endText}
               aria-invalid={!validRange}
-              onChange={(event) => { setEndText(event.target.value); setEndEdited(true); }} />
+              onChange={(event) => { setEndText(event.target.value); setEndEdited(true); setSnapInfo(null); }} />
           </label>
-          {(["start", "end"] as const).map((edge) => {
-            const begin = edge === "start";
-            const draft = begin ? range?.start : range?.end;
-            return (
-              <label key={edge}>{begin ? "Начало Short (кадры)" : "Конец Short (кадры)"}
-                <input type="range" aria-label={begin ? "Начало Short (кадры)" : "Конец Short (кадры)"}
-                  min={Math.ceil(rangeConstraints.min * rangeConstraints.fps / 1_000_000)}
-                  max={Math.floor(rangeConstraints.max * rangeConstraints.fps / 1_000_000)}
-                  step={1}
-                  value={Math.round(((draft ?? (begin ? highlightRange.start : highlightRange.end)) *
-                    rangeConstraints.fps) / 1_000_000)}
-                  onChange={(event) => {
-                    const timeUs = Math.round(Number(event.target.value) * 1_000_000 / rangeConstraints.fps);
-                    if (begin) {
-                      setStartText(formatTimecode(timeUs, rangeConstraints.fps));
-                      setStartEdited(true);
-                    } else {
-                      setEndText(formatTimecode(timeUs, rangeConstraints.fps));
-                      setEndEdited(true);
+          <label className="short-range-snap-option">
+            <input type="checkbox" aria-label="Магнитная привязка" checked={snapEnabled}
+              onChange={(event) => { setSnapEnabled(event.target.checked); setSnapInfo(null); }} />
+            Магнитная привязка к аудиопаузам и границам субтитров
+          </label>
+          <p className="empty-copy">Перетаскивайте два маркера на одной шкале.
+            Магнит действует только мышью; клавиатура и таймкоды двигают точно по кадрам.</p>
+          <div className="short-range-track" role="group" aria-label="Визуальный диапазон Short">
+            <div className="short-range-rail" aria-hidden="true" />
+            <div className="short-range-selection" aria-hidden="true" style={{
+              left: rangePercent(Math.min(visualStart, visualEnd)) + "%",
+              width: Math.max(0, rangePercent(visualEnd) - rangePercent(visualStart)) + "%",
+            }} />
+            {visibleSnapPoints.map((point, index) => (
+              <span key={point.timeUs + "-" + index}
+                className={"short-range-snap-tick " + point.evidence}
+                style={{ left: rangePercent(point.timeUs) + "%" }} aria-hidden="true" />
+            ))}
+            {(["start", "end"] as const).map((edge) => {
+              const begin = edge === "start";
+              const draft = begin ? range?.start : range?.end;
+              const frame = Math.round((draft ?? (begin ? highlightRange.start : highlightRange.end)) *
+                rangeConstraints.fps / 1_000_000);
+              return (
+                <button key={edge} type="button" role="slider"
+                  className={"short-range-handle " + edge}
+                  aria-label={begin ? "Начало Short (кадры)" : "Конец Short (кадры)"}
+                  aria-valuemin={minFrame} aria-valuemax={maxFrame}
+                  aria-valuenow={frame}
+                  aria-valuetext={formatTimecode(Math.max(0, draft ?? 0), rangeConstraints.fps)}
+                  style={{ left: rangePercent(draft ?? (begin ? highlightRange.start : highlightRange.end)) + "%" }}
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+                    draggedEdge.current = edge;
+                    pointerOrigin.current = event.clientX;
+                    pointerMoved.current = false;
+                    event.currentTarget.setPointerCapture?.(event.pointerId);
+                  }}
+                  onPointerMove={(event) => {
+                    if (draggedEdge.current === edge) {
+                      if (Math.abs(event.clientX - (pointerOrigin.current ?? event.clientX)) >= 2) {
+                        pointerMoved.current = true;
+                      }
+                      if (pointerMoved.current) moveHandle(event, edge);
                     }
+                  }}
+                  onPointerUp={(event) => {
+                    if (draggedEdge.current === edge) {
+                      if (pointerMoved.current) moveHandle(event, edge);
+                      draggedEdge.current = null;
+                      pointerOrigin.current = null;
+                      pointerMoved.current = false;
+                      event.currentTarget.releasePointerCapture?.(event.pointerId);
+                    }
+                  }}
+                  onPointerCancel={() => {
+                    draggedEdge.current = null; pointerOrigin.current = null; pointerMoved.current = false;
+                  }}
+                  onBlur={() => {
+                    draggedEdge.current = null; pointerOrigin.current = null; pointerMoved.current = false;
+                  }}
+                  onKeyDown={(event) => {
+                    const current = frame;
+                    const next = {
+                      ArrowLeft: current - 1, ArrowRight: current + 1,
+                      PageDown: current - 5, PageUp: current + 5,
+                      Home: minFrame, End: maxFrame,
+                    }[event.key];
+                    if (next === undefined) return;
+                    event.preventDefault();
+                    changeFrame(edge, next, false);
                   }} />
-              </label>
-            );
-          })}
+              );
+            })}
+          </div>
+          <div className="short-range-scale" aria-hidden="true">
+            <span>{(rangeConstraints.min / 1_000_000).toFixed(1)} с</span>
+            <span>{(rangeConstraints.max / 1_000_000).toFixed(1)} с</span>
+          </div>
+          {snapInfo ? <p className="short-range-snap-feedback" role="status">{snapInfo}</p> : null}
           {!validRange ? <p role="alert">Некорректные границы: соблюдайте длину клипа,
             порядок кадров и выбранный лимит Short.</p> : null}
           <p>Длительность: {selectedRange
@@ -152,6 +245,7 @@ export function CreateShortDialog({
             setEndText(formatTimecode(highlightRange.end, rangeConstraints.fps));
             setStartEdited(false);
             setEndEdited(false);
+            setSnapInfo(null);
           }}>Вернуть предложенные границы</button>
         </fieldset>
       ) : null}

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Clip, Sequence } from "../generated/ipc";
 import type { IpcClient } from "../ipc/client";
+import type { ShortSnapPoint } from "./shortRangeSnap";
 import { HighlightsPanel, type HighlightCandidateView } from "./HighlightsPanel";
 import {
-  DEFAULT_HIGHLIGHT_OPTIONS, rankLocalHighlights, type HighlightSearchOptions,
+  DEFAULT_HIGHLIGHT_OPTIONS, collectShortSnapPoints, rankLocalHighlights, type HighlightSearchOptions,
 } from "./highlightAnalysis";
 
 interface HighlightsWorkspaceProps {
@@ -14,7 +15,8 @@ interface HighlightsWorkspaceProps {
   clip: Clip;
   disabled: boolean;
   onPreview: (candidate: HighlightCandidateView) => void;
-  onCreateShort: (candidate: HighlightCandidateView, maxDurationSeconds: 15 | 30 | 45) => void;
+  onCreateShort: (candidate: HighlightCandidateView, maxDurationSeconds: 15 | 30 | 45,
+    snapPoints: readonly ShortSnapPoint[]) => void;
 }
 
 /** Read-only FFmpeg waveform analysis; creation is a separate confirmed native edit. */
@@ -90,7 +92,8 @@ export function HighlightsWorkspace({
       error={error}
       onAnalyze={() => void analyze()}
       onPreview={onPreview}
-      onCreateShort={onCreateShort}
+      onCreateShort={(candidate, duration) => onCreateShort(candidate, duration,
+        currentAnalysis ? collectShortSnapPoints(sequence, clip, currentAnalysis.peaks) : [])}
     />
   );
 }

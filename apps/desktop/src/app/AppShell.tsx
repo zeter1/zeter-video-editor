@@ -7,6 +7,7 @@ import { AiWorkspace } from "../ai/AiWorkspace";
 import { CreateShortDialog, validShortRange,
   type CreateShortRequestView, type ShortRangeConstraints } from "../ai/CreateShortDialog";
 import { HighlightsWorkspace } from "../ai/HighlightsWorkspace";
+import type { ShortSnapPoint } from "../ai/shortRangeSnap";
 import type { HighlightCandidateView } from "../ai/HighlightsPanel";
 import { createShortSequenceFromClip, portraitCropForMedia } from "../ai/shortReframe";
 import { createEmptySequence, resolveSequence } from "./sequenceWorkspace";
@@ -91,6 +92,7 @@ interface ShortCreationContext {
   faceStatus: "searching" | "found" | "none" | "error";
   candidate: HighlightCandidateView | null;
   rangeConstraints: ShortRangeConstraints | null;
+  snapPoints: readonly ShortSnapPoint[];
 }
 
 function findSelectedClipContext(
@@ -236,7 +238,7 @@ export function AppShell({
       initialCrop: portraitCropForMedia(selectedMedia.width, selectedMedia.height),
       autoCrop: null,
       faceStatus: "searching",
-      candidate: null, rangeConstraints: null,
+      candidate: null, rangeConstraints: null, snapPoints: [],
     });
   }
 
@@ -248,7 +250,8 @@ export function AppShell({
     transientStore.setExportRange(candidate.start, candidate.end);
   }
 
-  function handleOpenHighlightShort(candidate: HighlightCandidateView, maxDurationSeconds: 15 | 30 | 45): void {
+  function handleOpenHighlightShort(candidate: HighlightCandidateView, maxDurationSeconds: 15 | 30 | 45,
+    snapPoints: readonly ShortSnapPoint[]): void {
     const snapshot = projectStore.getState().snapshot;
     const sequence = resolveSequence(snapshot?.project.sequences ?? [],
       transientStore.getState().selectedSequenceId);
@@ -271,7 +274,7 @@ export function AppShell({
       sequenceId: sequence.id, clipId: clip.id,
       sourceWidth: media.width, sourceHeight: media.height,
       initialCrop: portraitCropForMedia(media.width, media.height),
-      autoCrop: null, faceStatus: "searching", candidate,
+      autoCrop: null, faceStatus: "searching", candidate, snapPoints,
       rangeConstraints: {
         min: clip.timeline_start, max: clip.timeline_end,
         maxDurationUs: maxDurationSeconds * 1_000_000, fps: sequence.fps,
@@ -970,6 +973,7 @@ export function AppShell({
             start: shortSource.candidate.start, end: shortSource.candidate.end,
           } : null}
           rangeConstraints={shortSource.rangeConstraints}
+          snapPoints={shortSource.snapPoints}
           onPreviewRange={(range) => {
             const snapshot = projectStore.getState().snapshot;
             if (!shortSource.candidate || !shortSource.rangeConstraints ||

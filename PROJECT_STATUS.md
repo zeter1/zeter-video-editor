@@ -1,3 +1,13 @@
+# CURRENT PRODUCT DEVELOPMENT — ZVE-031: draggable Short range and evidence-based snapping / 0.1.0-alpha.50 (2026-11-23)
+
+- **BASE / BRANCH:** GitHub and Windows clean main 41e1adb2523563df08ec08449eb6fad729fd924b, ZVE-030 PR #116 MERGED, exact post-merge main Actions #44786276671 terminal SUCCESS. Local branch feat/zve-031-short-range-snap-20261123; NOT YET IN MAIN. Old unrelated PR #85/#93 unmerged.
+- **ACTUAL PRODUCT:** CreateShortDialog provides two independently draggable pointer-captured in/out range handles on one rail, measured audio/subtitle evidence ticks, optional magnet switch, precise keyboard and timecode, exact reset. New shortRangeSnap.ts only snaps <=6 frames / 300ms, never violates duration/clip limits. highlightAnalysis.ts derives union edges from valid timed subtitles and >=500ms measured FFmpeg silence not overlapping speech; HighlightsWorkspace sends evidence scoped to project/clip/revision via AppShell. No project schema, Rust IPC, source media, cloud, or AGPL copying.
+- **WINDOWS TDD + REAL ACCEPTANCE:** Initial RED for missing API/UI, 40/40 focused PASS; full frontend 329/329 (65 files), TS/Vite PASS. Actual native Tauri/WebView2 1/1 PASS: FFmpeg 41.8s H264/AAC with measured 29.0s quiet onset, real pointer capture and snap, 1-frame ArrowRight, magnet disabled, 0.5–28.5s final range; Preview did not modify Rust revision; native Rust Short 1080x1920 + Undo/Redo + save/reopen .vcut + real FFmpeg H264/AAC MP4 independently checked by FFprobe (target/zve031-native-pointer3-20261123.log). Two earlier failing native attempts diagnosed: old overlaid sliders missed pointer, then E2E expected unmeasured 28.5s waveform onset; both corrected with strict expectations.
+- **VERSION / REFERENCE:** alpha.49 -> alpha.50 once by official script; version consistency PASS. FilmCraft transcript.rs: time coverage and frame boundaries. Concat captions.rs: local one-Undo confirmation. Independently implemented; Concat AGPL not copied.
+- **REMAINING BEFORE MERGE:** exact-final frontend/Rust/version checks, native four shards plus four isolated stress E2E, unsigned DEBUG EXE + NSIS and hashes, self-review, branch commit/push/draft PR, exact-head GitHub CI terminal SUCCESS, protected merge/readback and Google task journal. No installation, signing, tag or Release. **NEXT PRODUCT-CODE TASK ZVE-032:** native preview playback of selected Short range as controllable A/B loop with real audio/video seek and exit, followed by usual protected Create Short, Undo/Redo, .vcut and MP4 acceptance; first recheck actual main/PRs and existing loop tools to avoid duplicating functionality.
+
+---
+
 # CURRENT PRODUCT DEVELOPMENT — ZVE-030: precise manual Short in/out before Create / 0.1.0-alpha.49 (2026-11-20)
 
 - **BASE / BRANCH:** GitHub and clean Windows main `c47b4913171a7b92bbbd43ac08bf6c9f3c9021ee`, PR #115 ZVE-029 MERGED. Post-merge main Actions run #44771834639 Windows job COMPLETED/SUCCESS. New Windows branch `feat/zve-030-manual-short-boundaries-20261120`. Original old draft PRs #85/#93 remain separate/unmerged.
@@ -1338,7 +1348,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.49` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.50` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
