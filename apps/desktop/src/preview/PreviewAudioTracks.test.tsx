@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Clip, MediaRef, Sequence, Track } from "../generated/ipc";
 import { PreviewAudioTracks, previewAudioVolume } from "./PreviewAudioTracks";
+import { previewMediaUrl } from "./previewMediaUrl";
 
 const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const clip = {
@@ -31,7 +32,7 @@ describe("standalone audio preview tracks", () => {
     const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
     const { rerender } = render(<PreviewAudioTracks sequence={sequence} media={media} playheadTimeUs={1_000_000} playing={false} />);
     const audio = screen.getByTestId("preview-audio-audio-1") as HTMLAudioElement;
-    expect(audio.getAttribute("src")).toBe(`http://zeter-media.localhost/${mediaId}`);
+    expect(audio.getAttribute("src")).toBe(previewMediaUrl(media[0]));
     expect(audio.getAttribute("src")).not.toContain("Private");
     Object.defineProperty(audio, "readyState", { configurable: true, value: HTMLMediaElement.HAVE_METADATA });
     fireEvent.loadedMetadata(audio);

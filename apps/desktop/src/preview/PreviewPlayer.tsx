@@ -9,6 +9,7 @@ import { PausedCompositeFrame } from "./PausedCompositeFrame";
 import { previewPictureStyle, transitionProgress } from "./transitionPreview";
 import { PreviewAudioTracks, previewAudioVolume, synchronizeAudioClock } from "./PreviewAudioTracks";
 import { adjacentEditBoundaryUs, collectEditBoundariesUs } from "./editNavigation";
+import { previewMediaUrl } from "./previewMediaUrl";
 import {
   advanceGapTimeUs,
   isBenignMediaPlayRejection,
@@ -91,11 +92,6 @@ function transitionFilterId(prefix: string, clip: Clip): string {
   return `zve-white-${prefix}-${clip.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
-// The custom protocol never accepts filesystem paths; only UUIDs belonging
-// to the currently-open project can be read by the Rust stream handler.
-function mediaUrl(mediaId: string): string {
-  return `http://zeter-media.localhost/${encodeURIComponent(mediaId)}`;
-}
 
 // Fall back to the legacy decoder/rAF clock on older WebView2 runtimes.
 function supportsPresentedFrames(node: HTMLVideoElement | null): node is HTMLVideoElement {
@@ -388,7 +384,7 @@ export function PreviewPlayer({
   const pictureLayers = useMemo(
     () => pictureSelection.layers.flatMap(({ clip, track }) => {
       const source = media.find((item) => item.id === clip.media_id);
-      return source ? [{ clip, track, src: mediaUrl(source.id) }] : [];
+      return source ? [{ clip, track, src: previewMediaUrl(source) }] : [];
     }),
     [pictureSelection, media],
   );
@@ -412,8 +408,8 @@ export function PreviewPlayer({
   const activeTrack = movingLayer?.track ?? visible?.track ?? null;
   const stillLayers = pictureLayers.filter(({ clip }) => clip.kind === "Image");
   const source = media.find((item) => item.id === active?.media_id) ?? null;
-  const src = source ? mediaUrl(source.id) : null;
-  const key = active && source ? `${active.id}:${source.id}` : "";
+  const src = source ? previewMediaUrl(source) : null;
+  const key = active && src ? active.id + ":" + src : "";
   const image = active?.kind === "Image";
   const videoSource = active?.kind === "Video" && src ? src : null;
   useEffect(() => {

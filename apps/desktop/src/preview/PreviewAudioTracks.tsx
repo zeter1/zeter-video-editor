@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Clip, MediaRef, Sequence, Track } from "../generated/ipc";
 import { isBenignMediaPlayRejection } from "./previewTransport";
+import { previewMediaUrl } from "./previewMediaUrl";
 
 interface PreviewAudioTracksProps {
   sequence: Sequence;
@@ -56,13 +57,13 @@ export function synchronizeAudioClock(
 function ActiveAudioClip({
   clip,
   track,
-  mediaId,
+  mediaSource,
   timeUs,
   playing,
 }: {
   clip: Clip;
   track: Track;
-  mediaId: string;
+  mediaSource: MediaRef;
   timeUs: number;
   playing: boolean;
 }) {
@@ -79,7 +80,7 @@ function ActiveAudioClip({
   timeRef.current = timeUs;
   const muted = track.muted || clip.audio.muted;
   const volume = previewAudioVolume(clip, timeUs);
-  const src = `http://zeter-media.localhost/${encodeURIComponent(mediaId)}`;
+  const src = previewMediaUrl(mediaSource);
 
   useEffect(() => {
     const current = node.current;
@@ -164,28 +165,28 @@ export function PreviewAudioTracks({
   playheadTimeUs,
   playing,
 }: PreviewAudioTracksProps) {
-  const mediaIds = new Set(media.map((item) => item.id));
+  const mediaById = new Map(media.map((item) => [item.id, item]));
   const active = sequence.tracks.flatMap((track) => {
     if (track.kind !== "Audio") return [];
     return track.clips
       .filter((clip) =>
         clip.kind === "Audio" &&
         clip.media_id !== null &&
-        mediaIds.has(clip.media_id) &&
+        mediaById.has(clip.media_id) &&
         clip.timeline_start <= playheadTimeUs &&
         playheadTimeUs < clip.timeline_end,
       )
-      .map((clip) => ({ clip, track, mediaId: clip.media_id! }));
+      .map((clip) => ({ clip, track, mediaSource: mediaById.get(clip.media_id!)! }));
   });
 
   return (
     <>
-      {active.map(({ clip, track, mediaId }) => (
+      {active.map(({ clip, track, mediaSource }) => (
         <ActiveAudioClip
-          key={`${track.id}:${clip.id}:${mediaId}`}
+          key={track.id + ":" + clip.id + ":" + previewMediaUrl(mediaSource)}
           clip={clip}
           track={track}
-          mediaId={mediaId}
+          mediaSource={mediaSource}
           timeUs={playheadTimeUs}
           playing={playing}
         />

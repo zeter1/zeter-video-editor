@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Sequence } from "../generated/ipc";
 import { PreviewPlayer } from "./PreviewPlayer";
+import { previewMediaUrl } from "./previewMediaUrl";
 
 const video = {
   id: "lower-video", kind: "Video" as const,
@@ -73,13 +74,13 @@ describe("Preview multi-video fallback", () => {
     const layers = Array.from(container.querySelectorAll(".preview-still-layers > .preview-media"));
     expect(layers.map((node) => node.tagName)).toEqual(["VIDEO", "VIDEO", "IMG"]);
     expect((layers[0] as HTMLVideoElement).src)
-      .toBe("http://zeter-media.localhost/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+      .toBe(previewMediaUrl(media[0]));
     expect((layers[0] as HTMLVideoElement).muted).toBe(true);
     expect((layers[1] as HTMLVideoElement).src)
-      .toBe("http://zeter-media.localhost/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+      .toBe(previewMediaUrl(media[1]));
     expect(layers[1].getAttribute("aria-label")).toBe("Предпросмотр видео");
     expect((layers[2] as HTMLImageElement).src)
-      .toBe("http://zeter-media.localhost/cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+      .toBe(previewMediaUrl(media[2]));
     expect((layers[2] as HTMLImageElement).style.opacity).toBe("0.5");
     expect(container.querySelectorAll("video")).toHaveLength(2);
     expect(screen.getByRole("status").textContent).toMatch(/FFmpeg/);
@@ -97,12 +98,12 @@ describe("Preview multi-video fallback", () => {
     rerender(<PreviewPlayer {...props} sequence={fixture()} playheadTimeUs={2_500_000} />);
     expect(screen.queryByRole("status")).toBeNull();
     expect((screen.getByLabelText("Предпросмотр видео") as HTMLVideoElement).src)
-      .toBe("http://zeter-media.localhost/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+      .toBe(previewMediaUrl(media[0]));
 
     rerender(<PreviewPlayer {...props} sequence={fixture(true)} playheadTimeUs={1_000_000} />);
     expect(screen.queryByRole("status")).toBeNull();
     expect((screen.getByLabelText("Предпросмотр видео") as HTMLVideoElement).src)
-      .toBe("http://zeter-media.localhost/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+      .toBe(previewMediaUrl(media[0]));
     expect(props.onCommit).not.toHaveBeenCalled();
   });
 });
