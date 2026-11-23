@@ -1,3 +1,4 @@
+import { shouldRestartPreviewLoop, validPreviewLoopRange, type PreviewLoopRange } from "./shortLoop";
 import { type CSSProperties, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import type { Clip, MediaRef, ProjectId, ProjectRevision, Sequence, Track, TrackId } from "../generated/ipc";
@@ -8,6 +9,7 @@ import { PausedCompositeFrame } from "./PausedCompositeFrame";
 import { previewPictureStyle, transitionProgress } from "./transitionPreview";
 import { PreviewAudioTracks, previewAudioVolume, synchronizeAudioClock } from "./PreviewAudioTracks";
 import { adjacentEditBoundaryUs, collectEditBoundariesUs } from "./editNavigation";
+import { previewMediaUrl } from "./previewMediaUrl";
 import {
   advanceGapTimeUs,
   isBenignMediaPlayRejection,
@@ -23,6 +25,9 @@ type PreviewQuality = "Full" | "1/2" | "1/4";
 type PreviewScale = "Fit" | "100%";
 
 interface PreviewPlayerProps {
+  /** Active Short A/B loop only; never part of the authoritative Rust project. */
+  loopRange?: PreviewLoopRange | null;
+  onLoopExit?: () => void;
   sequence: Sequence;
   projectId?: ProjectId | null;
   revision?: ProjectRevision | null;
@@ -87,11 +92,6 @@ function transitionFilterId(prefix: string, clip: Clip): string {
   return `zve-white-${prefix}-${clip.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
-// The custom protocol never accepts filesystem paths; only UUIDs belonging
-// to the currently-open project can be read by the Rust stream handler.
-function mediaUrl(mediaId: string): string {
-  return `http://zeter-media.localhost/${encodeURIComponent(mediaId)}`;
-}
 
 // Fall back to the legacy decoder/rAF clock on older WebView2 runtimes.
 function supportsPresentedFrames(node: HTMLVideoElement | null): node is HTMLVideoElement {
@@ -200,6 +200,8 @@ function SecondaryVideoLayer({
 }
 
 export function PreviewPlayer({
+  loopRange = null,
+  onLoopExit,
   sequence,
   projectId = null,
   revision = null,
@@ -312,8 +314,49 @@ export function PreviewPlayer({
   // and frame-step controls; the Rust project model is never mutated here.
   clockPositionRef.current = playheadTimeUs;
   onSeekRef.current = onSeek;
+  const loopRangeRef = useRef(loopRange);
+  const loopExitRef = useRef(onLoopExit);
+  const activeLoopRequestIdRef = useRef<number | null>(null);
+  loopRangeRef.current = loopRange;
+  loopExitRef.current = onLoopExit;
+
+  const exitShortLoop = (): void => {
+    if (!loopRangeRef.current) return;
+    loopRangeRef.current = null;
+    loopExitRef.current?.();
+  };
+  const rewindShortLoop = (range: PreviewLoopRange): void => {
+    // Invalidate old decoded frames and the independent audio clock before
+    // publishing the seek. The project timeline state remains unchanged.
+    frameAnchorRef.current = null;
+    bufferedRecoveryRef.current = null;
+    pendingExternalFrameRef.current = true;
+    setPresentedVideoFrame(null);
+    setSyncedVideoKey(null);
+    clockPositionRef.current = range.start;
+    onSeekRef.current(range.start);
+  };
+  useEffect(() => {
+    if (!loopRange) {
+      if (activeLoopRequestIdRef.current !== null) setPlaying(false);
+      activeLoopRequestIdRef.current = null;
+      return;
+    }
+    if (!validPreviewLoopRange(loopRange, playableEndUs)) {
+      activeLoopRequestIdRef.current = null;
+      setPlaying(false);
+      loopExitRef.current?.();
+      return;
+    }
+    if (activeLoopRequestIdRef.current === loopRange.requestId) return;
+    activeLoopRequestIdRef.current = loopRange.requestId;
+    rewindShortLoop(loopRange);
+    setMediaError(null);
+    setPlaying(true);
+  }, [loopRange?.start, loopRange?.end, loopRange?.requestId, playableEndUs]);
 
   const stepFrame = (direction: -1 | 1): void => {
+    exitShortLoop();
     // A frame step must stop live clocks before seeking, or playback can overwrite it.
     setPlaying(false);
     const targetUs = stepPreviewFrame(playheadTimeUs, sequence.fps, direction, playableEndUs);
@@ -322,6 +365,7 @@ export function PreviewPlayer({
   };
 
   const seekEditBoundary = (targetUs: number | null): void => {
+    exitShortLoop();
     if (targetUs === null) return;
     // Transport-only: retire live video and audio clocks before seeking.
     setPlaying(false);
@@ -340,7 +384,7 @@ export function PreviewPlayer({
   const pictureLayers = useMemo(
     () => pictureSelection.layers.flatMap(({ clip, track }) => {
       const source = media.find((item) => item.id === clip.media_id);
-      return source ? [{ clip, track, src: mediaUrl(source.id) }] : [];
+      return source ? [{ clip, track, src: previewMediaUrl(source) }] : [];
     }),
     [pictureSelection, media],
   );
@@ -364,8 +408,8 @@ export function PreviewPlayer({
   const activeTrack = movingLayer?.track ?? visible?.track ?? null;
   const stillLayers = pictureLayers.filter(({ clip }) => clip.kind === "Image");
   const source = media.find((item) => item.id === active?.media_id) ?? null;
-  const src = source ? mediaUrl(source.id) : null;
-  const key = active && source ? `${active.id}:${source.id}` : "";
+  const src = source ? previewMediaUrl(source) : null;
+  const key = active && src ? active.id + ":" + src : "";
   const image = active?.kind === "Image";
   const videoSource = active?.kind === "Video" && src ? src : null;
   useEffect(() => {
@@ -473,6 +517,10 @@ export function PreviewPlayer({
   useEffect(() => {
     if (!playing || playableEndUs <= 0) return;
     const publish = (nextUs: number): boolean => {
+      if (shouldRestartPreviewLoop(loopRangeRef.current, nextUs, playableEndUs)) {
+        rewindShortLoop(loopRangeRef.current!);
+        return false;
+      }
       if (nextUs > clockPositionRef.current + 500 || nextUs >= playableEndUs) {
         clockPositionRef.current = nextUs;
         onSeekRef.current(nextUs);
@@ -686,6 +734,19 @@ export function PreviewPlayer({
               onSeeked={() => {
                 // Seek can complete without another "playing" event; resume
                 // the external audio only after a usable video frame is ready.
+                // A native EOF can leave React in Play while the decoder is paused
+                // after the A/B seek; explicitly resume only this transport.
+                const current = video.current;
+                if (loopRangeRef.current && playing && current?.paused &&
+                    !current.ended && current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                  void current.play().catch((reason: unknown) => {
+                    if (!isBenignMediaPlayRejection(reason)) {
+                      setPlaying(false);
+                      exitShortLoop();
+                      setMediaError("Не удалось возобновить A/B воспроизведение.");
+                    }
+                  });
+                }
                 if (!supportsPresentedFrames(video.current) && videoClockReady()) setSyncedVideoKey(key);
               }}
               onPause={() => {
@@ -719,6 +780,10 @@ export function PreviewPlayer({
                 if (!current || !shouldHonorNativeVideoEnded(
                   active, current.currentTime, clockPositionRef.current, playing,
                 )) return;
+                if (shouldRestartPreviewLoop(loopRangeRef.current, active.timeline_end, playableEndUs)) {
+                  rewindShortLoop(loopRangeRef.current!);
+                  return;
+                }
                 clockPositionRef.current = active.timeline_end;
                 onSeekRef.current(active.timeline_end);
                 if (active.timeline_end >= playableEndUs) setPlaying(false);
@@ -727,6 +792,7 @@ export function PreviewPlayer({
                 setSyncedVideoKey(null);
                 setPlaying(false);
                 setMediaError("Формат или видеокодек не поддерживается WebView2. Требуется прокси-файл.");
+                exitShortLoop();
               }}
               aria-label="Предпросмотр видео"
             />
@@ -841,6 +907,7 @@ export function PreviewPlayer({
           title={playing ? "Пауза" : "Воспроизвести"}
           disabled={playableEndUs <= 0}
           onClick={() => {
+            exitShortLoop();
             if (!playing && playheadTimeUs >= playableEndUs) {
               clockPositionRef.current = 0;
               onSeek(0);
@@ -855,6 +922,7 @@ export function PreviewPlayer({
           onClick={() => {
             // Stop is a transient transport action, never an EditCommand.
             // Pausing first also retires the active native video/audio clocks.
+            exitShortLoop();
             setPlaying(false);
             clockPositionRef.current = 0;
             onSeekRef.current(0);

@@ -18,6 +18,7 @@ import { JobStatus, type ExportJobView } from "../components/JobStatus";
 import { LeftPanel } from "../components/LeftPanel";
 import { canEditTransition, transitionForClip } from "../editing/transitions";
 import { PreviewPanel } from "../components/PreviewPanel";
+import type { PreviewLoopRange } from "../preview/shortLoop";
 import { TimelinePanel } from "../components/TimelinePanel";
 import { TopToolbar } from "../components/TopToolbar";
 import type {
@@ -131,6 +132,8 @@ export function AppShell({
   const [creatingShort, setCreatingShort] = useState(false);
   const creatingShortRef = useRef(false);
   const [shortSource, setShortSource] = useState<ShortCreationContext | null>(null);
+  const [shortLoop, setShortLoop] = useState<PreviewLoopRange | null>(null);
+  const shortLoopTicket = useRef(0);
   const [addingText, setAddingText] = useState(false);
   const addingTextRef = useRef(false);
   const [portraitSequence, setPortraitSequence] = useState(false);
@@ -151,6 +154,14 @@ export function AppShell({
   const selectedClip = selectedClipContext?.clip ?? null;
   const selectedTrackId = selectedClipContext?.trackId ?? null;
   const selectedMedia = project?.media.find((item) => item.id === selectedClip?.media_id);
+  // A stale loop never reaches Preview following a Rust edit, sequence switch,
+  // media change or project reopen. This is transient UI state only.
+  const activeShortLoop = shortLoop && shortSource?.candidate &&
+    shortSource.projectId === project?.id &&
+    shortSource.revision === projectState.revision &&
+    shortSource.sequenceId === activeSequence?.id &&
+    shortSource.clipId === selectedClip?.id &&
+    projectState.syncStatus === "synced" ? shortLoop : null;
   const canCreateShort = !!activeSequence && selectedClip?.kind === "Video" &&
     !!selectedMedia?.width && !!selectedMedia?.height &&
     projectState.syncStatus === "synced" && !creatingShort && !creatingSequence;
@@ -228,6 +239,7 @@ export function AppShell({
     const snapshot = projectStore.getState().snapshot;
     if (!canCreateShort || !snapshot || !activeSequence || !selectedClip ||
         !selectedMedia?.width || !selectedMedia?.height || creatingShortRef.current) return;
+    setShortLoop(null);
     setShortSource({
       projectId: snapshot.project.id,
       revision: snapshot.revision,
@@ -269,6 +281,7 @@ export function AppShell({
       projectStore.setError("Хайлайт устарел или видео изменилось. Запустите анализ снова.");
       return;
     }
+    setShortLoop(null);
     setShortSource({
       projectId: snapshot.project.id, revision: snapshot.revision,
       sequenceId: sequence.id, clipId: clip.id,
@@ -401,6 +414,7 @@ export function AppShell({
     } finally {
       creatingShortRef.current = false;
       setCreatingShort(false);
+      setShortLoop(null);
       setShortSource(null);
     }
   }
@@ -974,6 +988,22 @@ export function AppShell({
           } : null}
           rangeConstraints={shortSource.rangeConstraints}
           snapPoints={shortSource.snapPoints}
+          loopActive={!!activeShortLoop}
+          onStopLoop={() => setShortLoop(null)}
+          onLoopRange={(range) => {
+            const snapshot = projectStore.getState().snapshot;
+            const active = resolveSequence(snapshot?.project.sequences ?? [],
+              transientStore.getState().selectedSequenceId);
+            if (!shortSource.candidate || !shortSource.rangeConstraints ||
+                !snapshot || snapshot.project.id !== shortSource.projectId ||
+                snapshot.revision !== shortSource.revision ||
+                snapshot.revision !== shortSource.candidate.source_revision ||
+                projectStore.getState().syncStatus !== "synced" ||
+                active?.id !== shortSource.sequenceId ||
+                transientStore.getState().selectedClipId !== shortSource.clipId ||
+                !validShortRange(range, shortSource.rangeConstraints)) return;
+            setShortLoop({ ...range, requestId: ++shortLoopTicket.current });
+          }}
           onPreviewRange={(range) => {
             const snapshot = projectStore.getState().snapshot;
             if (!shortSource.candidate || !shortSource.rangeConstraints ||
@@ -983,8 +1013,14 @@ export function AppShell({
             transientStore.setPlayheadTime(range.start);
             transientStore.setExportRange(range.start, range.end);
           }}
-          onCreate={(request) => void handleCreateShort(request)}
-          onCancel={() => setShortSource(null)} />
+          onCreate={(request) => {
+            setShortLoop(null);
+            void handleCreateShort(request);
+          }}
+          onCancel={() => {
+            setShortLoop(null);
+            setShortSource(null);
+          }} />
       ) : null}
 
       <div className="workspace-grid">
@@ -1037,6 +1073,8 @@ export function AppShell({
         <PreviewPanel
           key={`preview:${activeSequence?.id ?? "no-project"}`}
           sequence={activeSequence}
+          loopRange={activeShortLoop}
+          onLoopExit={() => setShortLoop(null)}
           projectId={project?.id ?? null}
           revision={projectState.revision}
           media={project?.media ?? []}

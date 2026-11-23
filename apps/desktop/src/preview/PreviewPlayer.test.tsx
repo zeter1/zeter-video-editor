@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Sequence } from "../generated/ipc";
 import { PreviewPlayer } from "./PreviewPlayer";
+import { previewMediaUrl } from "./previewMediaUrl";
 
 const sequence: Sequence = {
   id: "sequence-1",
@@ -146,8 +147,16 @@ describe("PreviewPlayer", () => {
       playheadTimeUs={1_000_000} onSeek={onSeek} onCommit={vi.fn()}
     />);
     const video = screen.getByLabelText("Предпросмотр видео") as HTMLVideoElement;
-    expect(video.getAttribute("src")).toBe("http://zeter-media.localhost/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(video.getAttribute("src")).toBe(previewMediaUrl(media[0]));
     expect(video.getAttribute("src")).not.toContain("Private");
+    const firstUrl = video.getAttribute("src");
+    rerender(<PreviewPlayer
+      sequence={{ ...sequence, tracks: [track] }}
+      media={[{ ...media[0], absolute_path: "D:\\Other\\replacement.mp4", file_size: 2000 }]}
+      selectedClip={null} selectedTrackId={null}
+      playheadTimeUs={1_000_000} onSeek={onSeek} onCommit={vi.fn()} />);
+    expect(screen.getByLabelText("Предпросмотр видео").getAttribute("src"))
+      .not.toBe(firstUrl);
     expect(screen.queryByText("Main")).toBeNull();
     rerender(<PreviewPlayer sequence={{ ...sequence, tracks: [track] }} media={media}
       selectedClip={null} selectedTrackId={null}
@@ -197,10 +206,7 @@ describe("PreviewPlayer", () => {
     );
     const images = screen.getAllByRole("img", { name: "Кадр изображения" }) as HTMLImageElement[];
     expect(images).toHaveLength(2);
-    expect(images.map((image) => image.src)).toEqual([
-      `http://zeter-media.localhost/${lower.media_id}`,
-      `http://zeter-media.localhost/${upper.media_id}`,
-    ]);
+    expect(images.map((image) => image.src)).toEqual(media.map(previewMediaUrl));
     expect(images.map((image) => image.style.opacity)).toEqual(["1", "0.5"]);
 
     rerender(
@@ -210,7 +216,7 @@ describe("PreviewPlayer", () => {
     );
     const remaining = screen.getAllByRole("img", { name: "Кадр изображения" }) as HTMLImageElement[];
     expect(remaining).toHaveLength(1);
-    expect(remaining[0].src).toBe(`http://zeter-media.localhost/${upper.media_id}`);
+    expect(remaining[0].src).toBe(previewMediaUrl(media[1]));
   });
 
   it("keeps one decoded video beneath a translucent still overlay without remounting on overlay entry", () => {
@@ -260,8 +266,8 @@ describe("PreviewPlayer", () => {
     const layers = Array.from(container.querySelectorAll(".preview-still-layers > .preview-media"));
     expect(layers.map((element) => element.tagName)).toEqual(["VIDEO", "IMG"]);
     expect(layers[0]).toBe(video);
-    expect((layers[0] as HTMLVideoElement).src).toBe(`http://zeter-media.localhost/${videoId}`);
-    expect((layers[1] as HTMLImageElement).src).toBe(`http://zeter-media.localhost/${imageId}`);
+    expect((layers[0] as HTMLVideoElement).src).toBe(previewMediaUrl(media[0]));
+    expect((layers[1] as HTMLImageElement).src).toBe(previewMediaUrl(media[1]));
     expect((layers[1] as HTMLImageElement).style.opacity).toBe("0.5");
     expect(container.querySelectorAll("video")).toHaveLength(1);
 

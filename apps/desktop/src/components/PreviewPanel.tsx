@@ -1,8 +1,11 @@
 import type { Clip, MediaRef, ProjectId, ProjectRevision, Sequence, TrackId } from "../generated/ipc";
 import type { EditCommit } from "../editing/commit";
 import { PreviewPlayer } from "../preview/PreviewPlayer";
+import type { PreviewLoopRange } from "../preview/shortLoop";
 
 interface PreviewPanelProps {
+  loopRange?: PreviewLoopRange | null;
+  onLoopExit?: () => void;
   sequence: Sequence | null;
   projectId?: ProjectId | null;
   revision?: ProjectRevision | null;
@@ -16,6 +19,8 @@ interface PreviewPanelProps {
 }
 
 export function PreviewPanel({
+  loopRange = null,
+  onLoopExit,
   sequence,
   projectId = null,
   revision = null,
@@ -45,6 +50,8 @@ export function PreviewPanel({
 
       {sequence ? (
         <PreviewPlayer
+          loopRange={loopRange}
+          onLoopExit={onLoopExit}
           sequence={sequence}
           projectId={projectId}
           revision={revision}
