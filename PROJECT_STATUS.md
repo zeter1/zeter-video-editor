@@ -1,3 +1,13 @@
+# CURRENT PRODUCT DEVELOPMENT — ZVE-032 native A/B preview for selected Shorts / 0.1.0-alpha.51 (2026-11-23)
+
+- **VERIFIED BASE:** clean Windows/GitHub main b39e3b149d8a3d30a98b82ae276cb74829c3fe8d; ZVE-031 PR #117 MERGED; exact main Actions #45162420940 SUCCESS. New Windows branch feat/zve-032-native-short-ab-loop-20261123, with one official alpha.50→alpha.51 source version update, no release/install/tag.
+- **USER-FACING FUNCTION:** «Повторить фрагмент A/B» in Create Short uses edited In/Out points and existing Tauri/WebView2 Preview transport, genuine video/audio clocks, seek from Out back to precise In, compact floating stop controller/Escape, and retains user-entered crop/range after exit. Regular transport controls exit loop. Replay is purely transient; no Rust mutation, project schema or media replacement; existing Create Short remains one revision-checked command.
+- **TDD AND LIVE QA SO FAR:** new UI and range tests RED 2 before implementation; focused Vitest 23/23 PASS; TS/Vite PASS; version check 0.1.0-alpha.51 PASS. Initial native short-case test had an intermittent 20s poll timeout even while WebView2 showed Play; diagnostic repeat logged multiple real decoder wraps 2.4s→0.5s and passed full Create/Undo/Redo/.vcut/FFmpeg H.264/AAC MP4. Final strengthened native test uses two actual video clock wrap observations (rather than lucky polling) + native unmuted audio volume + stop and 9:16 export: PASS 1/1 on unchanged feature source. Do not equate this with full matrix.
+- **REFERENCE AND LICENSE:** FilmCraft main crates/edit/src/transcript.rs demonstrates frame/time coverage; Concat main src/crates/concat/src/panes/captions.rs reinforces local confirmation and one-Undo work. ZVE-032 independently uses existing decoder/timeline infrastructure; no AGPL code/assets copied.
+- **LOCAL BASELINE COMPLETE:** full Vitest 335/335 PASS (66 test files), TS/Vite PASS, Rust workspace cargo test PASS, cargo fmt PASS, version-policy 8/8 PASS. **PENDING GATES BEFORE PR MERGE:** four-shard native WebView2 plus four isolated stress E2Es, exact-source unsigned Windows DEBUG EXE and NSIS with hashes, code review, commit/push and PR, exact-new-head CI terminal SUCCESS, permissioned merge/readback and Google tasks checkpoint. No install, tag, signed/public Release.
+- **NEXT AFTER ZVE-032:** ZVE-033 WYSIWYG 9:16 Short crop preview of the actual proposed portrait framing in the same edit dialog, without modifying source, with Preview/Undo/.vcut/FFmpeg parity.
+
+---
 # CURRENT PRODUCT FIX — ZVE-031 modal pointer interception / PR #117 / alpha.50 (2026-11-23)
 
 - **Verified GitHub gate:** main `41e1adb2523563df08ec08449eb6fad729fd924b` is alpha.49. Existing DRAFT PR #117, branch `feat/zve-031-short-range-snap-20261123`, diagnostic HEAD `39ec6f98c15243ee3ecc094795979e578b7d3ce7` has exact-head Actions #45155391520 COMPLETED/FAILURE: 6/13 native shard 1 PASS, 7/13 Short tests FAIL, shards 2–4 / four AV stress / DEBUG NSIS SKIPPED. All 331 frontend Vitest and Rust checks passed in CI.
@@ -1366,7 +1376,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.50` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.51` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

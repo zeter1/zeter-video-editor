@@ -25,6 +25,9 @@ interface CreateShortDialogProps {
   rangeConstraints?: ShortRangeConstraints | null;
   snapPoints?: readonly ShortSnapPoint[];
   onPreviewRange?: (range: ShortRangeView) => void;
+  onLoopRange?: (range: ShortRangeView) => void;
+  onStopLoop?: () => void;
+  loopActive?: boolean;
   onCreate: (request: CreateShortRequestView) => void;
   onCancel: () => void;
   busy?: boolean;
@@ -32,7 +35,8 @@ interface CreateShortDialogProps {
 
 export function CreateShortDialog({
   open, initialCrop, autoCrop = null, faceStatus = "none", highlightRange = null,
-  rangeConstraints = null, snapPoints = [], onPreviewRange, onCreate, onCancel, busy = false,
+  rangeConstraints = null, snapPoints = [], onPreviewRange, onLoopRange, onStopLoop,
+  loopActive = false, onCreate, onCancel, busy = false,
 }: CreateShortDialogProps) {
   const [crop, setCrop] = useState<CropView>(initialCrop);
   const [startText, setStartText] = useState("");
@@ -122,7 +126,25 @@ export function CreateShortDialog({
     if (autoCrop && !manuallyEdited.current) setCrop(autoCrop);
   }, [autoCrop]);
 
+  useEffect(() => {
+    if (!open || !loopActive) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); onStopLoop?.(); }
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [open, loopActive, onStopLoop]);
+
   if (!open) return null;
+  if (loopActive) return (
+    <section className="short-loop-floating" role="region" aria-label="Повтор фрагмента Short">
+      <strong>Повтор A/B · {startText} – {endText}</strong>
+      <span>Воспроизводится в основном предпросмотре с настоящим звуком.</span>
+      <button type="button" onClick={() => onStopLoop?.()}>
+        Остановить повтор и вернуться к границам
+      </button>
+    </section>
+  );
   const fields: ReadonlyArray<keyof CropView> = ["left", "top", "right", "bottom"];
   const statusText = {
     searching: "Поиск лица на исходном видео… Можно кадрировать вручную.",
@@ -240,6 +262,10 @@ export function CreateShortDialog({
           <button type="button" disabled={!selectedRange || !onPreviewRange}
             onClick={() => { if (selectedRange) onPreviewRange?.(selectedRange); }}>
             Предпросмотр выбранных границ
+          </button>
+          <button type="button" disabled={!selectedRange || !onLoopRange}
+            onClick={() => { if (selectedRange) onLoopRange?.(selectedRange); }}>
+            Повторить фрагмент A/B
           </button>
           <button type="button" onClick={() => {
             setStartText(formatTimecode(highlightRange.start, rangeConstraints.fps));

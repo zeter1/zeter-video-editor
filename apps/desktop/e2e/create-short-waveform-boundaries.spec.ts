@@ -130,6 +130,58 @@ test("ZVE-031 drags a real audio-pause Short handle -> preview -> Undo/Redo -> .
   await expect(dialog.getByText("Длительность: 28.000 с")).toBeVisible();
   await dialog.getByRole("button", { name: "Предпросмотр выбранных границ" }).click();
   expect((await invokeTauri<NativeProject>(page, "project_snapshot")).revision).toBe(before.revision);
+  // ZVE-032: exercise the *actual* Tauri WebView2 decoder through two A/B
+  // passes of a real H.264/AAC clip. No generated oscillator or Rust edit.
+  await endField.fill("00:00:02:15");
+  await dialog.getByRole("button", { name: "Повторить фрагмент A/B" }).click();
+  const loopControls = page.getByRole("region", { name: "Повтор фрагмента Short" });
+  await expect(loopControls).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  const nativeVideo = page.locator('video[aria-label="Предпросмотр видео"]').first();
+  await expect(nativeVideo).toBeVisible();
+  const loopEvidence = await nativeVideo.evaluate(async (element) => {
+    const video = element as HTMLVideoElement;
+    return await new Promise<{
+      loops: number; muted: boolean; volume: number; playbackRate: number;
+    }>((resolve, reject) => {
+      let previous = video.currentTime;
+      let loops = 0;
+      let observedForward = false;
+      const deadline = window.setTimeout(() => {
+        window.clearInterval(probe);
+        reject(new Error("Real WebView2 A/B loop failed to cross Out twice; " +
+          JSON.stringify({ currentTime: video.currentTime, previous, loops,
+            paused: video.paused, seeking: video.seeking, readyState: video.readyState })));
+      }, 18_000);
+      const probe = window.setInterval(() => {
+        const now = video.currentTime;
+        if (now > 1.8) observedForward = true;
+        if (observedForward && previous > 1.8 && now < 0.9 && !video.paused) {
+          loops += 1;
+          observedForward = false;
+        }
+        previous = now;
+        if (loops >= 2) {
+          window.clearInterval(probe);
+          window.clearTimeout(deadline);
+          resolve({ loops, muted: video.muted, volume: video.volume,
+            playbackRate: video.playbackRate });
+        }
+      }, 40);
+    });
+  });
+  expect(loopEvidence.loops).toBe(2);
+  expect(loopEvidence.muted).toBe(false);
+  expect(loopEvidence.volume).toBeGreaterThan(0);
+  expect(loopEvidence.playbackRate).toBe(1);
+  expect((await invokeTauri<NativeProject>(page, "project_snapshot")).revision)
+    .toBe(before.revision);
+  await loopControls.getByRole("button", { name: /Остановить повтор и вернуться/ }).click();
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole("button", { name: "Воспроизвести", exact: true })).toBeVisible();
+  await expect(endField).toHaveValue("00:00:02:15");
+  await endField.fill("00:00:28:15");
+  await expect(dialog.getByText("Длительность: 28.000 с")).toBeVisible();
   await dialog.getByRole("spinbutton", { name: "Crop left" }).fill("0.20");
   const createButton = dialog.getByRole("button", { name: "Создать Short" });
   // CI regression: the editor's underlying Import button intercepted this click

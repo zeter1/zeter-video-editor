@@ -177,3 +177,39 @@ describe("CreateShortDialog", () => {
   });
 
 });
+
+describe("CreateShortDialog A/B range playback", () => {
+  const props = {
+    open: true, initialCrop: center, onCreate: vi.fn(), onCancel: vi.fn(),
+    highlightRange: { start: 1_000_000, end: 29_000_000 },
+    rangeConstraints: { min: 0, max: 41_800_000, maxDurationUs: 30_000_000, fps: 30 },
+  };
+  it("starts a transient exact A/B loop and replaces the modal with a dismissible mini-controller", () => {
+    const onLoopRange = vi.fn();
+    const onStopLoop = vi.fn();
+    const view = render(<CreateShortDialog {...props} onLoopRange={onLoopRange}
+      onStopLoop={onStopLoop} loopActive={false} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Конец Short (HH:MM:SS:FF)" }),
+      { target: { value: "00:00:28:15" } });
+    fireEvent.click(screen.getByRole("button", { name: /Повторить фрагмент A\/B/ }));
+    expect(onLoopRange).toHaveBeenCalledWith({ start: 1_000_000, end: 28_500_000 });
+    expect(screen.getByRole("button", { name: "Создать Short" })).toBeTruthy();
+    view.rerender(<CreateShortDialog {...props} onLoopRange={onLoopRange}
+      onStopLoop={onStopLoop} loopActive />);
+    expect(screen.queryByRole("dialog", { name: "Create Short" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Повтор фрагмента Short" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Остановить повтор и вернуться/ }));
+    expect(onStopLoop).toHaveBeenCalledTimes(1);
+  });
+  it("does not play an invalid range or dispatch project creation", () => {
+    const onLoopRange = vi.fn();
+    const onCreate = vi.fn();
+    render(<CreateShortDialog {...props} onLoopRange={onLoopRange} onCreate={onCreate} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Конец Short (HH:MM:SS:FF)" }),
+      { target: { value: "00:00:42:00" } });
+    expect(screen.getByRole("button", { name: /Повторить фрагмент A\/B/ }))
+      .toHaveProperty("disabled", true);
+    expect(onLoopRange).not.toHaveBeenCalled();
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+});
