@@ -12,6 +12,9 @@ export default defineConfig({
   globalTeardown: "./e2e/global-teardown.ts",
   reporter: [["list"]],
   use: {
+    // A missing UI action must fail with its locator, not consume a 4-5 minute test budget.
+    // Explicit 90-second candidate-analysis assertions keep their own timeout.
+    actionTimeout: 45_000,
     trace: "retain-on-failure",
   },
 });

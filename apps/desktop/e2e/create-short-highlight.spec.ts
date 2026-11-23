@@ -34,6 +34,7 @@ test("ZVE-023 native audio highlights -> face-aware/manual Short -> Undo/Redo ->
   const exportPath = path.join(directory, "zve023-short-export.mp4");
 
   // Genuine local audio activity, not mocked AI candidates or synthetic IPC.
+  console.log("[ZVE-031 CI] Short highlight: generating real H264/AAC fixture");
   execFileSync(ffmpeg, [
     "-hide_banner", "-loglevel", "error", "-y",
     "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30",
@@ -43,6 +44,7 @@ test("ZVE-023 native audio highlights -> face-aware/manual Short -> Undo/Redo ->
     "-shortest", sourcePath,
   ], { windowsHide: true });
 
+  console.log("[ZVE-031 CI] Short highlight: fixture encoding complete");
   const fixture = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as NativeProject;
   const source = fixture.project.sequences[0];
   const videoTrack = source.tracks.find((track) => track.kind === "Video" && track.clips.length > 0);
@@ -69,16 +71,20 @@ test("ZVE-023 native audio highlights -> face-aware/manual Short -> Undo/Redo ->
   fixture.revision = 0;
   writeFileSync(projectPath, JSON.stringify(fixture, null, 2));
 
+  console.log("[ZVE-031 CI] Short highlight: opening native project");
   await invokeTauri(page, "project_open", { path: projectPath });
   await page.reload();
   const before = await invokeTauri<NativeProject>(page, "project_snapshot");
+  console.log("[ZVE-031 CI] Short highlight: WebView2 project reloaded");
   await page.getByTestId(`clip-${original.id}`).dispatchEvent("click");
   await page.getByRole("button", { name: "AI-инструменты" }).click();
   const analyze = page.getByRole("button", { name: "Найти хайлайты" });
   await expect(analyze).toBeEnabled();
+  console.log("[ZVE-031 CI] Short highlight: starting native highlight analysis");
   await analyze.click();
   const candidate = page.getByRole("button", { name: "Создать Short из хайлайта" });
   await expect(candidate).toBeEnabled({ timeout: 90_000 });
+  console.log("[ZVE-031 CI] Short highlight: candidate enabled");
   await expect(page.getByText(/0\.0 с – 1\.5 с/)).toBeVisible();
   // Range preview is only transient, never a project edit.
   await page.getByRole("button", { name: "Предпросмотр фрагмента" }).click();

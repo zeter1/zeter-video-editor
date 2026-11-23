@@ -113,6 +113,17 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
+      # Do not discard the trace of a failing native WebView2 acceptance. Without
+      # it a full test timeout reports no last pending UI action or DOM state.
+      - name: Preserve failing native Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failing-native-playwright-traces
+          path: apps/desktop/test-results/
+          if-no-files-found: warn
+          retention-days: 3
+
       - name: Native pre-play delayed-byte-starvation acceptance (isolated WebView2)
         shell: pwsh
         working-directory: apps/desktop

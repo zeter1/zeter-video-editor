@@ -1,3 +1,11 @@
+# CURRENT GATE INVESTIGATION — ZVE-031 / PR #117 / alpha.50 (2026-11-23)
+
+- **Exact evidence / blocker:** GitHub `39ae0145fa57da0f2d11e9d8919130884e7d33f1`, Actions run `45147673585` on that SHA is COMPLETED/FAILURE, not pending. Native shard 1: six PASS and seven FULL-TIMEOUT failures restricted to Short/Highlight cases; shards 2–4, four isolated media stress and unsigned DEBUG NSIS SKIPPED in CI. Do not merge #117; old local 54/54 + bundle still valid evidence only for that locally tested source.
+- **Distinguishing evidence:** direct fresh Windows Tauri/WebView2 ZVE-023 real FFmpeg audio-highlight → Short → Rust Undo/Redo → `.vcut` → MP4 passed 1/1 with exit 0 on unchanged source. This rejects a deterministic failure on this Windows PC, not CI-specific resource, WebView2 or timing failures. Root cause currently UNKNOWN.
+- **Current scoped work on existing feature branch:** preserve failing Playwright trace.zip in short-lived GitHub Actions artifact, add deterministic phase markers in ZVE-023, and make individual Playwright UI actions fail at 45 s instead of consuming the full 240–300 s test timeout. Test assertions, AI/FFmpeg algorithms, app runtime, native file format and version unchanged. Check full Vitest, version policy, native focused E2E, inspect new exact-head CI, then fix actual defect if traced; no blind CI retry, merge or release.
+- **NEXT PRODUCT-CODE TASK after ZVE-031 required gates and approved merge:** ZVE-032 A/B loop preview of precise Short range with real video/audio seek and explicit exit. Verify no duplication, protect transient state and eventual Rust Create, Undo/Redo, `.vcut`, FFmpeg parity.
+
+---
 # CURRENT PRODUCT DEVELOPMENT — ZVE-031: draggable Short range and evidence-based snapping / 0.1.0-alpha.50 (2026-11-23)
 
 - **BASE / BRANCH:** GitHub and Windows clean main 41e1adb2523563df08ec08449eb6fad729fd924b, ZVE-030 PR #116 MERGED, exact post-merge main Actions #44786276671 terminal SUCCESS. Local branch feat/zve-031-short-range-snap-20261123; NOT YET IN MAIN. Old unrelated PR #85/#93 unmerged.
