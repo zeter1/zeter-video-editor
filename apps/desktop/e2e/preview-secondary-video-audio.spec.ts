@@ -35,15 +35,22 @@ test("native lower video audio follows Play/mute/Pause without altering the proj
   const overlay = track("Overlay");
   const source = bottom.clips[0];
   if (!source || !source.media_id) throw new Error("Missing synthetic embedded-AAC video");
+  // The source lasts six seconds. Playwright on heavily loaded CI can observe
+  // sound only near the clip's natural EOF; that *removes* the lower decoder
+  // before the Pause assertion, without a transport or sound regression.
+  // Stretch both identical H.264/AAC layers non-destructively to 11s at 0.5x.
+  // This tests native rate-scaled source clocks and preserves a real active
+  // follower long enough for an actual user Pause click. The 5.5s source-out
+  // remains inside the real six-second file; no fake frames or mocks.
   const lowerId = randomUUID(), upperId = randomUUID();
   bottom.clips = [{
-    ...source, id: lowerId, timeline_start: 0, timeline_end: 5_500_000,
-    source_in: 0, source_out: 5_500_000,
+    ...source, id: lowerId, timeline_start: 0, timeline_end: 11_000_000,
+    source_in: 0, source_out: 5_500_000, speed: 0.5,
     audio: { ...source.audio, muted: false, volume: 0.4 },
   }];
   overlay.clips = [{
-    ...source, id: upperId, timeline_start: 0, timeline_end: 5_500_000,
-    source_in: 0, source_out: 5_500_000,
+    ...source, id: upperId, timeline_start: 0, timeline_end: 11_000_000,
+    source_in: 0, source_out: 5_500_000, speed: 0.5,
     audio: { ...source.audio, muted: true }, // only the lower video should sound
   }];
   track("Audio").clips = [];
