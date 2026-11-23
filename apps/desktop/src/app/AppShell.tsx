@@ -987,6 +987,10 @@ export function AppShell({
             shortSource.sequenceId === activeSequence?.id &&
             shortSource.clipId === selectedClip?.id &&
             selectedMedia?.id === selectedClip?.media_id ? selectedMedia : null}
+          previewFps={activeSequence?.fps ?? 30}
+          previewTimelineRange={selectedClip ? {
+            start: selectedClip.timeline_start, end: selectedClip.timeline_end,
+          } : null}
           previewSourceTimeUs={selectedClip ? shortPreviewSourceTimeUs(
             selectedClip.source_in, selectedClip.source_out,
             selectedClip.timeline_start, selectedClip.timeline_end,

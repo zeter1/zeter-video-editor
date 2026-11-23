@@ -1720,6 +1720,14 @@ button {
   object-fit: fill;
   pointer-events: none;
 }
+/* ZVE-034: keep frame inspection touch/keyboard targets reachable at
+   narrow Windows sizes; this reads video without modifying Rust state. */
+.short-frame-inspector { display: grid; gap: 7px; min-width: 0; }
+.short-frame-inspector-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.short-frame-inspector-controls button { flex: 1 1 145px; min-height: 36px; }
+.short-frame-inspector input[type="range"] { display: block; width: 100%; min-width: 0; }
+.short-frame-current { color: var(--muted); font-variant-numeric: tabular-nums; }
+
 /* ZVE-031: one Short range with independently keyboard-focusable in/out
    sliders. Only the thumbs accept the pointer; colored ticks are passive. */
 .short-range-snap-option { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
