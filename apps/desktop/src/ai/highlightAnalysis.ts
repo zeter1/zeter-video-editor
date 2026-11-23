@@ -1,5 +1,6 @@
 import type { Clip, Sequence } from "../generated/ipc";
 import type { HighlightCandidateView } from "./HighlightsPanel";
+import type { ShortSnapPoint } from "./shortRangeSnap";
 
 const SECOND = 1_000_000;
 const STEP_US = 10 * SECOND;
@@ -125,6 +126,54 @@ function waveformQuietGaps(
     i = j;
   }
   return gaps;
+}
+
+/** Verified timeline edit points: union edges of authoritative timed subtitles
+ * and >=500ms quiet FFmpeg waveform windows not overlapping those subtitles.
+ * Source positions are evidence, not word-level timestamps or project edits. */
+export function collectShortSnapPoints(
+  sequence: Sequence, clip: Clip, peaks: readonly number[],
+): ShortSnapPoint[] {
+  if (!Number.isSafeInteger(clip.timeline_start) ||
+      !Number.isSafeInteger(clip.timeline_end) ||
+      clip.timeline_end <= clip.timeline_start || peaks.length < 1 ||
+      peaks.length > 1024 || peaks.some((value) =>
+        !Number.isFinite(value) || value < 0 || value > 1)) return [];
+  const segments = validTimedSegments(sequence, clip);
+  const points = new Map<number, ShortSnapPoint["evidence"]>();
+  const add = (timeUs: number, evidence: ShortSnapPoint["evidence"]) => {
+    if (Number.isSafeInteger(timeUs) && timeUs >= clip.timeline_start &&
+        timeUs <= clip.timeline_end &&
+        (!points.has(timeUs) || evidence === "subtitle")) points.set(timeUs, evidence);
+  };
+  let unionStart: number | null = null;
+  let unionEnd = 0;
+  const flush = () => {
+    if (unionStart !== null) {
+      add(unionStart, "subtitle");
+      add(unionEnd, "subtitle");
+    }
+  };
+  for (const segment of segments) {
+    const start = Math.max(segment.start, clip.timeline_start);
+    const end = Math.min(segment.end, clip.timeline_end);
+    if (unionStart !== null && start <= unionEnd) {
+      unionEnd = Math.max(unionEnd, end);
+    } else {
+      flush();
+      unionStart = start;
+      unionEnd = end;
+    }
+  }
+  flush();
+  for (const gap of waveformQuietGaps(peaks, clip, segments)) {
+    add(gap.start, "audio");
+    add(gap.end, "audio");
+  }
+  const ordered = [...points].sort(([a], [b]) => a - b);
+  const stride = Math.max(1, Math.ceil(ordered.length / 512));
+  return ordered.filter((_, i) => i % stride === 0 || i === ordered.length - 1)
+    .map(([timeUs, evidence]) => ({ timeUs, evidence }));
 }
 
 function nearestPause(at: number, pauses: readonly number[]): number {

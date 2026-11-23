@@ -22,7 +22,7 @@ type NativeProject = {
   };
 };
 
-test("ZVE-029/030 analyzes real AAC pause, manually sets Short in/out frames -> preview -> Undo/Redo -> .vcut -> MP4", async () => {
+test("ZVE-031 drags a real audio-pause Short handle -> preview -> Undo/Redo -> .vcut -> MP4", async () => {
   test.setTimeout(300_000);
   const { page, state } = await connectTauri();
   const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
@@ -104,11 +104,45 @@ test("ZVE-029/030 analyzes real AAC pause, manually sets Short in/out frames -> 
   await endField.fill("00:00:31:00");
   await expect(dialog.getByRole("button", { name: "Создать Short" })).toBeDisabled();
   await endField.fill("00:00:28:15");
+  // The pointer drag is an actual Chromium range-thumb gesture, not a
+  // synthetic change event or a scripted Rust mutation. FFmpeg provided real
+  // 28.5-29.5s silence; 80 source buckets quantize the measured quiet onset to 29.0s.
+  const endSlider = dialog.getByRole("slider", { name: "Конец Short (кадры)" });
+  const bounds = await endSlider.boundingBox();
+  const trackBounds = await dialog.getByRole("group", { name: "Визуальный диапазон Short" }).boundingBox();
+  if (!bounds || !trackBounds) throw Error("Missing visual Short range handle");
+  const frameX = (seconds: number) => trackBounds.x + trackBounds.width * seconds / 40;
+  const y = bounds.y + bounds.height / 2;
+  await expect(dialog.getByRole("checkbox", { name: "Магнитная привязка" })).toBeChecked();
+  await page.mouse.move(bounds.x + bounds.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(frameX(28.93), y, { steps: 8 });
+  await page.mouse.up();
+  await expect(endField).toHaveValue("00:00:29:00");
+  await expect(dialog.getByText("Привязано к паузе аудио")).toBeVisible();
+  // Keyboard does not get stuck on a magnet. Explicit toggle disables
+  // attraction without changing already chosen frame-accurate boundaries.
+  await endSlider.focus();
+  await endSlider.press("ArrowRight");
+  await expect(endField).toHaveValue("00:00:29:01");
+  await dialog.getByRole("checkbox", { name: "Магнитная привязка" }).uncheck();
+  await endField.fill("00:00:28:15");
   await expect(dialog.getByText("Длительность: 28.000 с")).toBeVisible();
   await dialog.getByRole("button", { name: "Предпросмотр выбранных границ" }).click();
   expect((await invokeTauri<NativeProject>(page, "project_snapshot")).revision).toBe(before.revision);
   await dialog.getByRole("spinbutton", { name: "Crop left" }).fill("0.20");
-  await dialog.getByRole("button", { name: "Создать Short" }).click();
+  const createButton = dialog.getByRole("button", { name: "Создать Short" });
+  // CI regression: the editor's underlying Import button intercepted this click
+  // when the Short dialog was accidentally rendered as an app-shell grid row.
+  const confirmationHasPointer = await createButton.evaluate((element) => {
+    element.scrollIntoView({ block: "center" });
+    const bounds = element.getBoundingClientRect();
+    const hit = document.elementFromPoint(bounds.left + bounds.width / 2,
+      bounds.top + bounds.height / 2);
+    return hit === element || element.contains(hit);
+  });
+  expect(confirmationHasPointer, "Short confirmation must receive real pointer events above the editor").toBe(true);
+  await createButton.click();
 
   await expect.poll(async () =>
     (await invokeTauri<NativeProject>(page, "project_snapshot")).project.sequences.length,

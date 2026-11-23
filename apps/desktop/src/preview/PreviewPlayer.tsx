@@ -633,6 +633,21 @@ export function PreviewPlayer({
                   video.current.currentTime = sourceTime(active, playheadTimeUs);
                 }
               }}
+              onCanPlay={() => {
+                const current = video.current;
+                // WebView2 may natively pause before any bytes are decoded.
+                // onPause cannot restart it while readyState is empty, and the
+                // original play() promise may already have resolved. Restore
+                // the user's still-active Play intent only after native data
+                // readiness; never restart after a user Pause/Stop or seek.
+                if (!playing || !current || !current.paused || current.seeking ||
+                    current.ended || current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+                void current.play().catch((reason: unknown) => {
+                  if (isBenignMediaPlayRejection(reason)) return;
+                  setPlaying(false);
+                  setMediaError("Не удалось возобновить видео после загрузки медиаданных.");
+                });
+              }}
               onPlaying={() => {
                 if (bufferedRecoveryRef.current?.key === key) {
                   bufferedRecoveryRef.current.resumed = true;

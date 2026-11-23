@@ -388,6 +388,48 @@ describe("PreviewPlayer continuous transport", () => {
     expect(plays()).toBe(beforeIntentionalPause);
     expect(screen.getByRole("button", { name: "Воспроизвести" })).toBeTruthy();
   });
+  it("resumes desired Play after a native pre-play pause once media bytes become ready", async () => {
+    const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const mediaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const clip = {
+      id: "preplay-stall-video", kind: "Video", media_id: mediaId,
+      source_in: 0, source_out: 2_000_000, timeline_start: 0, timeline_end: 2_000_000,
+      speed: 1, audio: { volume: 1, gain_db: 0, muted: false, fade_in: 0, fade_out: 0 },
+    } as Sequence["tracks"][number]["clips"][number];
+    const sequence = {
+      ...baseSequence, tracks: [{ id: "v", kind: "Video", hidden: false, muted: false, clips: [clip] }],
+    } as Sequence;
+    const { container } = render(<PreviewPlayer
+      sequence={sequence} media={[{ id: mediaId }] as import("../generated/ipc").MediaRef[]}
+      selectedClip={null} selectedTrackId={null} playheadTimeUs={0}
+      onSeek={vi.fn()} onCommit={vi.fn()}
+    />);
+    const video = container.querySelector("video.preview-media") as HTMLVideoElement;
+    let readyState: number = HTMLMediaElement.HAVE_NOTHING;
+    Object.defineProperty(video, "readyState", { configurable: true, get: () => readyState });
+    Object.defineProperty(video, "paused", { configurable: true, value: true });
+    const plays = () => nativePlay.mock.instances.filter((node) => node === video).length;
+
+    fireEvent.click(screen.getByRole("button", { name: "Воспроизвести" }));
+    await act(async () => { await Promise.resolve(); });
+    expect(plays()).toBe(1);
+    // Real WebView2 may emit pause while all pending 206 requests are blocked.
+    fireEvent.waiting(video);
+    fireEvent.pause(video);
+    expect(plays()).toBe(1); // Never spin retries without decoded bytes.
+    expect(screen.getByRole("button", { name: "Пауза" })).toBeTruthy();
+
+    readyState = HTMLMediaElement.HAVE_FUTURE_DATA;
+    fireEvent.canPlay(video);
+    await act(async () => { await Promise.resolve(); });
+    expect(plays()).toBe(2); // Restore requested Play without another user click.
+
+    fireEvent.click(screen.getByRole("button", { name: "Пауза" }));
+    fireEvent.canPlay(video);
+    expect(plays()).toBe(2); // User's explicit Pause must win over late native events.
+  });
+
   it("pauses standalone audio until video starts and during video buffering or seeking", () => {
     const nativePlay = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     const nativePause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});

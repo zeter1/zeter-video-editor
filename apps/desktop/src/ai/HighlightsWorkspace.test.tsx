@@ -32,6 +32,13 @@ describe("HighlightsWorkspace", () => {
       { target: { value: "75" } });
     expect(screen.getByText("0.0 с – 30.0 с")).toBeTruthy();
     expect(getAudioWaveform).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getAllByRole("button", { name: "Создать Short из хайлайта" })[0]);
+    expect(props.onCreateShort).toHaveBeenCalledWith(
+      expect.objectContaining({ source_revision: 1 }), 30, [
+        { timeUs: 0, evidence: "subtitle" },
+        { timeUs: 30_000_000, evidence: "subtitle" },
+      ],
+    );
 
     // Do not expose candidates analyzed against an earlier authoritative revision.
     view.rerender(<HighlightsWorkspace {...props} revision={2} />);

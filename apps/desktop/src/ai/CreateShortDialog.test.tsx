@@ -116,4 +116,64 @@ describe("CreateShortDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Создать Short" }));
     expect(onCreate).toHaveBeenCalledWith({ crop: center, width: 1080, height: 1920 });
   });
+  it("snaps only pointer dragging, preserving exact keyboard and disabled magnet edits", () => {
+    const onCreate = vi.fn();
+    render(<CreateShortDialog {...highlightProps} onCreate={onCreate}
+      snapPoints={[{ timeUs: 29_000_000, evidence: "audio" }]} />);
+    const slider = screen.getByRole("slider", { name: "Конец Short (кадры)" });
+    const end = screen.getByRole("textbox", { name: "Конец Short (HH:MM:SS:FF)" });
+    expect(screen.getByRole("checkbox", { name: "Магнитная привязка" })).toHaveProperty("checked", true);
+    vi.spyOn(slider.parentElement!, "getBoundingClientRect").mockReturnValue({
+      left: 0, width: 400,
+    } as DOMRect);
+    fireEvent.pointerDown(slider, { clientX: 290, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(slider, { clientX: 866 / 1254 * 400, pointerId: 1 });
+    fireEvent.pointerUp(slider, { clientX: 866 / 1254 * 400, pointerId: 1 });
+    expect(end).toHaveProperty("value", "00:00:29:00");
+    expect(screen.getByText(/Привязано к паузе аудио/)).toBeTruthy();
+    fireEvent.keyDown(slider, { key: "ArrowLeft" });
+    expect(end).toHaveProperty("value", "00:00:28:29");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Магнитная привязка" }));
+    fireEvent.pointerDown(slider, { clientX: 290, button: 0, pointerId: 2 });
+    fireEvent.pointerMove(slider, { clientX: 867 / 1254 * 400, pointerId: 2 });
+    fireEvent.pointerUp(slider, { clientX: 867 / 1254 * 400, pointerId: 2 });
+    expect(end).toHaveProperty("value", "00:00:28:27");
+    fireEvent.click(screen.getByRole("button", { name: "Создать Short" }));
+    expect(onCreate).toHaveBeenCalledWith({ crop: center, width: 1080, height: 1920,
+      range: { start: 0, end: 28_900_000 } });
+  });
+  it("keeps exact unrounded suggestion on a stationary click and shows late-range evidence ticks", () => {
+    const onCreate = vi.fn();
+    const points = Array.from({ length: 128 }, (_, i) => ({
+      timeUs: i * 300_000, evidence: "audio" as const,
+    }));
+    const { container } = render(<CreateShortDialog {...highlightProps}
+      highlightRange={{ start: 0, end: 28_613_000 }}
+      onCreate={onCreate} snapPoints={points} />);
+    const handle = screen.getByRole("slider", { name: "Конец Short (кадры)" });
+    fireEvent.pointerDown(handle, { clientX: 100, button: 0, pointerId: 1 });
+    fireEvent.pointerUp(handle, { clientX: 100, pointerId: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Создать Short" }));
+    expect(onCreate).toHaveBeenCalledWith({ crop: center, width: 1080, height: 1920 });
+    const ticks = container.querySelectorAll<HTMLElement>(".short-range-snap-tick");
+    expect(ticks.length).toBeGreaterThan(2);
+    expect(ticks.length).toBeLessThanOrEqual(64);
+    expect(parseFloat(ticks[ticks.length - 1].style.left)).toBeGreaterThan(85);
+  });
+
+  it("rejects a magnet beyond duration limit without changing the original suggestion", () => {
+    render(<CreateShortDialog {...highlightProps} onCreate={vi.fn()}
+      snapPoints={[{ timeUs: 30_150_000, evidence: "audio" }]} />);
+    const slider = screen.getByRole("slider", { name: "Конец Short (кадры)" });
+    vi.spyOn(slider.parentElement!, "getBoundingClientRect").mockReturnValue({
+      left: 0, width: 400,
+    } as DOMRect);
+    fireEvent.pointerDown(slider, { clientX: 290, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(slider, { clientX: 895 / 1254 * 400, pointerId: 1 });
+    fireEvent.pointerUp(slider, { clientX: 895 / 1254 * 400, pointerId: 1 });
+    expect(screen.getByRole("textbox", { name: "Конец Short (HH:MM:SS:FF)" }))
+      .toHaveProperty("value", "00:00:29:25");
+    expect(screen.queryByText(/Привязано к паузе аудио/)).toBeNull();
+  });
+
 });
