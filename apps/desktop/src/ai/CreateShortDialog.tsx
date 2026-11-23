@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import type { Crop } from "../generated/ipc";
+import type { Crop, MediaRef } from "../generated/ipc";
+import { ShortCropPreview } from "./ShortCropFrame";
 import { shiftPortraitCrop } from "./shortReframe";
 import { formatTimecode, parseTimecode } from "../timeline/timecode";
 import { snapShortFrame, validShortRange, type ShortSnapPoint } from "./shortRangeSnap";
@@ -19,6 +20,9 @@ export interface CreateShortRequestView {
 interface CreateShortDialogProps {
   open: boolean;
   initialCrop: CropView;
+  previewMedia?: MediaRef | null;
+  previewSourceTimeUs?: number;
+  previewSourceTimeAt?: (sequenceTimeUs: number) => number;
   autoCrop?: CropView | null;
   faceStatus?: "searching" | "found" | "none" | "error";
   highlightRange?: ShortRangeView | null;
@@ -34,7 +38,8 @@ interface CreateShortDialogProps {
 }
 
 export function CreateShortDialog({
-  open, initialCrop, autoCrop = null, faceStatus = "none", highlightRange = null,
+  open, initialCrop, previewMedia = null, previewSourceTimeUs = 0, previewSourceTimeAt,
+  autoCrop = null, faceStatus = "none", highlightRange = null,
   rangeConstraints = null, snapPoints = [], onPreviewRange, onLoopRange, onStopLoop,
   loopActive = false, onCreate, onCancel, busy = false,
 }: CreateShortDialogProps) {
@@ -282,6 +287,10 @@ export function CreateShortDialog({
         Смещайте её по горизонтали или вертикали. Соотношение 9:16 сохраняется;
         исходный клип останется без изменений.
       </p>
+      {previewMedia ? <ShortCropPreview media={previewMedia} crop={crop}
+        sourceTimeUs={highlightRange && selectedRange && previewSourceTimeAt
+          ? previewSourceTimeAt(selectedRange.start) : previewSourceTimeUs} disabled={busy}
+        onChange={(next) => { manuallyEdited.current = true; setCrop(next); }} /> : null}
       <fieldset disabled={busy}>
         <legend>Ручное кадрирование</legend>
         {fields.map((key) => {

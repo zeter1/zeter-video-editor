@@ -61,11 +61,35 @@ test("native Create Short builds an undoable 9:16 crop with save and real FFmpeg
   console.log("[ZVE-022] selection ready");
   await button.click();
   await expect(page.getByRole("dialog", { name: "Create Short" })).toBeVisible();
+  // ZVE-033: genuine native decoded frame, not a CSS-only placeholder.
+  const portrait = page.getByRole("region", { name: "Портретный предпросмотр Short 9:16" });
+  const previewVideo = portrait.locator("video");
+  expect(new URL((await previewVideo.getAttribute("src"))!).hostname).toBe("zeter-media.localhost");
+  await expect.poll(() => previewVideo.evaluate((video) =>
+    (video as HTMLVideoElement).readyState), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+  await expect(previewVideo).toHaveCSS("visibility", "visible");
+  expect(await previewVideo.evaluate((video) => (video as HTMLVideoElement).muted)).toBe(true);
+  // A pointer pan changes ONLY the draft crop, before one Rust AddSequence.
+  await portrait.scrollIntoViewIfNeeded();
+  const area = await portrait.boundingBox();
+  if (!area) throw Error("ZVE-033 native portrait frame is not visible");
+  const manualLeft = page.getByRole("dialog", { name: "Create Short" }).getByRole("spinbutton", { name: "Crop left" });
+  const beforePan = Number(await manualLeft.inputValue());
+  await page.mouse.move(area.x + area.width / 2, area.y + area.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(area.x + area.width / 2 + 23, area.y + area.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(async () => Number(await manualLeft.inputValue())).not.toBe(beforePan);
+  expect((await invokeTauri<NativeProject>(page, "project_snapshot")).revision).toBe(before.revision);
   const originalAspect = media.width / media.height;
   const visibleWidth = Math.min(1, (9 / 16) / originalAspect);
   const proposedLeft = Math.max(0, (1 - visibleWidth) / 3);
   await page.getByRole("dialog", { name: "Create Short" }).getByRole("spinbutton", { name: "Crop left" })
     .fill(String(proposedLeft));
+  await expect.poll(async () => Number(await manualLeft.inputValue())).toBeCloseTo(proposedLeft, 5);
+  const screenshotPath = path.join(path.dirname(projectPath), "zve033-native-portrait.png");
+  await expect(previewVideo).toHaveCSS("visibility", "visible");
+  await portrait.screenshot({ path: screenshotPath });
   await page.getByRole("button", { name: "Создать Short", exact: true }).click();
 
   await expect.poll(async () =>
@@ -126,4 +150,43 @@ test("native Create Short builds an undoable 9:16 crop with save and real FFmpeg
     streams: Array<{ width: number; height: number }>;
   };
   expect(dimensions.streams[0]).toEqual({ width: 1080, height: 1920 });
+
+  // Independently decode the actual native WebView2 screenshot and the
+  // exported FFmpeg first frame as raw RGB. This checks visual crop parity,
+  // not merely the Rust crop DTO or MP4 dimensions; avoid antialias edges.
+  const pngHeader = readFileSync(screenshotPath);
+  const renderedWidth = pngHeader.readUInt32BE(16);
+  const renderedHeight = pngHeader.readUInt32BE(20);
+  expect(renderedWidth).toBeGreaterThanOrEqual(110);
+  expect(renderedHeight / renderedWidth).toBeGreaterThan(1.65);
+  const ffmpeg = path.join(state.runtimeDir, "ffmpeg.exe");
+  const decodedRgb = (input: string, filter: string): Buffer =>
+    execFileSync(ffmpeg, [
+      "-v", "error", "-i", input, "-frames:v", "1", "-vf", filter,
+      "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
+    ], { windowsHide: true, maxBuffer: renderedWidth * renderedHeight * 4 });
+  const previewRgb = decodedRgb(screenshotPath, "format=rgb24");
+  const exportRgb = decodedRgb(exportedPath,
+    `scale=${renderedWidth}:${renderedHeight}:flags=bicubic,format=rgb24`);
+  expect(previewRgb.length).toBe(renderedWidth * renderedHeight * 3);
+  expect(exportRgb.length).toBe(previewRgb.length);
+  const differences: number[] = [];
+  for (let y = 8; y < renderedHeight - 8; y += 3) {
+    for (let x = 8; x < renderedWidth - 8; x += 3) {
+      const offset = (y * renderedWidth + x) * 3;
+      for (let channel = 0; channel < 3; channel++) {
+        differences.push(Math.abs(previewRgb[offset + channel] -
+          exportRgb[offset + channel]));
+      }
+    }
+  }
+  differences.sort((a, b) => a - b);
+  const mean = differences.reduce((sum, value) => sum + value, 0) / differences.length;
+  const p95 = differences[Math.floor(differences.length * 0.95)];
+  const p99 = differences[Math.floor(differences.length * 0.99)];
+  console.log("[ZVE-033] native screenshot vs independent FFmpeg RGB",
+    { width: renderedWidth, height: renderedHeight, mean, p95, p99 });
+  expect(mean).toBeLessThan(20);
+  expect(p95).toBeLessThanOrEqual(45);
+  expect(p99).toBeLessThanOrEqual(95);
 });

@@ -10,6 +10,7 @@ import { HighlightsWorkspace } from "../ai/HighlightsWorkspace";
 import type { ShortSnapPoint } from "../ai/shortRangeSnap";
 import type { HighlightCandidateView } from "../ai/HighlightsPanel";
 import { createShortSequenceFromClip, portraitCropForMedia } from "../ai/shortReframe";
+import { shortPreviewSourceTimeUs } from "../ai/shortCropPreview";
 import { createEmptySequence, resolveSequence } from "./sequenceWorkspace";
 import { InspectorPanel } from "../components/InspectorPanel";
 import { ErrorDialog } from "../errors/ErrorDialog";
@@ -981,6 +982,19 @@ export function AppShell({
 
       {shortSource ? (
         <CreateShortDialog open initialCrop={shortSource.initialCrop}
+          previewMedia={shortSource.projectId === project?.id &&
+            shortSource.revision === projectState.revision &&
+            shortSource.sequenceId === activeSequence?.id &&
+            shortSource.clipId === selectedClip?.id &&
+            selectedMedia?.id === selectedClip?.media_id ? selectedMedia : null}
+          previewSourceTimeUs={selectedClip ? shortPreviewSourceTimeUs(
+            selectedClip.source_in, selectedClip.source_out,
+            selectedClip.timeline_start, selectedClip.timeline_end,
+            selectedClip.speed, shortSource.candidate?.start ?? transient.playheadTimeUs) : 0}
+          previewSourceTimeAt={(timeUs) => selectedClip ? shortPreviewSourceTimeUs(
+            selectedClip.source_in, selectedClip.source_out,
+            selectedClip.timeline_start, selectedClip.timeline_end,
+            selectedClip.speed, timeUs) : 0}
           autoCrop={shortSource.autoCrop} faceStatus={shortSource.faceStatus}
           busy={creatingShort}
           highlightRange={shortSource.candidate ? {
