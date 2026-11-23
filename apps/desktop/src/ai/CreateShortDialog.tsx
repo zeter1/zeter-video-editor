@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import type { Crop, MediaRef } from "../generated/ipc";
 import { ShortCropPreview } from "./ShortCropFrame";
 import { shiftPortraitCrop } from "./shortReframe";
+import { inspectedFrameRange, inspectedFrameTimeUs } from "./shortFrameInspection";
 import { formatTimecode, parseTimecode } from "../timeline/timecode";
 import { snapShortFrame, validShortRange, type ShortSnapPoint } from "./shortRangeSnap";
 import type { ShortRangeView, ShortRangeConstraints } from "./shortRangeSnap";
@@ -21,6 +22,8 @@ interface CreateShortDialogProps {
   open: boolean;
   initialCrop: CropView;
   previewMedia?: MediaRef | null;
+  previewFps?: number;
+  previewTimelineRange?: ShortRangeView | null;
   previewSourceTimeUs?: number;
   previewSourceTimeAt?: (sequenceTimeUs: number) => number;
   autoCrop?: CropView | null;
@@ -38,7 +41,8 @@ interface CreateShortDialogProps {
 }
 
 export function CreateShortDialog({
-  open, initialCrop, previewMedia = null, previewSourceTimeUs = 0, previewSourceTimeAt,
+  open, initialCrop, previewMedia = null, previewFps = 30,
+  previewTimelineRange = null, previewSourceTimeUs = 0, previewSourceTimeAt,
   autoCrop = null, faceStatus = "none", highlightRange = null,
   rangeConstraints = null, snapPoints = [], onPreviewRange, onLoopRange, onStopLoop,
   loopActive = false, onCreate, onCancel, busy = false,
@@ -52,6 +56,7 @@ export function CreateShortDialog({
   const draggedEdge = useRef<"start" | "end" | null>(null);
   const pointerOrigin = useRef<number | null>(null);
   const pointerMoved = useRef(false);
+  const [inspectedFrame, setInspectedFrame] = useState<number | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [snapInfo, setSnapInfo] = useState<string | null>(null);
 
@@ -81,6 +86,16 @@ export function CreateShortDialog({
   const selectedRange = validRange && range
     ? { start: range.start as number, end: range.end as number } : null;
   const editedRange = startEdited || endEdited;
+  // Inspect the full selected clip, or the edited candidate interval. The
+  // frame cursor is local UI state and never calls Rust or changes the crop.
+  const inspectionRange = selectedRange ?? (!highlightRange ? previewTimelineRange : null);
+  const inspectionBounds = inspectionRange ? inspectedFrameRange(inspectionRange, previewFps) : null;
+  const inspectionFrame = inspectionBounds
+    ? Math.min(inspectionBounds.last, Math.max(inspectionBounds.first,
+      inspectedFrame ?? inspectionBounds.first)) : null;
+  useEffect(() => {
+    setInspectedFrame(null);
+  }, [open, previewTimelineRange?.start, previewTimelineRange?.end]);
   const rangePercent = (timeUs: number): number => {
     if (!rangeConstraints || rangeConstraints.max <= rangeConstraints.min) return 0;
     return Math.max(0, Math.min(100,
@@ -287,9 +302,35 @@ export function CreateShortDialog({
         Смещайте её по горизонтали или вертикали. Соотношение 9:16 сохраняется;
         исходный клип останется без изменений.
       </p>
+      {previewMedia && inspectionBounds && inspectionFrame !== null ? (
+        <fieldset disabled={busy} className="short-frame-inspector">
+          <legend>Проверка кадрирования по времени</legend>
+          <p className="empty-copy">Проверьте, остаётся ли объект в вертикальном кадре
+            от начала до конца Short. Стрелки на ползунке перемещают на один кадр.</p>
+          <div className="short-frame-inspector-controls">
+            <button type="button" onClick={() => setInspectedFrame(inspectionBounds.first)}>
+              Первый кадр Short
+            </button>
+            <button type="button" onClick={() => setInspectedFrame(inspectionBounds.last)}>
+              Последний кадр Short
+            </button>
+          </div>
+          <label>Кадр Short для проверки
+            <input aria-label="Кадр Short для проверки" type="range" step="1"
+              min={inspectionBounds.first} max={inspectionBounds.last} value={inspectionFrame}
+              disabled={inspectionBounds.first === inspectionBounds.last}
+              onChange={(event) => setInspectedFrame(Number(event.target.value))} />
+          </label>
+          <span className="short-frame-current">{formatTimecode(inspectedFrameTimeUs(inspectionFrame, previewFps), previewFps)}
+            {" · кадр " + (inspectionFrame - inspectionBounds.first + 1) +
+              " из " + (inspectionBounds.last - inspectionBounds.first + 1)}
+          </span>
+        </fieldset>
+      ) : null}
       {previewMedia ? <ShortCropPreview media={previewMedia} crop={crop}
-        sourceTimeUs={highlightRange && selectedRange && previewSourceTimeAt
-          ? previewSourceTimeAt(selectedRange.start) : previewSourceTimeUs} disabled={busy}
+        sourceTimeUs={inspectionFrame !== null && previewSourceTimeAt
+          ? previewSourceTimeAt(inspectedFrameTimeUs(inspectionFrame, previewFps))
+          : previewSourceTimeUs} disabled={busy}
         onChange={(next) => { manuallyEdited.current = true; setCrop(next); }} /> : null}
       <fieldset disabled={busy}>
         <legend>Ручное кадрирование</legend>

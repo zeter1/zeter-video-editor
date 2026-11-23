@@ -36,6 +36,30 @@ describe("Create Short pre-commit WYSIWYG source framing", () => {
     });
   });
 
+  it("scrubs source frames across the selected timeline range without changing the crop or project", () => {
+    const onCreate = vi.fn();
+    render(<CreateShortDialog open initialCrop={center}
+      previewMedia={media} previewFps={30}
+      previewTimelineRange={{ start: 2_000_000, end: 4_000_000 }}
+      previewSourceTimeAt={(timeUs) => 1_000_000 + (timeUs - 2_000_000) / 2}
+      onCreate={onCreate} onCancel={vi.fn()} />);
+    const slider = screen.getByRole("slider", { name: "Кадр Short для проверки" }) as HTMLInputElement;
+    expect(slider.min).toBe("60");
+    expect(slider.max).toBe("119");
+    const video = screen.getByTestId("short-crop-source-video") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 8 });
+    Object.defineProperty(video, "readyState", { configurable: true, value: 2 });
+    fireEvent.loadedMetadata(video);
+    expect(video.currentTime).toBeCloseTo(1, 5);
+    fireEvent.change(slider, { target: { value: "90" } });
+    expect(video.currentTime).toBeCloseTo(1.5, 5);
+    fireEvent.click(screen.getByRole("button", { name: "Последний кадр Short" }));
+    expect(video.currentTime).toBeCloseTo(1 + (59 / 30) / 2, 4);
+    fireEvent.click(screen.getByRole("button", { name: "Первый кадр Short" }));
+    expect(video.currentTime).toBeCloseTo(1, 5);
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
   it("pointer-pans the preview without project mutation and ignores a late face detection", () => {
     const onCreate = vi.fn();
     const props = { open: true, initialCrop: center, previewMedia: media,

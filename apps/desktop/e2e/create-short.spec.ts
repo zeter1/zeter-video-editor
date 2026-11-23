@@ -69,6 +69,26 @@ test("native Create Short builds an undoable 9:16 crop with save and real FFmpeg
     (video as HTMLVideoElement).readyState), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
   await expect(previewVideo).toHaveCSS("visibility", "visible");
   expect(await previewVideo.evaluate((video) => (video as HTMLVideoElement).muted)).toBe(true);
+  // ZVE-034: real WebView2 keyboard scrubbing moves the decoded source
+  // inside the half-open range without writing the authoritative project.
+  const inspection = page.getByRole("slider", { name: "Кадр Short для проверки" });
+  await expect(inspection).toBeVisible();
+  await inspection.focus();
+  await inspection.press("End");
+  await expect.poll(() => previewVideo.evaluate((video) =>
+    (video as HTMLVideoElement).currentTime), { timeout: 15_000 }).toBeGreaterThan(0.65);
+  await expect(previewVideo).toHaveCSS("visibility", "visible");
+  const lastInspected = Number(await inspection.inputValue());
+  expect(lastInspected).toBeGreaterThan(0);
+  await inspection.press("Home");
+  await expect.poll(() => previewVideo.evaluate((video) =>
+    (video as HTMLVideoElement).currentTime), { timeout: 15_000 }).toBeLessThan(0.08);
+  await inspection.press("ArrowRight");
+  await expect.poll(() => previewVideo.evaluate((video) =>
+    (video as HTMLVideoElement).currentTime), { timeout: 15_000 }).toBeGreaterThan(0.018);
+  await inspection.press("Home");
+  await expect(previewVideo).toHaveCSS("visibility", "visible");
+  expect((await invokeTauri<NativeProject>(page, "project_snapshot")).revision).toBe(before.revision);
   // A pointer pan changes ONLY the draft crop, before one Rust AddSequence.
   await portrait.scrollIntoViewIfNeeded();
   const area = await portrait.boundingBox();
