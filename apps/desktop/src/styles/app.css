@@ -1689,6 +1689,37 @@ button {
   box-shadow: 0 18px 55px rgba(0, 0, 0, 0.7);
 }
 
+/* ZVE-033: bounded 9:16 decoded-frame crop, with source-relative pan.
+   The original media file is never modified by preview interactions. */
+.short-crop-preview-panel {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 0;
+}
+.short-crop-preview-stage {
+  position: relative;
+  isolation: isolate;
+  flex: none;
+  width: min(150px, 38vw);
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  background: #080c13;
+  outline: 2px solid #89b4f1;
+  border-radius: 3px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.short-crop-preview-stage:active { cursor: grabbing; }
+.short-crop-preview-stage video {
+  position: absolute;
+  display: block;
+  max-width: none;
+  max-height: none;
+  object-fit: fill;
+  pointer-events: none;
+}
 /* ZVE-031: one Short range with independently keyboard-focusable in/out
    sliders. Only the thumbs accept the pointer; colored ticks are passive. */
 .short-range-snap-option { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
