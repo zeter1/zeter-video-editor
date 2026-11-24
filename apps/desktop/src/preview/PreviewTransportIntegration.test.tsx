@@ -781,6 +781,19 @@ describe("PreviewPlayer continuous transport", () => {
       present(0); // Stale frame before native source_in=4s seek.
       expect(onSeek).not.toHaveBeenCalled();
       expect(audioPlays()).toBe(0);
+      // The first callback may be delivered after a busy JS thread missed
+      // several frames. Never jump over the requested in-point or start WAV
+      // from an untrusted frame; seek back to the authoritative playhead.
+      video.currentTime = 4.6;
+      present(4.6);
+      expect(video.currentTime).toBeCloseTo(4);
+      // Do not loop seeks under sustained load at the same playhead.
+      video.currentTime = 4.7;
+      present(4.7);
+      expect(video.currentTime).toBeCloseTo(4.7);
+      video.currentTime = 4;
+      expect(onSeek).not.toHaveBeenCalled();
+      expect(audioPlays()).toBe(0);
       present(4);
       expect(audioPlays()).toBe(1);
       video.currentTime = 4.1;
