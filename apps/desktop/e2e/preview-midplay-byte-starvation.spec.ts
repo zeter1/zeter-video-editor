@@ -139,18 +139,32 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
     expect(receipts.every((hit) => hit.start >= 2_097_152 && hit.start < 4_194_304 && hit.delayMs === 2000 &&
       hit.elapsedMs >= 1750 && Number.isFinite(hit.endedAtMs))).toBe(true);
 
-    const beforeReleaseEvents = await video.evaluate((element) =>
+    // The first HTTP receipt and the decoder's actual waiting event are
+    // independent clocks. Keep fault injection active until both are observed.
+    const readEvents = () => video.evaluate((element) =>
       (element as HTMLVideoElement & { __byteStallEvents?: EventRecord[] }).__byteStallEvents ?? []);
-    console.log("[real WebView2 native buffering before release] " +
-      JSON.stringify({ ranges: readFileSync(rangesPath, "utf8"), receipts, beforeReleaseEvents }));
-    // A missing native event is a real test failure, never disguised by
-    // dispatchEvent: it signals that the fixture/prebuffering needs adjustment.
-    const firstPlaying = beforeReleaseEvents.find((event) => event.type === "playing");
-    const midplayWaiting = beforeReleaseEvents.find((event) =>
-      event.type === "waiting" && firstPlaying && event.atMs > firstPlaying.atMs &&
-      event.frameCount - firstPlaying.frameCount >= 6);
-    expect(midplayWaiting,
-      "native waiting MUST follow playing and >=6 genuine compositor frames, not startup buffering").toBeDefined();
+    const findMidplayWaiting = (events: EventRecord[]) => {
+      const firstPlaying = events.find((event) => event.type === "playing");
+      return events.find((event) =>
+        event.type === "waiting" && firstPlaying && event.atMs > firstPlaying.atMs &&
+        event.frameCount - firstPlaying.frameCount >= 6);
+    };
+    const firstReceiptEvents = await readEvents();
+    let beforeReleaseEvents = firstReceiptEvents;
+    try {
+      await expect.poll(async () => {
+        beforeReleaseEvents = await readEvents();
+        return Boolean(findMidplayWaiting(beforeReleaseEvents));
+      }, {
+        timeout: 8_000, intervals: [100, 150, 200],
+        message: "native waiting MUST follow playing and >=6 genuine compositor frames, not startup buffering",
+      }).toBe(true);
+    } finally {
+      console.log("[real WebView2 native buffering before release] " +
+        JSON.stringify({ ranges: readFileSync(rangesPath, "utf8"), receipts, firstReceiptEvents, beforeReleaseEvents }));
+    }
+    const midplayWaiting = findMidplayWaiting(beforeReleaseEvents);
+    expect(midplayWaiting).toBeDefined();
 
     const releasedAtMs = Date.now();
     if (existsSync(control)) unlinkSync(control); // Subsequent native requests are unthrottled.
