@@ -1,4 +1,13 @@
-# CURRENT PRODUCT DEVELOPMENT — ZVE-036 reuse exact Short FFmpeg interval / 0.1.0-alpha.55 (2026-11-24)
+# CURRENT PRODUCT DEVELOPMENT — ZVE-037 stable Short preview cache identity / 0.1.0-alpha.56 (2026-11-24)
+- **BASE:** main 94fc80581659e5c87af1a2015bd75752dfb172bc, ZVE-036 PR #122 merged, exact post-merge main CI #45366090357 terminal SUCCESS. Branch feat/zve-037-short-preview-cache-identity-20261124; candidate alpha.56, not integrated.
+- **BASELINE:** alpha.55 ordinary Windows diagnostic at 5.5s/30fps: frame119 -> 120 -> 121 -> 119, explicit return 5086ms; duplicated identical 0-4s MP4s (same SHA256); TTL expired at 120142ms, explicit recovery and isolated source timestamp invalidation observed; project and media unchanged. Logs target/zve037-local-qa/baseline-return-ttl.log and baseline-duplicate-cache.json.
+- **IMPLEMENTATION:** valid temporary manual/candidate Short render snapshots use the real source sequence ID and stable snapshot-local track/clip ordinals, linked consistently in audio, text and transitions. Full RenderPlan content, source stamps, revision, runtime, window and bounded cache remain authoritative. Actual Create uses new IDs; no project schema, undo/history, source or normal export changes. Explicit request for unknown intervals/retry remains; no speculative FFmpeg work.
+- **TDD:** Windows candidate equality RED; focused Rust GREEN 2/2 for manual/candidate and 1/1 for cross-layer render semantics. Frontend production build/version script PASS. New native cache re-entry test verifies 119/120/121/119 seam, revoked/new lease, unchanged file key/mtime/hash and project/media, RGB decoded from reused interval. Exact native/CI gates must be verified separately.
+- **REFERENCES:** FilmCraft crates/engine/src/previews.rs d1a3770b114116f8010a6a8f7348ff15ff1142fa content-addressed coverage; Concat src/crates/concat-host/src/preview.rs 3ac71544b0ec389a973e468eafeb17c5e3326d01 warm reuse/stale control (AGPL, no code copied); OpenMotion src/studio/engine/preview-document-cache.ts a4f229da46f989b3f000f4548eeac83db2acf93d revision/TTL. Original implementation, no third-party code/assets/dependencies copied.
+- **GATES / NEXT:** targeted native seam + existing manual/highlight Create/Undo/Redo/save/reopen/export; real TTL/source-change on ordinary DEBUG, Rust/frontend full tests, local complete native matrix, DEBUG EXE/NSIS hashes, self-review and terminal exact-head CI before merge. After gate, assess next approved Short UX gap or main editing workflow; no install/sign/tag/release.
+
+---
+# HISTORICAL PRODUCT DEVELOPMENT — ZVE-036 reuse exact Short FFmpeg interval / 0.1.0-alpha.55 (2026-11-24)
 - **BASE:** GitHub and Windows main 2cbc87af1bb4fb5dcf9f7c89be8e604971bcce86, ZVE-035 PR #121 MERGED. Exact PR CI #45352085197 and post-merge main CI #45357118676 both terminal SUCCESS (all Windows checks and bundle smoke). The old HOLD below is historical. Branch feat/zve-036-short-composite-window-reuse-20261124; alpha.55 is a candidate, not merged, signed, installed or released.
 - **USER OUTCOME:** once a Short's exact output preview is ready, changing the selected output frame within its four-second half-open interval keeps the existing opaque lease and decoder. No further FFmpeg render request or click in the interval. New crop/range/project/sequence/revision/FPS or crossing the interval revokes the old lease; new interval is explicitly requested, not automatically rendered. Native read-only validation before presenting each seek checks current project/revision, lease lifetime, source stamps and bounded regular cache file. Stale async results are ignored; existing GPU frame evidence is still required. No schema, source media, timeline history, RenderPlan or export mutation.
 - **BASELINE:** ordinary alpha.54 Windows EXE SHA256 1D8CC18291454005156912F4B13EAC0B8DFDBC08CC4BEBC3F66620E217F8CCAE, 0.8s synthetic 30fps Short; six real ArrowRight + explicit re-open seeks took 1421/1916/1403/1402/1393/1408ms, median 1405.5ms, seven distinct leases including first. Snapshot unchanged; log target/zve035-local-qa/zve036-baseline-scrub.log. This measured new requests/decoder reload, not a count of FFmpeg subprocesses.
@@ -1422,7 +1431,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.55` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.56` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 
