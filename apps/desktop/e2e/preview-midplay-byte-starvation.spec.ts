@@ -149,7 +149,18 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
         event.type === "waiting" && firstPlaying && event.atMs > firstPlaying.atMs &&
         event.frameCount - firstPlaying.frameCount >= 6);
     };
+    const readNativeClocks = () => video.evaluate((element) => {
+      const v = element as HTMLVideoElement;
+      const a = document.querySelector("audio[data-testid^='preview-audio-']") as HTMLAudioElement | null;
+      return { atMs: Date.now(), videoTime: v.currentTime, readyState: v.readyState,
+        paused: v.paused, seeking: v.seeking, networkState: v.networkState,
+        buffered: Array.from({ length: v.buffered.length }, (_, i) =>
+          [v.buffered.start(i), v.buffered.end(i)]),
+        wavTime: a?.currentTime ?? null, wavPaused: a?.paused ?? null,
+        wavReadyState: a?.readyState ?? null, visibility: document.visibilityState };
+    });
     const firstReceiptEvents = await readEvents();
+    const firstReceiptClocks = await readNativeClocks();
     let beforeReleaseEvents = firstReceiptEvents;
     try {
       await expect.poll(async () => {
@@ -161,7 +172,7 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
       }).toBe(true);
     } finally {
       console.log("[real WebView2 native buffering before release] " +
-        JSON.stringify({ ranges: readFileSync(rangesPath, "utf8"), receipts, firstReceiptEvents, beforeReleaseEvents }));
+        JSON.stringify({ ranges: readFileSync(rangesPath, "utf8"), receipts, firstReceiptEvents, firstReceiptClocks, beforeReleaseEvents, beforeReleaseClocks: await readNativeClocks().catch((error: unknown) => ({ readError: String(error) })) }));
     }
     const midplayWaiting = findMidplayWaiting(beforeReleaseEvents);
     expect(midplayWaiting).toBeDefined();

@@ -19,7 +19,7 @@ function audio(snapshot: Snapshot, id: string) {
   return result.audio;
 }
 
-test("native audio fade handles commit Rust history and survive .vcut reopen", async () => {
+test("native audio fade handles commit Rust history and survive .vcut reopen", async ({}, testInfo) => {
   const { page, state } = await connectTauri();
   const original = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as Snapshot;
   const track = original.project.sequences[0].tracks.find((t) => t.name === "Audio");
@@ -54,13 +54,53 @@ test("native audio fade handles commit Rust history and survive .vcut reopen", a
   // Locator hover waits for a stable, actionable native target before the
   // first pointerdown. Raw mouse.move can race WebView2 layout immediately
   // after waveform rendering, losing the capture before any fade drag.
-  await handle.hover();
-  await page.mouse.down();
-  await page.mouse.move(x + 38, y, { steps: 5 });
-  await expect.poll(async () => Number(await handle.getAttribute("aria-valuenow")))
-    .toBeGreaterThan(0);
-  expect(audio(await invokeTauri<Snapshot>(page, "project_snapshot"), clip.id).fade_in).toBe(0);
-  await page.mouse.up();
+  // Capture real routing and layout at delivery, not merely the requested CDP coordinates.
+  // Keep bounded test-only telemetry; it must never synthesize events or change hit testing.
+  await handle.evaluate((el) => {
+    const node = el as HTMLButtonElement;
+    const evidence: unknown[] = [];
+    const controller = new AbortController();
+    const telemetry = window as Window & { __fadeEvidence?: { records: unknown[]; stop: () => void } };
+    telemetry.__fadeEvidence = { records: evidence, stop: () => controller.abort() };
+    const describe = (target: EventTarget | null) => target instanceof Element
+      ? { tag: target.tagName, label: target.getAttribute("aria-label"),
+          className: target.getAttribute("class") } : null;
+    const rect = (target: Element | null) => target?.getBoundingClientRect().toJSON() ?? null;
+    const types = ["pointerdown", "pointermove", "pointerup", "gotpointercapture",
+      "lostpointercapture", "pointercancel"];
+    for (const type of types) document.addEventListener(type, (event) => {
+      const e = event as PointerEvent;
+      if (evidence.length >= 200) return;
+      evidence.push({ type, atMs: performance.now(), trusted: e.isTrusted,
+        x: e.clientX, y: e.clientY, pointerId: e.pointerId, buttons: e.buttons,
+        target: describe(e.target), hit: describe(document.elementFromPoint(e.clientX, e.clientY)),
+        connected: node.isConnected, captured: node.hasPointerCapture(e.pointerId), value: node.getAttribute("aria-valuenow"),
+        handle: rect(node), timeline: rect(document.querySelector(".timeline-panel")),
+        preview: rect(document.querySelector(".preview-panel")), scrollY: window.scrollY });
+    }, { capture: true, signal: controller.signal });
+  });
+  try {
+    await handle.hover();
+    await page.mouse.down();
+    await page.mouse.move(x + 38, y, { steps: 5 });
+    await expect.poll(async () => Number(await handle.getAttribute("aria-valuenow")))
+      .toBeGreaterThan(0);
+    expect(audio(await invokeTauri<Snapshot>(page, "project_snapshot"), clip.id).fade_in).toBe(0);
+  } finally {
+    // Never leak a held mouse button into another native test on failure.
+    await page.mouse.up();
+    const evidence = await page.evaluate(() => {
+      const telemetry = (window as Window & {
+        __fadeEvidence?: { records: unknown[]; stop: () => void };
+      }).__fadeEvidence;
+      telemetry?.stop();
+      return telemetry?.records ?? [];
+    }).catch((error: unknown) => ({ readError: String(error) }));
+    await testInfo.attach("native-fade-pointer-routing", {
+      body: JSON.stringify({ requested: { x, y, endX: x + 38 }, evidence }, null, 2),
+      contentType: "application/json",
+    });
+  }
   await expect.poll(async () => audio(
     await invokeTauri<Snapshot>(page, "project_snapshot"), clip.id).fade_in
   ).toBeGreaterThan(0);
