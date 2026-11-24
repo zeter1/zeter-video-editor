@@ -3,6 +3,7 @@ import { readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 import { connectTauri, invokeTauri } from "./tauri";
+import { assertShortCompositeRgb } from "./short-composite-oracle";
 
 type NativeProject = {
   revision: number;
@@ -13,6 +14,7 @@ type NativeProject = {
         id: string; kind: string; media_id: string;
         source_in: number; source_out: number;
         timeline_start: number; timeline_end: number; speed: number;
+        color: { exposure: number; saturation: number };
         transform: { crop: { left: number; right: number; top: number; bottom: number } };
       }> }>;
       subtitle_segments: unknown[]; markers: unknown[];
@@ -62,9 +64,19 @@ test("ZVE-023 native audio highlights -> face-aware/manual Short -> Undo/Redo ->
   original.timeline_start = 0;
   original.timeline_end = 1_500_000;
   original.speed = 1;
+  original.color.saturation = 0.15;
+  original.color.exposure = -0.3;
   videoTrack.clips = [original];
+  const titleTrack = source.tracks.find(track => track.kind === "Text" && track.clips.length > 0);
+  if (!titleTrack) throw Error("Native project is missing title fixture");
+  const title = titleTrack.clips[0];
+  title.timeline_start = 0;
+  title.timeline_end = 1_500_000;
+  title.source_in = 0;
+  title.source_out = 1_500_000;
+  titleTrack.clips = [title];
   for (const track of source.tracks) {
-    if (track !== videoTrack) track.clips = [];
+    if (track !== videoTrack && track !== titleTrack) track.clips = [];
   }
   source.subtitle_segments = [];
   source.markers = [];
@@ -95,6 +107,12 @@ test("ZVE-023 native audio highlights -> face-aware/manual Short -> Undo/Redo ->
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("Создать Short из хайлайта")).toBeVisible();
   await dialog.getByRole("spinbutton", { name: "Crop left" }).fill("0.20");
+  await dialog.getByRole("button", { name: "Показать точный кадр Short" }).click();
+  const exact = dialog.getByRole("region", { name: "Точный предпросмотр Short 9:16" });
+  await expect(exact.getByLabel("Точный FFmpeg кадр")).toHaveCSS("visibility", "visible", { timeout: 60_000 });
+  expect(await invokeTauri<NativeProject>(page, "project_snapshot")).toEqual(before);
+  const exactPath = path.join(directory, "zve035-highlight-composite.png");
+  await exact.screenshot({ path: exactPath });
   await dialog.getByRole("button", { name: "Создать Short" }).click();
 
   await expect.poll(async () =>
@@ -114,6 +132,9 @@ test("ZVE-023 native audio highlights -> face-aware/manual Short -> Undo/Redo ->
   expect(shortClip.timeline_start).toBe(0);
   expect(shortClip.timeline_end).toBe(1_500_000);
   expect(shortClip.transform.crop.left).toBeCloseTo(0.20, 5);
+  expect(shortClip.color).toEqual(original.color);
+  expect(short.tracks.flatMap(track => track.clips).find(clip => clip.kind === "Text"))
+    .toMatchObject({ timeline_start: 0, timeline_end: 1_500_000 });
   await expect(page.getByRole("combobox", { name: "Последовательность" })).toHaveValue(short.id);
 
   await page.getByRole("button", { name: "Отменить" }).click();
@@ -153,4 +174,5 @@ test("ZVE-023 native audio highlights -> face-aware/manual Short -> Undo/Redo ->
   expect(info.streams.find((stream) => stream.codec_type === "video"))
     .toMatchObject({ width: 1080, height: 1920 });
   expect(info.streams.some((stream) => stream.codec_type === "audio")).toBe(true);
+  assertShortCompositeRgb(ffmpeg, exactPath, exportPath);
 });

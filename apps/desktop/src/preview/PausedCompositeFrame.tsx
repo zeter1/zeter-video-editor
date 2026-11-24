@@ -9,6 +9,8 @@ interface Chunk {
   end_us: number;
 }
 
+import type { ShortPreviewDraft } from "../ai/ShortCompositeInspection";
+
 interface Props {
   projectId: ProjectId;
   revision: ProjectRevision;
@@ -20,6 +22,9 @@ interface Props {
   /** Keep the cached timeline video at the same speed as the foreground clock. */
   playbackRate?: number;
   onVisibilityChange?: (visible: boolean) => void;
+  /** An explicitly requested, immutable portrait draft (not in project history). */
+  shortDraft?: ShortPreviewDraft;
+  onRenderError?: () => void;
 }
 
 interface WindowRequest {
@@ -50,11 +55,11 @@ export function compositeChunkUrl(token: string): string {
  */
 export function PausedCompositeFrame({
   projectId, revision, sequenceId, playheadTimeUs, fps, playing = false,
-  playbackRate = 1, onVisibilityChange,
+  playbackRate = 1, onVisibilityChange, shortDraft, onRenderError,
 }: Props) {
   const scope = `${projectId}:${revision}:${sequenceId}`;
   const windowStart = Math.floor(playheadTimeUs / WINDOW_US) * WINDOW_US;
-  const nextWindow = playheadTimeUs >= windowStart + WINDOW_US - PREFETCH_LEAD_US
+  const nextWindow = !shortDraft && playheadTimeUs >= windowStart + WINDOW_US - PREFETCH_LEAD_US
     ? windowStart + WINDOW_US : null;
   const requestsRef = useRef(new Map<number, WindowRequest>());
   const [loaded, setLoaded] = useState<Array<{ scope: string; chunk: Chunk }>>([]);
@@ -88,14 +93,18 @@ export function PausedCompositeFrame({
       const requestId = crypto.randomUUID();
       const request: WindowRequest = { requestId, scope, chunk: null };
       requestsRef.current.set(start, request);
-      void invoke<Chunk>("request_preview_chunk", {
+      void invoke<Chunk>(shortDraft ? "request_short_preview_chunk" : "request_preview_chunk", {
         sequenceId, requestId, expectedRevision: revision, playheadUs: start,
+        ...(shortDraft ? { projectId, draft: shortDraft } : {}),
       }).then((result) => {
         if (requestsRef.current.get(start) !== request) return;
         // The request's range, rather than an arbitrary server-provided
         // timestamp, identifies the cache slot. Never accept another window.
         if (result.start_us !== start || result.end_us <= start ||
-            result.end_us > start + WINDOW_US) return;
+            result.end_us > start + WINDOW_US || (shortDraft && playheadTimeUs >= result.end_us)) {
+          if (shortDraft) throw new Error("Invalid short preview range");
+          return;
+        }
         compositeChunkUrl(result.token);
         request.chunk = result;
         setLoaded(Array.from(requestsRef.current.values())
@@ -105,6 +114,7 @@ export function PausedCompositeFrame({
         // Retire it now so entering its window can issue a fresh request.
         if (requestsRef.current.get(start) !== request) return;
         requestsRef.current.delete(start);
+        if (shortDraft) onRenderError?.();
         void invoke("cancel_preview_chunk", { requestId }).catch(() => {});
         setLoaded(Array.from(requestsRef.current.values())
           .flatMap((entry) => entry.chunk ? [{ scope: entry.scope, chunk: entry.chunk }] : []));
@@ -301,6 +311,7 @@ export function PausedCompositeFrame({
           }}
           onError={() => {
             setLiveFrame(null);
+            if (shortDraft) onRenderError?.();
             clearPendingFrame();
             observedFrameRef.current = null;
             // A corrupt decoder response must never obscure the direct fallback.

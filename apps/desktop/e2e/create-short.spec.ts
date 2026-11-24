@@ -4,6 +4,7 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { connectTauri, invokeTauri } from "./tauri";
+import { assertShortCompositeRgb } from "./short-composite-oracle";
 
 type NativeProject = {
   revision: number;
@@ -110,6 +111,23 @@ test("native Create Short builds an undoable 9:16 crop with save and real FFmpeg
   const screenshotPath = path.join(path.dirname(projectPath), "zve033-native-portrait.png");
   await expect(previewVideo).toHaveCSS("visibility", "visible");
   await portrait.screenshot({ path: screenshotPath });
+  // Exact FFmpeg rendering is opt-in, distinct from the instant source crop.
+  await page.getByRole("button", { name: "Показать точный кадр Short" }).click();
+  const exact = page.getByRole("region", { name: "Точный предпросмотр Short 9:16" });
+  const exactVideo = exact.getByLabel("Точный FFmpeg кадр");
+  await expect(exactVideo).toHaveCSS("visibility", "visible", { timeout: 60_000 });
+  const exactUrl = await exactVideo.getAttribute("src");
+  expect(exactUrl).toMatch(/^http:\/\/zeter-media\.localhost\/_preview\/[a-f0-9-]+$/);
+  expect(await exactVideo.evaluate(video => (video as HTMLVideoElement).muted)).toBe(true);
+  expect(await invokeTauri<NativeProject>(page, "project_snapshot")).toEqual(before);
+  // A change immediately retires the old frame and its request.
+  await inspection.press("ArrowRight");
+  await expect(exact).toHaveCount(0);
+  await inspection.press("Home");
+  await page.getByRole("button", { name: "Показать точный кадр Short" }).click();
+  await expect(exactVideo).toHaveCSS("visibility", "visible", { timeout: 60_000 });
+  const exactPath = path.join(path.dirname(projectPath), "zve035-manual-composite.png");
+  await exact.screenshot({ path: exactPath });
   await page.getByRole("button", { name: "Создать Short", exact: true }).click();
 
   await expect.poll(async () =>
@@ -209,4 +227,5 @@ test("native Create Short builds an undoable 9:16 crop with save and real FFmpeg
   expect(mean).toBeLessThan(20);
   expect(p95).toBeLessThanOrEqual(45);
   expect(p99).toBeLessThanOrEqual(95);
+  assertShortCompositeRgb(ffmpeg, exactPath, exportedPath);
 });

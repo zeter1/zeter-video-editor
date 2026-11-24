@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use editor_core::{JobId, ProjectId, ProjectRevision, SequenceId, TimeUs};
+use editor_core::{JobId, ProjectId, ProjectRevision, RenderSnapshot, SequenceId, TimeUs};
 use job_system::CancellationToken;
 use media_engine::{
     ExportContainer, ExportQuality, ExportSettings, ManagedRuntime, RenderPlan, VideoCodec,
@@ -254,6 +254,45 @@ pub async fn request_preview_chunk(
             actual: snapshot.revision,
         }));
     }
+    render_preview_snapshot(app, snapshot, request_id, playhead_us, false).await
+}
+
+#[tauri::command(async)]
+pub async fn request_short_preview_chunk(
+    app: tauri::AppHandle,
+    project_id: ProjectId,
+    sequence_id: SequenceId,
+    request_id: JobId,
+    expected_revision: ProjectRevision,
+    playhead_us: TimeUs,
+    draft: crate::app::project_service::ShortPreviewDraft,
+) -> Result<PreviewChunkDto, AppErrorDto> {
+    let snapshot = {
+        let state = app.state::<AppState>();
+        let project = state
+            .project
+            .lock()
+            .map_err(|_| AppErrorDto::from(AppError::StatePoisoned))?;
+        project
+            .short_preview_snapshot(project_id, expected_revision, sequence_id, draft)
+            .map_err(AppErrorDto::from)?
+    };
+    render_preview_snapshot(app, snapshot, request_id, playhead_us, true).await
+}
+
+async fn render_preview_snapshot(
+    app: tauri::AppHandle,
+    snapshot: RenderSnapshot,
+    request_id: JobId,
+    playhead_us: TimeUs,
+    short: bool,
+) -> Result<PreviewChunkDto, AppErrorDto> {
+    let state = app.state::<AppState>();
+    let service = if short {
+        &state.short_preview
+    } else {
+        &state.preview
+    };
     // Fingerprint actual source identity both before and after rendering.
     // A token must not keep serving an old composite after external relink
     // or same-size source replacement with a different timestamp.
@@ -290,9 +329,12 @@ pub async fn request_preview_chunk(
         .map_err(|_| {
             AppErrorDto::from(AppError::InvalidMediaMetadata("preview cache unavailable"))
         })?
-        .join("preview-chunks-v1");
-    let (generation, cancel, cache) = state
-        .preview
+        .join(if short {
+            "short-preview-chunks-v1"
+        } else {
+            "preview-chunks-v1"
+        });
+    let (generation, cancel, cache) = service
         .begin(snapshot.project_id, request_id, root, runtime)
         .map_err(AppErrorDto::from)?;
     let chunk = tauri::async_runtime::spawn_blocking(move || cache.render(&plan, range, &cancel))
@@ -322,8 +364,7 @@ pub async fn request_preview_chunk(
         created: Instant::now(),
         sources: stamps,
     };
-    if !state
-        .preview
+    if !service
         .publish(generation, lease)
         .map_err(AppErrorDto::from)?
     {
@@ -345,6 +386,10 @@ pub fn cancel_preview_chunk(
 ) -> Result<(), AppErrorDto> {
     state
         .preview
+        .cancel_request(request_id)
+        .map_err(AppErrorDto::from)?;
+    state
+        .short_preview
         .cancel_request(request_id)
         .map_err(AppErrorDto::from)
 }

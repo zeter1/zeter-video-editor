@@ -987,6 +987,30 @@ export function AppShell({
             shortSource.sequenceId === activeSequence?.id &&
             shortSource.clipId === selectedClip?.id &&
             selectedMedia?.id === selectedClip?.media_id ? selectedMedia : null}
+          compositeScope={`${shortSource.projectId}:${shortSource.revision}:${shortSource.sequenceId}:${shortSource.clipId}`}
+          buildCompositeDraft={(crop, range) => {
+            const snapshot = projectStore.getState().snapshot;
+            if (!snapshot || snapshot.project.id !== shortSource.projectId ||
+                snapshot.revision !== shortSource.revision ||
+                projectStore.getState().syncStatus !== "synced" ||
+                transientStore.getState().selectedClipId !== shortSource.clipId) return null;
+            const source = resolveSequence(snapshot.project.sequences,
+              transientStore.getState().selectedSequenceId);
+            if (!source || source.id !== shortSource.sequenceId) return null;
+            const original = findSelectedClipContext(source, shortSource.clipId)?.clip;
+            if (!original || original.kind !== "Video") return null;
+            const context = { projectId: snapshot.project.id, revision: snapshot.revision,
+              sequenceId: source.id };
+            if (shortSource.candidate) {
+              if (!shortSource.rangeConstraints ||
+                  !validShortRange(range, shortSource.rangeConstraints)) return null;
+              return { ...context, draft: { kind: "candidate",
+                candidate: { ...shortSource.candidate, ...range }, crop } };
+            }
+            return { ...context, draft: { kind: "manual", sequence:
+              createShortSequenceFromClip(source, original,
+                `Short ${snapshot.project.sequences.length + 1}`, crop) } };
+          }}
           previewFps={activeSequence?.fps ?? 30}
           previewTimelineRange={selectedClip ? {
             start: selectedClip.timeline_start, end: selectedClip.timeline_end,

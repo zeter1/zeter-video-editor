@@ -1,4 +1,14 @@
-# CURRENT PRODUCT DEVELOPMENT — ZVE-034 full-range frame inspection / 0.1.0-alpha.53 (2026-11-23)
+# CURRENT PRODUCT DEVELOPMENT — ZVE-035 exact composite frame before Create Short / 0.1.0-alpha.54 (2026-11-24)
+- **BASE:** GitHub/Windows main 985103d909a6333668c360fdaf77134d63975c3c, PR #120 MERGED, main CI #45224732346 SUCCESS. Branch feat/zve-035-short-composite-inspection-20261124. Candidate only, not merged or released.
+- **USER OUTCOME:** explicit exact FFmpeg still preview of the proposed 9:16 Short at the selected frame. Manual draft uses the same proposed sequence as Create; candidate draft uses the same Rust builder as Create, with actual retained grading, titles and tracks. Independent, bounded short preview cache; opaque revision-bound lease; cancellation and removal of stale picture when crop/frame/range changes. No source, .vcut schema, revision or history mutation before confirmation. Existing instant source-framing preview and A/B playback remain distinct. This is an on-demand paused picture, not continuous composited playback.
+- **EVIDENCE:** Rust missing-method RED then GREEN; full Vitest 350/350 (71 files), TypeScript/Vite production build, version-policy 8/8, version check alpha.54, cargo fmt --all -- --check and cargo test --workspace all PASS on Windows. Native Tauri/WebView2 E2E create-short-highlight.spec.ts and create-short.spec.ts 2/2 PASS (94.89 s including setup/build). Actual Create/Undo/Redo/.vcut save/reopen/FFmpeg MP4; project unchanged during inspection, stale image hidden on frame change. Independent native screenshot versus exported FFmpeg RGB channel error mean/p95/p99: graded highlight with title 1.149/3/42; manual 1.197/1/41 (out of 255). No claim of bit-exact equality or every effect combination tested.
+- **REFERENCES:** FilmCraft ba6fe10529c7bf5d2a9283f9de2e35c0ccff926c crates/export/src/pipeline.rs (shared output render), Concat 281dabf2484dbe6a9654f1a103f21c5cc923a063 src/crates/concat/src/studio/inspector.rs (visual style separate from individual content). Original implementation; no AGPL code copied.
+- **GATES:** targeted native QA and full Rust/frontend green. Remaining normal unsigned DEBUG/NSIS packaging, full native matrix (four shards plus four isolated stress) and exact PR-head Windows CI terminal success; no merge until all mandatory gates are green. No install/sign/tag/public Release.
+- **NEXT:** finish ZVE-035 acceptance and merge; only then assess reusing the exact rendered interval during frame scrubbing without launching new FFmpeg renders per frame, retaining draft identity and cancellation.
+
+---
+
+# HISTORICAL PRODUCT DEVELOPMENT — ZVE-034 full-range frame inspection / 0.1.0-alpha.53 (2026-11-23)
 - **BASE:** verified GitHub/Windows main 2ceba3e0ea3f05c116b69af735989d1406360bca; main Actions #45209842058 SUCCESS; clean local checkout before branch. Source branch feat/zve-034-short-frame-inspection-20261123; NOT IN MAIN until PR merged, no release/install/sign/tag.
 - **USER OUTCOME:** inspect the actual selected 9:16 source crop at any frame before committing. First/Last, slider and keyboard operate on sequence frame indices within [In,Out), map via selected clip trim/speed to muted decoded source, preserve same draft crop. Candidate In/Out edits bound the inspector. This is source-framing, NOT full FFmpeg graded/multitrack composite; Create Short clones only the selected clip, not surrounding tracks/titles. Rust command, project schema/export unchanged.
 - **EVIDENCE (2026-11-23):** TDD RED reproduced missing slider/utility; focused Vitest 5/5 PASS, full Vitest 347/347 PASS (70 files), TypeScript/Vite production PASS, Rust cargo test --workspace PASS and cargo fmt PASS, node scripts/check-version.mjs PASS alpha.53, Playwright 54 tests listed. Initial full Vitest 346/347 caught the new HTML output causing an extra accessibility status; replaced with neutral span and full GREEN confirmed. Native Windows Playwright e2e/create-short.spec.ts 1/1 PASS on fresh real Tauri/WebView2 (run 32.2s): genuine seek 0→last→0→one frame→0, NO Rust revision during inspection, actual Create/Undo/Redo/.vcut save/reopen, H.264 1080×1920 FFmpeg MP4, independent native screenshot/RGB FFmpeg comparison mean 8.33/255, p95 37/255, p99 37/255. Actual DEBUG EXE built, NSIS packaging ongoing. SHA-256, 4-shard native matrix/isolated stress, PR and exact-head CI/merge pending (do not claim success yet).
@@ -1397,7 +1407,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.53` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.54` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

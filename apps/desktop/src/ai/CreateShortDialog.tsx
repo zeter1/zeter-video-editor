@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { Crop, MediaRef } from "../generated/ipc";
 import { ShortCropPreview } from "./ShortCropFrame";
+import { ShortCompositeInspection, type ShortPreviewContext } from "./ShortCompositeInspection";
 import { shiftPortraitCrop } from "./shortReframe";
 import { inspectedFrameRange, inspectedFrameTimeUs } from "./shortFrameInspection";
 import { formatTimecode, parseTimecode } from "../timeline/timecode";
@@ -26,6 +27,8 @@ interface CreateShortDialogProps {
   previewTimelineRange?: ShortRangeView | null;
   previewSourceTimeUs?: number;
   previewSourceTimeAt?: (sequenceTimeUs: number) => number;
+  buildCompositeDraft?: (crop: Crop, range: ShortRangeView) => ShortPreviewContext | null;
+  compositeScope?: string;
   autoCrop?: CropView | null;
   faceStatus?: "searching" | "found" | "none" | "error";
   highlightRange?: ShortRangeView | null;
@@ -43,6 +46,7 @@ interface CreateShortDialogProps {
 export function CreateShortDialog({
   open, initialCrop, previewMedia = null, previewFps = 30,
   previewTimelineRange = null, previewSourceTimeUs = 0, previewSourceTimeAt,
+  buildCompositeDraft, compositeScope,
   autoCrop = null, faceStatus = "none", highlightRange = null,
   rangeConstraints = null, snapPoints = [], onPreviewRange, onLoopRange, onStopLoop,
   loopActive = false, onCreate, onCancel, busy = false,
@@ -332,6 +336,15 @@ export function CreateShortDialog({
           ? previewSourceTimeAt(inspectedFrameTimeUs(inspectionFrame, previewFps))
           : previewSourceTimeUs} disabled={busy}
         onChange={(next) => { manuallyEdited.current = true; setCrop(next); }} /> : null}
+      {previewMedia && inspectionRange && inspectionFrame !== null && buildCompositeDraft &&
+        !loopActive ? (
+          <ShortCompositeInspection
+            key={JSON.stringify([compositeScope, crop, inspectionRange, inspectionFrame])}
+            fps={previewFps} range={inspectionRange}
+            sequenceTimeUs={inspectedFrameTimeUs(inspectionFrame, previewFps)}
+            buildDraft={() => buildCompositeDraft(crop, inspectionRange)}
+            disabled={busy} />
+        ) : null}
       <fieldset disabled={busy}>
         <legend>Ручное кадрирование</legend>
         {fields.map((key) => {

@@ -131,6 +131,10 @@ pub fn project_new(
         .preview
         .cancel()
         .map_err(|error| diagnostic_error(error, None, None))?;
+    state
+        .short_preview
+        .cancel()
+        .map_err(|error| diagnostic_error(error, None, None))?;
     Ok(snapshot)
 }
 
@@ -153,6 +157,10 @@ pub fn project_open(
         .map_err(|error| diagnostic_error(error, None, None))?;
     state
         .preview
+        .cancel()
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    state
+        .short_preview
         .cancel()
         .map_err(|error| diagnostic_error(error, None, None))?;
     Ok(snapshot)
@@ -180,6 +188,10 @@ pub fn project_open_with_relink(
         .map_err(|error| diagnostic_error(error, None, None))?;
     state
         .preview
+        .cancel()
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    state
+        .short_preview
         .cancel()
         .map_err(|error| diagnostic_error(error, None, None))?;
     Ok(snapshot)
@@ -230,6 +242,10 @@ pub fn project_open_recovery(
         .map_err(|error| diagnostic_error(error, None, None))?;
     state
         .preview
+        .cancel()
+        .map_err(|error| diagnostic_error(error, None, None))?;
+    state
+        .short_preview
         .cancel()
         .map_err(|error| diagnostic_error(error, None, None))?;
     Ok(snapshot)
