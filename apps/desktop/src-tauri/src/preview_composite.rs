@@ -1,12 +1,13 @@
 //! Short-lived, project/revision-bound leases for FFmpeg preview fragments.
 //! The WebView can request only opaque tokens, never a cache or source path.
 use std::{
+    collections::VecDeque,
     path::PathBuf,
     sync::Mutex,
     time::{Duration, Instant, SystemTime},
 };
 
-use editor_core::{JobId, ProjectId, ProjectRevision, SequenceId, TimeUs};
+use editor_core::{JobId, ProjectId, ProjectRevision, RenderSnapshot, SequenceId, TimeUs};
 use job_system::CancellationToken;
 use media_engine::{
     ExportContainer, ExportQuality, ExportSettings, ManagedRuntime, RenderPlan, VideoCodec,
@@ -74,6 +75,7 @@ struct Lease {
 }
 
 const MAX_WINDOW_REQUESTS: usize = 2;
+const MAX_RECENT_CANCELLATIONS: usize = 256;
 
 struct WindowRequest {
     id: JobId,
@@ -88,6 +90,9 @@ struct Inner {
     project_id: Option<ProjectId>,
     // Visible and adjacent prefetch windows only, with oldest-first eviction.
     requests: Vec<WindowRequest>,
+    // Cancel IPC can beat async snapshot/plan preparation. Remember recent
+    // request IDs so a cancelled render cannot register or evict a live slot.
+    recent_cancellations: VecDeque<(JobId, Instant)>,
     cache: Option<(ProjectId, PreviewChunkCache)>,
 }
 
@@ -107,6 +112,14 @@ impl PreviewService {
         runtime: ManagedRuntime,
     ) -> Result<(u64, CancellationToken, PreviewChunkCache), AppError> {
         let mut inner = self.inner.lock().map_err(|_| AppError::StatePoisoned)?;
+        Self::prune_cancellations(&mut inner);
+        if inner
+            .recent_cancellations
+            .iter()
+            .any(|(id, _)| *id == request_id)
+        {
+            return Err(AppError::InvalidMediaMetadata("preview was cancelled"));
+        }
         if inner.project_id != Some(project_id) {
             Self::retire(&mut inner);
             inner.project_id = Some(project_id);
@@ -167,7 +180,25 @@ impl PreviewService {
         if let Some(index) = inner.requests.iter().position(|req| req.id == request_id) {
             inner.requests.remove(index).cancel.cancel();
         }
+        Self::prune_cancellations(&mut inner);
+        // UUIDs are never reused by the frontend. Keep this bounded even if
+        // the counterpart preview service never sees the corresponding begin.
+        inner
+            .recent_cancellations
+            .retain(|(id, _)| *id != request_id);
+        if inner.recent_cancellations.len() >= MAX_RECENT_CANCELLATIONS {
+            inner.recent_cancellations.pop_front();
+        }
+        inner
+            .recent_cancellations
+            .push_back((request_id, Instant::now()));
         Ok(())
+    }
+
+    fn prune_cancellations(inner: &mut Inner) {
+        inner
+            .recent_cancellations
+            .retain(|(_, at)| at.elapsed() <= LEASE_TTL);
     }
 
     fn retire(inner: &mut Inner) {
@@ -254,6 +285,45 @@ pub async fn request_preview_chunk(
             actual: snapshot.revision,
         }));
     }
+    render_preview_snapshot(app, snapshot, request_id, playhead_us, false).await
+}
+
+#[tauri::command(async)]
+pub async fn request_short_preview_chunk(
+    app: tauri::AppHandle,
+    project_id: ProjectId,
+    sequence_id: SequenceId,
+    request_id: JobId,
+    expected_revision: ProjectRevision,
+    playhead_us: TimeUs,
+    draft: crate::app::project_service::ShortPreviewDraft,
+) -> Result<PreviewChunkDto, AppErrorDto> {
+    let snapshot = {
+        let state = app.state::<AppState>();
+        let project = state
+            .project
+            .lock()
+            .map_err(|_| AppErrorDto::from(AppError::StatePoisoned))?;
+        project
+            .short_preview_snapshot(project_id, expected_revision, sequence_id, draft)
+            .map_err(AppErrorDto::from)?
+    };
+    render_preview_snapshot(app, snapshot, request_id, playhead_us, true).await
+}
+
+async fn render_preview_snapshot(
+    app: tauri::AppHandle,
+    snapshot: RenderSnapshot,
+    request_id: JobId,
+    playhead_us: TimeUs,
+    short: bool,
+) -> Result<PreviewChunkDto, AppErrorDto> {
+    let state = app.state::<AppState>();
+    let service = if short {
+        &state.short_preview
+    } else {
+        &state.preview
+    };
     // Fingerprint actual source identity both before and after rendering.
     // A token must not keep serving an old composite after external relink
     // or same-size source replacement with a different timestamp.
@@ -290,9 +360,12 @@ pub async fn request_preview_chunk(
         .map_err(|_| {
             AppErrorDto::from(AppError::InvalidMediaMetadata("preview cache unavailable"))
         })?
-        .join("preview-chunks-v1");
-    let (generation, cancel, cache) = state
-        .preview
+        .join(if short {
+            "short-preview-chunks-v1"
+        } else {
+            "preview-chunks-v1"
+        });
+    let (generation, cancel, cache) = service
         .begin(snapshot.project_id, request_id, root, runtime)
         .map_err(AppErrorDto::from)?;
     let chunk = tauri::async_runtime::spawn_blocking(move || cache.render(&plan, range, &cancel))
@@ -322,8 +395,7 @@ pub async fn request_preview_chunk(
         created: Instant::now(),
         sources: stamps,
     };
-    if !state
-        .preview
+    if !service
         .publish(generation, lease)
         .map_err(AppErrorDto::from)?
     {
@@ -345,6 +417,10 @@ pub fn cancel_preview_chunk(
 ) -> Result<(), AppErrorDto> {
     state
         .preview
+        .cancel_request(request_id)
+        .map_err(AppErrorDto::from)?;
+    state
+        .short_preview
         .cancel_request(request_id)
         .map_err(AppErrorDto::from)
 }
@@ -495,6 +571,59 @@ mod tests {
         assert!(first_cancel.is_cancelled());
         assert!(second_cancel.is_cancelled());
         assert_eq!(service.inner.lock().unwrap().requests.len(), 1);
+    }
+
+    #[test]
+    fn cancellation_before_registration_rejects_late_begin_without_evicting_live_windows() {
+        let service = PreviewService::default();
+        let project = ProjectId::new();
+        let runtime = ManagedRuntime::from_dir("unused-runtime", "unit");
+        let root = PathBuf::from("unused-cache");
+        let (_, first, _) = service
+            .begin(project, JobId::new(), root.clone(), runtime.clone())
+            .unwrap();
+        let (_, second, _) = service
+            .begin(project, JobId::new(), root.clone(), runtime.clone())
+            .unwrap();
+        let abandoned = JobId::new();
+        service.cancel_request(abandoned).unwrap();
+        assert!(service.begin(project, abandoned, root, runtime).is_err());
+        assert!(!first.is_cancelled());
+        assert!(!second.is_cancelled());
+        assert_eq!(
+            service.inner.lock().unwrap().requests.len(),
+            MAX_WINDOW_REQUESTS
+        );
+    }
+
+    #[test]
+    fn recent_cancellations_are_bounded_and_duplicates_refresh_one_slot() {
+        let service = PreviewService::default();
+        let oldest = JobId::new();
+        service.cancel_request(oldest).unwrap();
+        let recent = JobId::new();
+        service.cancel_request(recent).unwrap();
+        for _ in 0..MAX_RECENT_CANCELLATIONS - 1 {
+            service.cancel_request(JobId::new()).unwrap();
+        }
+        service.cancel_request(recent).unwrap();
+        let inner = service.inner.lock().unwrap();
+        assert_eq!(inner.recent_cancellations.len(), MAX_RECENT_CANCELLATIONS);
+        assert!(
+            !inner
+                .recent_cancellations
+                .iter()
+                .any(|(id, _)| *id == oldest)
+        );
+        assert_eq!(
+            inner
+                .recent_cancellations
+                .iter()
+                .filter(|(id, _)| *id == recent)
+                .count(),
+            1
+        );
+        assert_eq!(inner.recent_cancellations.back().unwrap().0, recent);
     }
 
     #[test]

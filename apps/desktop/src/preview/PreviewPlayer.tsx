@@ -536,6 +536,9 @@ export function PreviewPlayer({
     if (active && videoSource && supportsPresentedFrames(current)) {
       let cancelled = false;
       let requestId: number | null = null;
+      // At most one corrective seek per unacknowledged timeline position.
+      // A busy UI can miss the first frames before an anchor exists.
+      let correctedPlayheadUs: number | null = null;
       const onPresentedFrame: VideoFrameRequestCallback = (_now, metadata) => {
         if (cancelled) return;
         if (video.current === current && !current.paused && !current.seeking &&
@@ -583,7 +586,26 @@ export function PreviewPlayer({
               }
             }
           }
+          if (nextUs === null && !anchor && !recovery &&
+              correctedPlayheadUs !== clockPositionRef.current) {
+            const playheadUs = clockPositionRef.current;
+            // Agreement between an advanced decoder and compositor is NOT
+            // permission to skip a requested start/seek. Use the wider
+            // validation only to detect a missed startup frame, then rewind
+            // the decoder, keeping WAV gated until a valid fresh frame.
+            const advancedUs = presentedFrameToTimelineUs(
+              active, metadata.mediaTime, current.currentTime, playheadUs, true,
+            );
+            if (advancedUs !== null && advancedUs > playheadUs + 120_000) {
+              correctedPlayheadUs = playheadUs;
+              pendingExternalFrameRef.current = true;
+              setPresentedVideoFrame(null);
+              setSyncedVideoKey(null);
+              current.currentTime = Math.max(0, sourceTime(active, playheadUs));
+            }
+          }
           if (nextUs !== null) {
+            correctedPlayheadUs = null;
             bufferedRecoveryRef.current = null;
             // This is the first decoder/compositor acknowledgement for a
             // short user scrub even when no native seeking event was fired.

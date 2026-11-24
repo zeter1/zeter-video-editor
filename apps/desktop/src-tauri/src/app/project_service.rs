@@ -15,6 +15,19 @@ use crate::{
     error::AppError,
 };
 
+/// A read-only portrait draft, using the same sequence builder as Create.
+#[derive(serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ShortPreviewDraft {
+    Manual {
+        sequence: Sequence,
+    },
+    Candidate {
+        candidate: HighlightCandidate,
+        crop: Crop,
+    },
+}
+
 pub struct ProjectService {
     editor: Option<Editor>,
     project_path: Option<PathBuf>,
@@ -240,6 +253,55 @@ impl ProjectService {
             sequence_id,
             editor.revision(),
         )?)
+    }
+
+    pub fn short_preview_snapshot(
+        &self,
+        project_id: ProjectId,
+        revision: ProjectRevision,
+        source_sequence_id: SequenceId,
+        draft: ShortPreviewDraft,
+    ) -> Result<RenderSnapshot, AppError> {
+        let snapshot = self.snapshot()?;
+        if snapshot.project.id != project_id {
+            return Err(AppError::InvalidMediaMetadata(
+                "short preview project changed",
+            ));
+        }
+        if snapshot.revision != revision {
+            return Err(AppError::StaleRevision {
+                expected: revision,
+                actual: snapshot.revision,
+            });
+        }
+        let mut project = snapshot.project;
+        let source = project
+            .sequences
+            .iter()
+            .find(|s| s.id == source_sequence_id)
+            .ok_or(DomainError::EntityNotFound { entity: "sequence" })?;
+        let sequence = match draft {
+            ShortPreviewDraft::Manual { sequence } => sequence,
+            ShortPreviewDraft::Candidate { candidate, crop } => {
+                if candidate.source_revision != revision {
+                    return Err(AppError::StaleRevision {
+                        expected: candidate.source_revision,
+                        actual: revision,
+                    });
+                }
+                build_short_sequence(source, &candidate, crop)?
+            }
+        };
+        if sequence.width != 1080 || sequence.height != 1920 || sequence.fps != source.fps {
+            return Err(AppError::InvalidMediaMetadata(
+                "invalid portrait preview sequence",
+            ));
+        }
+        let id = sequence.id;
+        // Never install this temporary project or add a history entry. Media
+        // paths remain exclusively those in the authoritative project.
+        project.sequences.push(sequence);
+        Ok(RenderSnapshot::from_sequence(&project, id, revision)?)
     }
 
     pub fn execute_edit_command(

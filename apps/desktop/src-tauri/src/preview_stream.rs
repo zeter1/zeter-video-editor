@@ -208,6 +208,11 @@ pub fn serve(app: &AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
             let Some(path) = state
                 .preview
                 .resolve(token, snapshot.project.id, snapshot.revision)
+                .or_else(|| {
+                    state
+                        .short_preview
+                        .resolve(token, snapshot.project.id, snapshot.revision)
+                })
             else {
                 return failure(404);
             };

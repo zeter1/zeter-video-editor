@@ -222,3 +222,54 @@ fn completed_silence_analysis_applies_through_editor_and_is_undoable() {
         time(60_000_000)
     );
 }
+
+#[test]
+fn short_preview_is_read_only_and_matches_created_candidate() {
+    let (project, source_id) = fixture();
+    let project_id = project.id;
+    let mut service = ProjectService::from_project(project, ProjectRevision::new(0)).unwrap();
+    let crop = initial_vertical_crop(1920, 1080, None).unwrap();
+    let selection = candidate(ProjectRevision::new(0));
+    let before = service.snapshot().unwrap();
+    let preview = service
+        .short_preview_snapshot(
+            project_id,
+            ProjectRevision::new(0),
+            source_id,
+            crate::app::project_service::ShortPreviewDraft::Candidate {
+                candidate: selection.clone(),
+                crop,
+            },
+        )
+        .unwrap();
+    let after = service.snapshot().unwrap();
+    assert_eq!(before.project, after.project);
+    assert_eq!(before.revision, after.revision);
+    service
+        .create_short_from_candidate(source_id, &selection, RequestId::new(), crop)
+        .unwrap();
+    let created = service.snapshot().unwrap();
+    let actual = service
+        .render_snapshot(created.project.sequences.last().unwrap().id)
+        .unwrap();
+    assert_eq!(
+        (preview.width, preview.height, preview.fps),
+        (actual.width, actual.height, actual.fps)
+    );
+    assert_eq!(preview.clips[0].transform, actual.clips[0].transform);
+    assert_eq!(preview.clips[0].source_in, actual.clips[0].source_in);
+    assert_eq!(preview.clips[0].source_out, actual.clips[0].source_out);
+    assert!(
+        service
+            .short_preview_snapshot(
+                project_id,
+                ProjectRevision::new(0),
+                source_id,
+                crate::app::project_service::ShortPreviewDraft::Candidate {
+                    candidate: selection,
+                    crop
+                }
+            )
+            .is_err()
+    );
+}

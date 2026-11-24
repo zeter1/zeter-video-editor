@@ -1,13 +1,16 @@
+import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { connectTauri, invokeTauri } from "./tauri";
+import { assertShortCompositeRgb } from "./short-composite-oracle";
 
 type NativeProject = {
   revision: number;
   project: {
+    id: string;
     sequences: Array<{
       id: string; width: number; height: number;
       tracks: Array<{
@@ -110,6 +113,48 @@ test("native Create Short builds an undoable 9:16 crop with save and real FFmpeg
   const screenshotPath = path.join(path.dirname(projectPath), "zve033-native-portrait.png");
   await expect(previewVideo).toHaveCSS("visibility", "visible");
   await portrait.screenshot({ path: screenshotPath });
+  // Exact FFmpeg rendering is opt-in, distinct from the instant source crop.
+  await page.getByRole("button", { name: "Показать точный кадр Short" }).click();
+  const exact = page.getByRole("region", { name: "Точный предпросмотр Short 9:16" });
+  const exactVideo = exact.getByLabel("Точный FFmpeg кадр");
+  await expect(exactVideo).toHaveCSS("visibility", "visible", { timeout: 60_000 });
+  const exactUrl = await exactVideo.getAttribute("src");
+  expect(exactUrl).toMatch(/^http:\/\/zeter-media\.localhost\/_preview\/[a-f0-9-]+$/);
+  expect(await exactVideo.evaluate(video => (video as HTMLVideoElement).muted)).toBe(true);
+  expect(await invokeTauri<NativeProject>(page, "project_snapshot")).toEqual(before);
+  // A cancel command may be delivered before async render registration.
+  // Exercise that ordering through the actual native IPC bridge, not a mock.
+  const abandonedRequest = randomUUID();
+  const validDraft = {
+    kind: "candidate",
+    candidate: { start: original.timeline_start, end: original.timeline_end,
+      score: 0.8, reasons: [], source_revision: before.revision },
+    crop: { left: proposedLeft, right: 1 - visibleWidth - proposedLeft, top: 0, bottom: 0 },
+  };
+  const args = { projectId: before.project.id, sequenceId: source.id,
+    expectedRevision: before.revision, playheadUs: 0, draft: validDraft };
+  await invokeTauri(page, "cancel_preview_chunk", { requestId: abandonedRequest });
+  await expect(invokeTauri(page, "request_short_preview_chunk",
+    { ...args, requestId: abandonedRequest })).rejects.toThrow(/preview was cancelled/);
+  // Same valid draft with a fresh ID must still render. No project mutation.
+  const freshRequest = randomUUID();
+  const fresh = await invokeTauri<{ token: string; start_us: number; end_us: number }>(
+    page, "request_short_preview_chunk", { ...args, requestId: freshRequest });
+  expect(fresh.token).toMatch(/^[a-f0-9-]{36}$/);
+  expect(fresh.end_us).toBeGreaterThan(fresh.start_us);
+  await invokeTauri(page, "cancel_preview_chunk", { requestId: freshRequest });
+  await expect(exactVideo).toHaveCSS("visibility", "visible");
+  expect(await exactVideo.getAttribute("src")).toBe(exactUrl);
+  expect(await invokeTauri<NativeProject>(page, "project_snapshot")).toEqual(before);
+  console.log("[ZVE-035] native cancel-before-registration rejected; fresh draft and existing frame intact");
+  // A change immediately retires the old frame and its request.
+  await inspection.press("ArrowRight");
+  await expect(exact).toHaveCount(0);
+  await inspection.press("Home");
+  await page.getByRole("button", { name: "Показать точный кадр Short" }).click();
+  await expect(exactVideo).toHaveCSS("visibility", "visible", { timeout: 60_000 });
+  const exactPath = path.join(path.dirname(projectPath), "zve035-manual-composite.png");
+  await exact.screenshot({ path: exactPath });
   await page.getByRole("button", { name: "Создать Short", exact: true }).click();
 
   await expect.poll(async () =>
@@ -209,4 +254,5 @@ test("native Create Short builds an undoable 9:16 crop with save and real FFmpeg
   expect(mean).toBeLessThan(20);
   expect(p95).toBeLessThanOrEqual(45);
   expect(p99).toBeLessThanOrEqual(95);
+  assertShortCompositeRgb(ffmpeg, exactPath, exportedPath);
 });

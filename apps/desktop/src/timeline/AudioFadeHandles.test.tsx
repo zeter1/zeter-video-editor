@@ -77,6 +77,24 @@ describe("AudioFadeHandles", () => {
     expect(commit).toHaveBeenCalledOnce();
   });
 
+  it("discards a lost pointer capture without committing and accepts a fresh drag", () => {
+    const { commit } = setup();
+    const handle = screen.getByRole("slider", { name: "Fade in fade-clip" });
+    fireEvent.pointerDown(handle, { pointerId: 2, button: 0, clientX: 20 });
+    fireEvent.pointerMove(handle, { pointerId: 2, clientX: 70 });
+    expect(handle.getAttribute("aria-valuenow")).toBe("1");
+    fireEvent.lostPointerCapture(handle, { pointerId: 2 });
+    expect(handle.getAttribute("aria-valuenow")).toBe("0");
+    fireEvent.pointerMove(handle, { pointerId: 2, clientX: 90 });
+    fireEvent.pointerUp(handle, { pointerId: 2, clientX: 90 });
+    expect(commit).not.toHaveBeenCalled();
+    fireEvent.pointerDown(handle, { pointerId: 2, button: 0, clientX: 20 });
+    fireEvent.pointerMove(handle, { pointerId: 2, clientX: 45 });
+    fireEvent.pointerUp(handle, { pointerId: 2, clientX: 45 });
+    expect(commit).toHaveBeenCalledOnce();
+    expect((commit.mock.calls[0][0] as any).SetAudioState.audio.fade_in).toBe(500_000);
+  });
+
   it("never mutates a locked clip", () => {
     const { commit } = setup(true);
     const handle = screen.getByRole("slider", { name: "Fade in fade-clip" });

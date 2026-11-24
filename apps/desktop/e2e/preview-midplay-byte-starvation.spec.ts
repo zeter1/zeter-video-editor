@@ -139,18 +139,43 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
     expect(receipts.every((hit) => hit.start >= 2_097_152 && hit.start < 4_194_304 && hit.delayMs === 2000 &&
       hit.elapsedMs >= 1750 && Number.isFinite(hit.endedAtMs))).toBe(true);
 
-    const beforeReleaseEvents = await video.evaluate((element) =>
+    // The first HTTP receipt and the decoder's actual waiting event are
+    // independent clocks. Keep fault injection active until both are observed.
+    const readEvents = () => video.evaluate((element) =>
       (element as HTMLVideoElement & { __byteStallEvents?: EventRecord[] }).__byteStallEvents ?? []);
-    console.log("[real WebView2 native buffering before release] " +
-      JSON.stringify({ ranges: readFileSync(rangesPath, "utf8"), receipts, beforeReleaseEvents }));
-    // A missing native event is a real test failure, never disguised by
-    // dispatchEvent: it signals that the fixture/prebuffering needs adjustment.
-    const firstPlaying = beforeReleaseEvents.find((event) => event.type === "playing");
-    const midplayWaiting = beforeReleaseEvents.find((event) =>
-      event.type === "waiting" && firstPlaying && event.atMs > firstPlaying.atMs &&
-      event.frameCount - firstPlaying.frameCount >= 6);
-    expect(midplayWaiting,
-      "native waiting MUST follow playing and >=6 genuine compositor frames, not startup buffering").toBeDefined();
+    const findMidplayWaiting = (events: EventRecord[]) => {
+      const firstPlaying = events.find((event) => event.type === "playing");
+      return events.find((event) =>
+        event.type === "waiting" && firstPlaying && event.atMs > firstPlaying.atMs &&
+        event.frameCount - firstPlaying.frameCount >= 6);
+    };
+    const readNativeClocks = () => video.evaluate((element) => {
+      const v = element as HTMLVideoElement;
+      const a = document.querySelector("audio[data-testid^='preview-audio-']") as HTMLAudioElement | null;
+      return { atMs: Date.now(), videoTime: v.currentTime, readyState: v.readyState,
+        paused: v.paused, seeking: v.seeking, networkState: v.networkState,
+        buffered: Array.from({ length: v.buffered.length }, (_, i) =>
+          [v.buffered.start(i), v.buffered.end(i)]),
+        wavTime: a?.currentTime ?? null, wavPaused: a?.paused ?? null,
+        wavReadyState: a?.readyState ?? null, visibility: document.visibilityState };
+    });
+    const firstReceiptEvents = await readEvents();
+    const firstReceiptClocks = await readNativeClocks();
+    let beforeReleaseEvents = firstReceiptEvents;
+    try {
+      await expect.poll(async () => {
+        beforeReleaseEvents = await readEvents();
+        return Boolean(findMidplayWaiting(beforeReleaseEvents));
+      }, {
+        timeout: 8_000, intervals: [100, 150, 200],
+        message: "native waiting MUST follow playing and >=6 genuine compositor frames, not startup buffering",
+      }).toBe(true);
+    } finally {
+      console.log("[real WebView2 native buffering before release] " +
+        JSON.stringify({ ranges: readFileSync(rangesPath, "utf8"), receipts, firstReceiptEvents, firstReceiptClocks, beforeReleaseEvents, beforeReleaseClocks: await readNativeClocks().catch((error: unknown) => ({ readError: String(error) })) }));
+    }
+    const midplayWaiting = findMidplayWaiting(beforeReleaseEvents);
+    expect(midplayWaiting).toBeDefined();
 
     const releasedAtMs = Date.now();
     if (existsSync(control)) unlinkSync(control); // Subsequent native requests are unthrottled.
@@ -225,4 +250,71 @@ test("actual mid-play 206 byte starvation recovers compositor and independent WA
   } finally {
     if (existsSync(control)) unlinkSync(control); // No fault injection leaks into later E2E tests.
   }
+});
+
+test("native preview resumes when the first compositor callback is delayed", async () => {
+  const { page, state } = await connectTauri();
+  const project = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as Project;
+  const track = (name: string) => {
+    const found = project.project.sequences[0].tracks.find((item) => item.name === name);
+    if (!found) throw new Error("Missing verified fixture track: " + name);
+    return found;
+  };
+  const videoClip = track("Video").clips[0];
+  const audioClip = track("Audio").clips[0];
+  const mediaRecord = project.project.media.find((item) => item.id === videoClip.media_id);
+  if (!mediaRecord || !audioClip.media_id) throw new Error("Missing fixture media");
+  const uniqueVideoMediaId = randomUUID();
+  mediaRecord.id = uniqueVideoMediaId;
+  project.revision = 0;
+  project.project.name = "Delayed first compositor callback regression";
+  track("Video").clips = [{
+    ...videoClip, id: randomUUID(), media_id: uniqueVideoMediaId,
+    source_in: 0, source_out: 6_000_000,
+    timeline_start: 0, timeline_end: 3_000_000, speed: 2,
+  }];
+  track("Audio").clips = [{
+    ...audioClip, source_in: 0, source_out: 3_000_000,
+    timeline_start: 0, timeline_end: 3_000_000, speed: 1,
+  }];
+  track("Overlay").clips = [];
+  track("Text").clips = [];
+  const fixturePath = path.join(path.dirname(state.workflowProjectPath), "delayed-first-frame.vcut");
+  writeFileSync(fixturePath, JSON.stringify(project, null, 2));
+  await invokeTauri(page, "project_open", { path: fixturePath });
+  await page.reload();
+  const before = await invokeTauri<unknown>(page, "project_snapshot");
+  const video = page.locator("video.preview-media");
+  const audio = page.locator('[data-testid="preview-audio-' + audioClip.id + '"]');
+  await expect(video).toHaveCount(1);
+  await expect(audio).toHaveCount(1);
+  await expect.poll(() => video.evaluate((node: HTMLVideoElement) =>
+    !node.seeking && node.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA)).toBe(true);
+  await video.evaluate((node: HTMLVideoElement) => {
+    if (typeof node.requestVideoFrameCallback !== "function")
+      throw new Error("This regression requires actual native compositor callbacks");
+    node.addEventListener("playing", () => {
+      // Test-only main-thread load on a REAL native playing event. No decoder
+      // mock, synthetic event, direct playhead update or manual audio start.
+      const started = performance.now();
+      while (performance.now() - started < 600) { /* busy UI */ }
+      node.dataset.startupLoadMs = String(performance.now() - started);
+    }, { once: true });
+  });
+  await page.getByRole("button", { name: "Воспроизвести", exact: true }).click();
+  await expect.poll(() => video.evaluate((node: HTMLVideoElement) =>
+    Number(node.dataset.startupLoadMs ?? 0))).toBeGreaterThanOrEqual(600);
+  await expect.poll(async () => page.evaluate(() => {
+    const v = document.querySelector("video.preview-media") as HTMLVideoElement | null;
+    const a = document.querySelector("audio[data-testid^='preview-audio-']") as HTMLAudioElement | null;
+    const timecode = document.querySelector(".preview-controls .timecode")?.textContent ?? "";
+    return Boolean(v && a && !v.paused && !v.seeking && !a.paused && !a.seeking &&
+      Number.parseFloat(timecode) >= 0.4 && a.currentTime >= 0.25 &&
+      Math.abs(v.currentTime / 2 - a.currentTime) < 0.35);
+  }), { timeout: 5_000, intervals: [50, 100, 150],
+    message: "native timeline and independent WAV must advance after UI startup load" }).toBe(true);
+  await page.getByRole("button", { name: "Остановить и вернуться к началу", exact: true }).click();
+  await expect(page.locator(".preview-controls .timecode")).toHaveText("0.000 с");
+  await expect.poll(() => audio.evaluate((node) => (node as HTMLAudioElement).paused)).toBe(true);
+  expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
 });

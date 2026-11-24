@@ -118,7 +118,7 @@ export function AudioFadeHandles({ clip, widthPx, sequenceId, trackId, locked,
       aria-valuetext={`${(fade / 1_000_000).toFixed(2)} seconds`}
       disabled={locked} style={{ left: `clamp(16px, ${Math.min(100, Math.max(0, x * 100))}%, calc(100% - 16px))` }}
       onPointerDown={(event) => begin(side, event)}
-      onPointerMove={drag} onPointerUp={release} onPointerCancel={cancel}
+      onPointerMove={drag} onPointerUp={release} onPointerCancel={cancel} onLostPointerCapture={cancel}
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => keyChange(side, event)} />;
   }
