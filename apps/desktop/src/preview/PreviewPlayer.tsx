@@ -586,7 +586,14 @@ export function PreviewPlayer({
               }
             }
           }
-          if (nextUs === null && !anchor && !recovery &&
+          // Initial buffering can park the transport at an unacknowledged
+          // start/seek. After native playback resumes, a late frame may be
+          // too far ahead even for the first recovery candidate. Allow the
+          // same bounded rewind as startup, never a timeline/audio catch-up.
+          const canRewindUnacknowledgedStart = !recovery ||
+            (recovery.key === key && recovery.resumed &&
+              recovery.playheadUs === clockPositionRef.current && pendingExternalFrameRef.current);
+          if (nextUs === null && !anchor && canRewindUnacknowledgedStart &&
               correctedPlayheadUs !== clockPositionRef.current) {
             const playheadUs = clockPositionRef.current;
             // Agreement between an advanced decoder and compositor is NOT
@@ -970,7 +977,7 @@ export function PreviewPlayer({
             key={value}
             aria-label={`Качество предпросмотра: ${value === "Full" ? "Полное" : value}`}
             title={`Качество предпросмотра: ${value === "Full" ? "Полное" : value}`}
-            className={quality === value ? "is-active" : ""}
+            className={quality === value ? "preview-option is-active" : "preview-option"}
             onClick={() => setQuality(value)}
           >{value === "Full" ? "Полное" : value}</button>
         ))}
@@ -980,7 +987,7 @@ export function PreviewPlayer({
             key={value}
             aria-label={`Масштаб предпросмотра: ${value === "Fit" ? "Вписать" : value}`}
             title={`Масштаб предпросмотра: ${value === "Fit" ? "Вписать" : value}`}
-            className={scale === value ? "is-active" : ""}
+            className={scale === value ? "preview-option is-active" : "preview-option"}
             onClick={() => setScale(value)}
           >{value === "Fit" ? "Вписать" : "100%"}</button>
         ))}

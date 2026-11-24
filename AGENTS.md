@@ -36,6 +36,10 @@ When every applicable gate genuinely passes, mark the PR ready (if draft), merge
 
 This delegation is **only for approved code development and internal PR integration**. Public tags/Releases, code signing, installer installation, auto-update activation, paid services, risky data operations, incompatible migrations and new out-of-spec architecture still require their own express authorization. Do not weaken/remove CI checks, assertions or security boundaries to get a merge.
 
+## Local Windows QA must end before the chat response (owner decision 2026-11-24)
+
+Run only one bounded local native E2E invocation at a time (explicit spec or shard, e.g. `npm run test:e2e:local -- e2e/preview-portrait-fit.spec.ts` from apps/desktop; select an explicit adequate global timeout for a longer shard). No chained local shard/stress loops, delayed jobs or detached test launches that continue opening the editor after the final response. Record and read back the exact test runner PID and exit status. Before answering, ensure the owned runner and its test editor/process tree have ended. If the current chat cannot finish a check, cancel only the verified owned process tree, preserve its logs, report the incomplete gate and resume it only during a later active chat. Never terminate a user's editor or change their project. Remote GitHub Actions may continue independently; do not weaken mandatory CI or acceptance. Apply the permanent task specification's safe project cleanup rule only when the checkout and test processes are idle.
+
 ## Mandatory product-first continuation (new sessions)
 
 **Primary goal: develop a functioning Windows video editor, not a documentation/versioning project.** The user wants the strongest *approved* editing workflows inspired by Premiere Pro and CapCut. Do not reinterpret the last Google checkpoint's maintenance topic as a request to spend the next session on maintenance again. This product-first rule takes priority when choosing the NEXT development task; security, data integrity, failing CI and direct user requests are legitimate exceptions.

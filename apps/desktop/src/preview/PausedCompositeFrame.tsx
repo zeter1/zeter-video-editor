@@ -70,6 +70,10 @@ export function PausedCompositeFrame({
   const [validated, setValidated] = useState<typeof presented>(null);
   const [liveFrame, setLiveFrame] = useState<{ token: string; mediaTime: number } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
+  const wasPlayingRef = useRef(false);
+  const liveProofRef = useRef<{
+    node: HTMLVideoElement; token: string; mediaTime: number;
+  } | null>(null);
   const pendingFrameRef = useRef<{ node: HTMLVideoElement; id: number } | null>(null);
   // WebView2 may report the *correct* GPU frame before firing seeked. Keep
   // that proof until the native seek completes instead of waiting forever
@@ -199,12 +203,37 @@ export function PausedCompositeFrame({
   useEffect(() => {
     clearPendingFrame();
     observedFrameRef.current = null;
+    const wasPlaying = wasPlayingRef.current;
+    wasPlayingRef.current = playing;
     const node = video.current;
-    if (!node || !chunk || playing) return;
-    // Native paused playback may submit its sole frame before loadeddata
-    // or seeked; subscribe before starting the seek so it cannot be missed.
+    if (playing) {
+      if (!wasPlaying) {
+        liveProofRef.current = null;
+        setPresented(null);
+      }
+      return;
+    }
+    const liveProof = liveProofRef.current;
+    liveProofRef.current = null;
+    if (!node || !chunk) return;
+    // Stop the decoder before deciding whether a paused seek is necessary.
+    if (wasPlaying) node.pause();
+    const atTarget = Math.abs(node.currentTime - targetSeconds) <= 0.0005;
+    // Pausing at an already presented exact frame may never produce another
+    // rVFC. Transfer only the latest proof from this same decoder and lease;
+    // the looser playback drift budget is NOT a paused-frame guarantee.
+    if (wasPlaying && !shortDraft && atTarget && node.paused &&
+        !node.seeking && node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        liveProof?.node === node && liveProof.token === chunk.token &&
+        Math.abs(liveProof.mediaTime - targetSeconds) <= Math.max(0.002, 0.5 / fps)) {
+      observedFrameRef.current = { ...liveProof, timeUs: playheadTimeUs };
+      confirmObservedFrame();
+      return;
+    }
+    // Subscribe before seeking. On a live-to-paused handoff without exact
+    // evidence, request a fresh frame even if the media clock is at target.
     watchPresentedFrame();
-    if (Math.abs(node.currentTime - targetSeconds) > 0.0005) {
+    if (!atTarget || wasPlaying) {
       node.currentTime = Math.max(0, targetSeconds);
     }
     return () => { clearPendingFrame(); };
@@ -244,6 +273,7 @@ export function PausedCompositeFrame({
     node.playbackRate = Number.isFinite(playbackRate) && playbackRate > 0 ? playbackRate : 1;
     // Seek only when drift exceeds the decoder jitter budget.
     if (Math.abs(node.currentTime - targetSecondsRef.current) > 0.12) {
+      liveProofRef.current = null;
       setLiveFrame(null);
       node.currentTime = Math.max(0, targetSecondsRef.current);
     }
@@ -252,15 +282,8 @@ export function PausedCompositeFrame({
     }
   };
 
-  const wasPlayingRef = useRef(false);
   useEffect(() => {
-    const wasPlaying = wasPlayingRef.current;
-    wasPlayingRef.current = playing;
-    if (!playing) {
-      if (wasPlaying) video.current?.pause();
-    } else {
-      synchronizeMovingFrame();
-    }
+    if (playing) synchronizeMovingFrame();
   }, [playing, chunk?.token, targetSeconds, playbackRate]);
 
   useEffect(() => {
@@ -278,6 +301,8 @@ export function PausedCompositeFrame({
         const aligned = !node.seeking &&
           node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
           Math.abs(metadata.mediaTime - targetSecondsRef.current) <= Math.max(0.12, 1 / fps);
+        liveProofRef.current = aligned
+          ? { node, token: chunk.token, mediaTime: metadata.mediaTime } : null;
         setLiveFrame(aligned ? { token: chunk.token, mediaTime: metadata.mediaTime } : null);
         schedule();
       });
@@ -338,12 +363,14 @@ export function PausedCompositeFrame({
           }}
           onSeeking={() => {
             // Retire stale picture proof until the new native texture arrives.
+            liveProofRef.current = null;
             setLiveFrame(null);
             setPresented(null);
             if (shortDraft) setValidated(null);
             watchPresentedFrame();
           }}
           onError={() => {
+            liveProofRef.current = null;
             setLiveFrame(null);
             if (shortDraft) onRenderError?.();
             clearPendingFrame();

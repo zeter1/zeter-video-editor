@@ -210,7 +210,7 @@ button {
 
 .preview-panel {
   display: grid;
-  grid-template-rows: 38px minmax(0, 1fr) 46px;
+  grid-template-rows: 38px minmax(0, 1fr) minmax(46px, auto);
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
@@ -352,15 +352,28 @@ button {
 
 .preview-controls {
   justify-content: center;
+  align-content: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-width: 0;
+  padding: 8px;
   border-top: 1px solid var(--border-soft);
   background: #0d1219;
 }
 
 .preview-controls button {
   display: grid;
-  width: 30px;
+  flex: none;
+  width: auto;
+  min-width: 30px;
   height: 28px;
+  padding: 0 7px;
+  white-space: nowrap;
   place-items: center;
+}
+
+.preview-controls .preview-option {
+  font-size: 12px;
 }
 
 .preview-controls .play-button {
@@ -371,6 +384,8 @@ button {
 }
 
 .timecode {
+  flex: none;
+  white-space: nowrap;
   margin-left: 8px;
   color: #cbd3df;
   font-variant-numeric: tabular-nums;
@@ -378,7 +393,9 @@ button {
 }
 
 .quality-pill {
-  margin-left: 8px;
+  flex: none;
+  white-space: nowrap;
+  margin-left: 4px;
 }
 
 .timeline-editor {

@@ -1,13 +1,14 @@
 {
   "name": "zeter-video-editor-desktop",
   "private": true,
-  "version": "0.1.0-alpha.56",
+  "version": "0.1.0-alpha.57",
   "type": "module",
   "scripts": {
     "test": "vitest",
     "build": "tsc --noEmit && vite build",
     "tauri": "tauri",
-    "test:e2e": "playwright test -c playwright.config.ts"
+    "test:e2e": "playwright test -c playwright.config.ts",
+    "test:e2e:local": "playwright test -c playwright.config.ts --global-timeout=180000"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.1",
