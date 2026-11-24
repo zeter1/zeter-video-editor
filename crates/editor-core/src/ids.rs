@@ -33,6 +33,20 @@ define_id!(MediaId);
 define_id!(JobId);
 define_id!(RequestId);
 
+// Only the validated, non-persistent Short render snapshot uses these IDs.
+// Ordinals are local to that snapshot, never to the project or edit history.
+impl ClipId {
+    pub(crate) fn preview_ordinal(index: usize) -> Self {
+        Self(Uuid::from_u128(index as u128 + 1))
+    }
+}
+
+impl TrackId {
+    pub(crate) fn preview_ordinal(index: usize) -> Self {
+        Self(Uuid::from_u128(index as u128 + 1))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

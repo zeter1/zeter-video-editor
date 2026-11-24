@@ -301,7 +301,12 @@ impl ProjectService {
         // Never install this temporary project or add a history entry. Media
         // paths remain exclusively those in the authoritative project.
         project.sequences.push(sequence);
-        Ok(RenderSnapshot::from_sequence(&project, id, revision)?)
+        Ok(RenderSnapshot::from_short_preview_sequence(
+            &project,
+            id,
+            source_sequence_id,
+            revision,
+        )?)
     }
 
     pub fn execute_edit_command(

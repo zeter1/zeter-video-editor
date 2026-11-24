@@ -273,3 +273,82 @@ fn short_preview_is_read_only_and_matches_created_candidate() {
             .is_err()
     );
 }
+
+#[test]
+fn short_preview_identity_is_stable_without_reusing_created_ids() {
+    use crate::app::project_service::ShortPreviewDraft;
+    let (project, source_id) = fixture();
+    let project_id = project.id;
+    let mut service = ProjectService::from_project(project, ProjectRevision::new(0)).unwrap();
+    let before = service.snapshot().unwrap();
+    let crop = initial_vertical_crop(1920, 1080, None).unwrap();
+    let selection = candidate(ProjectRevision::new(0));
+    let preview = |draft| {
+        service
+            .short_preview_snapshot(project_id, ProjectRevision::new(0), source_id, draft)
+            .unwrap()
+    };
+    let first = preview(ShortPreviewDraft::Candidate {
+        candidate: selection.clone(),
+        crop,
+    });
+    let second = preview(ShortPreviewDraft::Candidate {
+        candidate: selection.clone(),
+        crop,
+    });
+    assert_eq!(
+        first, second,
+        "fresh candidate UUIDs must not miss the render cache"
+    );
+    let shifted = HighlightCandidate {
+        start: time(11_000_000),
+        end: time(21_000_000),
+        ..selection.clone()
+    };
+    assert_ne!(
+        first,
+        preview(ShortPreviewDraft::Candidate {
+            candidate: shifted,
+            crop
+        })
+    );
+    let changed_crop = Crop {
+        left: 0.0,
+        right: crop.left + crop.right,
+        ..crop
+    };
+    assert_ne!(
+        first,
+        preview(ShortPreviewDraft::Candidate {
+            candidate: selection.clone(),
+            crop: changed_crop
+        })
+    );
+
+    let mut manual = before.project.sequences[0].clone();
+    manual.id = SequenceId::new();
+    manual.width = 1080;
+    manual.height = 1920;
+    manual.tracks[0].id = TrackId::new();
+    manual.tracks[0].clips[0].id = ClipId::new();
+    manual.tracks[0].clips[0].transform.crop = crop;
+    let manual_first = preview(ShortPreviewDraft::Manual {
+        sequence: manual.clone(),
+    });
+    manual.id = SequenceId::new();
+    manual.tracks[0].id = TrackId::new();
+    manual.tracks[0].clips[0].id = ClipId::new();
+    assert_eq!(
+        manual_first,
+        preview(ShortPreviewDraft::Manual { sequence: manual })
+    );
+    assert_eq!(before.project, service.snapshot().unwrap().project);
+    assert_eq!(before.revision, service.snapshot().unwrap().revision);
+    service
+        .create_short_from_candidate(source_id, &selection, RequestId::new(), crop)
+        .unwrap();
+    let created = service.snapshot().unwrap();
+    let actual = created.project.sequences.last().unwrap();
+    assert_ne!(actual.id, first.sequence_id);
+    assert_ne!(actual.tracks[0].clips[0].id, first.clips[0].clip_id);
+}

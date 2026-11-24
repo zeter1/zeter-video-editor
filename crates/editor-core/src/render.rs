@@ -81,6 +81,26 @@ impl RenderSnapshot {
         sequence_id: SequenceId,
         revision: ProjectRevision,
     ) -> Result<Self, DomainError> {
+        Self::from_sequence_impl(project, sequence_id, revision, None)
+    }
+
+    /// Stable IDs for a validated temporary Short draft. The Short cache has
+    /// its own namespace; all project, source and render content is retained.
+    pub fn from_short_preview_sequence(
+        project: &Project,
+        draft_id: SequenceId,
+        source_id: SequenceId,
+        revision: ProjectRevision,
+    ) -> Result<Self, DomainError> {
+        Self::from_sequence_impl(project, draft_id, revision, Some(source_id))
+    }
+
+    fn from_sequence_impl(
+        project: &Project,
+        sequence_id: SequenceId,
+        revision: ProjectRevision,
+        preview_source: Option<SequenceId>,
+    ) -> Result<Self, DomainError> {
         project.validate()?;
         let sequence = project
             .sequences
@@ -108,9 +128,17 @@ impl RenderSnapshot {
 
         for (track_index, track) in sequence.tracks.iter().enumerate() {
             for (clip_index, clip) in track.clips.iter().enumerate() {
+                let (clip_id, track_id) = if preview_source.is_some() {
+                    (
+                        ClipId::preview_ordinal(clips.len()),
+                        TrackId::preview_ordinal(track_index),
+                    )
+                } else {
+                    (clip.id, track.id)
+                };
                 clips.push(RenderClip {
-                    clip_id: clip.id,
-                    track_id: track.id,
+                    clip_id,
+                    track_id,
                     track_index,
                     clip_index,
                     kind: clip.kind,
@@ -126,7 +154,7 @@ impl RenderSnapshot {
                 });
 
                 audio.push(RenderAudio {
-                    clip_id: clip.id,
+                    clip_id,
                     volume: clip.audio.volume,
                     gain_db: clip.audio.gain_db,
                     muted: clip.audio.muted || track.muted,
@@ -136,7 +164,7 @@ impl RenderSnapshot {
 
                 if let Some(text) = &clip.text {
                     texts.push(RenderText {
-                        clip_id: clip.id,
+                        clip_id,
                         timeline_start: clip.timeline_start,
                         timeline_end: clip.timeline_end,
                         text: text.text.clone(),
@@ -147,7 +175,7 @@ impl RenderSnapshot {
 
                 if let Some(transition) = clip.transition {
                     transitions.push(RenderTransition {
-                        clip_id: clip.id,
+                        clip_id,
                         kind: transition.kind,
                         duration: transition.duration,
                     });
@@ -167,7 +195,7 @@ impl RenderSnapshot {
 
         Ok(Self {
             project_id: project.id,
-            sequence_id,
+            sequence_id: preview_source.unwrap_or(sequence_id),
             revision,
             width: sequence.width,
             height: sequence.height,
@@ -364,6 +392,71 @@ mod tests {
         assert_eq!(
             snapshot.subtitle_style.active_word_color.as_deref(),
             Some("#FFD54A")
+        );
+    }
+
+    #[test]
+    fn short_preview_ordinals_preserve_cross_layer_links_and_render_content() {
+        let (mut project, draft_id, _) = fixture();
+        let source_id = SequenceId::new();
+        let revision = ProjectRevision::new(7);
+        let normal = RenderSnapshot::from_sequence(&project, draft_id, revision).unwrap();
+        let preview =
+            RenderSnapshot::from_short_preview_sequence(&project, draft_id, source_id, revision)
+                .unwrap();
+        assert_eq!(preview.sequence_id, source_id);
+        assert_ne!(preview.clips[0].clip_id, preview.clips[1].clip_id);
+        assert_eq!(preview.clips[0].track_id, preview.clips[1].track_id);
+        assert_eq!(preview.audio[0].clip_id, preview.clips[0].clip_id);
+        assert_eq!(preview.audio[1].clip_id, preview.clips[1].clip_id);
+        assert_eq!(preview.transitions[0].clip_id, preview.clips[0].clip_id);
+        assert_eq!(preview.texts[0].clip_id, preview.clips[1].clip_id);
+
+        // Restore original identities and compare the entire render snapshot.
+        let mut restored = preview.clone();
+        restored.sequence_id = normal.sequence_id;
+        for (clip, original) in restored.clips.iter_mut().zip(&normal.clips) {
+            clip.clip_id = original.clip_id;
+            clip.track_id = original.track_id;
+        }
+        for (audio, original) in restored.audio.iter_mut().zip(&normal.audio) {
+            audio.clip_id = original.clip_id;
+        }
+        for (text, original) in restored.texts.iter_mut().zip(&normal.texts) {
+            text.clip_id = original.clip_id;
+        }
+        for (transition, original) in restored.transitions.iter_mut().zip(&normal.transitions) {
+            transition.clip_id = original.clip_id;
+        }
+        assert_eq!(restored, normal);
+
+        let sequence = &mut project.sequences[0];
+        sequence.id = SequenceId::new();
+        sequence.tracks[0].id = TrackId::new();
+        for clip in &mut sequence.tracks[0].clips {
+            clip.id = ClipId::new();
+        }
+        let new_draft_id = sequence.id;
+        assert_eq!(
+            preview,
+            RenderSnapshot::from_short_preview_sequence(
+                &project,
+                new_draft_id,
+                source_id,
+                revision
+            )
+            .unwrap()
+        );
+        project.sequences[0].tracks[0].clips[0].audio.volume = 0.3;
+        assert_ne!(
+            preview,
+            RenderSnapshot::from_short_preview_sequence(
+                &project,
+                new_draft_id,
+                source_id,
+                revision
+            )
+            .unwrap()
         );
     }
 
