@@ -97,7 +97,12 @@ export function PausedCompositeFrame({
         sequenceId, requestId, expectedRevision: revision, playheadUs: start,
         ...(shortDraft ? { projectId, draft: shortDraft } : {}),
       }).then((result) => {
-        if (requestsRef.current.get(start) !== request) return;
+        if (requestsRef.current.get(start) !== request) {
+          // An early cancel can precede native registration. If a result still
+          // arrives, revoke its own lease again; never affect a newer request.
+          void invoke("cancel_preview_chunk", { requestId }).catch(() => {});
+          return;
+        }
         // The request's range, rather than an arbitrary server-provided
         // timestamp, identifies the cache slot. Never accept another window.
         if (result.start_us !== start || result.end_us <= start ||

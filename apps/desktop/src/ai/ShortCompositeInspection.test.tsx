@@ -41,6 +41,24 @@ describe("explicit Short export-picture inspection", () => {
     expect(screen.queryByRole("region", { name: "Точный предпросмотр Short 9:16" })).toBeNull();
   });
 
+  it("revokes a late native lease again if cancellation arrived before registration", async () => {
+    invoke.mockReset();
+    let resolveLate!: (result: unknown) => void;
+    invoke.mockImplementation((command: string) => command === "request_short_preview_chunk"
+      ? new Promise((resolve) => { resolveLate = resolve; }) : Promise.resolve(null));
+    const { unmount } = render(<ShortCompositeInspection fps={30} range={range}
+      sequenceTimeUs={100_000} buildDraft={() => context} />);
+    fireEvent.click(screen.getByRole("button", { name: "Показать точный кадр Short" }));
+    await waitFor(() => expect(resolveLate).toBeTypeOf("function"));
+    const requestId = invoke.mock.calls[0][1].requestId;
+    unmount();
+    expect(invoke.mock.calls.filter(([cmd, args]) =>
+      cmd === "cancel_preview_chunk" && args.requestId === requestId)).toHaveLength(1);
+    resolveLate({ token: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", start_us: 0, end_us: 4_000_000 });
+    await waitFor(() => expect(invoke.mock.calls.filter(([cmd, args]) =>
+      cmd === "cancel_preview_chunk" && args.requestId === requestId)).toHaveLength(2));
+  });
+
   it("shows an explicit error and does not show a stale picture if native rendering fails", async () => {
     invoke.mockReset();
     invoke.mockImplementation((command: string) => command === "request_short_preview_chunk"

@@ -254,7 +254,16 @@ describe("opaque cached FFmpeg paused Preview", () => {
     rerender(<PausedCompositeFrame {...props} revision={9} playheadTimeUs={4_100_000} />);
     await waitFor(() => expect((screen.getByLabelText("Точный FFmpeg кадр") as HTMLVideoElement).src)
       .toContain("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"));
-    expect(invoke.mock.calls.filter(([command]) => command === "cancel_preview_chunk")).toHaveLength(3);
+    const requests = invoke.mock.calls.filter(([command]) => command === "request_preview_chunk");
+    const cancelled = invoke.mock.calls.filter(([command]) => command === "cancel_preview_chunk")
+      .map(([, args]) => args.requestId);
+    expect(cancelled).toHaveLength(5);
+    for (const [, args] of requests.filter(([, args]) => args.expectedRevision === 8)) {
+      expect(cancelled.filter((id) => id === args.requestId)).toHaveLength(2);
+    }
+    const live = requests.find(([, args]) => args.expectedRevision === 9 && args.playheadUs === 4_000_000);
+    expect(live).toBeDefined();
+    expect(cancelled).not.toContain(live![1].requestId);
   });
 
   it("does not present a previous GPU frame after a chunk-boundary seek", async () => {
