@@ -707,7 +707,7 @@ describe("PreviewPlayer continuous transport", () => {
     expect(props.onCommit).not.toHaveBeenCalled();
   });
 
-  it("holds standalone audio until a trimmed video frame reaches the compositor", () => {
+  it.each([false, true])("holds standalone audio until a trimmed video frame reaches the compositor (initial buffering: %s)", (initialBuffering) => {
     let cleanupHarness: (() => void) | null = null;
     const previousRequest = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "requestVideoFrameCallback");
     const previousCancel = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "cancelVideoFrameCallback");
@@ -784,9 +784,22 @@ describe("PreviewPlayer continuous transport", () => {
       // The first callback may be delivered after a busy JS thread missed
       // several frames. Never jump over the requested in-point or start WAV
       // from an untrusted frame; seek back to the authoritative playhead.
+      if (initialBuffering) {
+        fireEvent.waiting(video);
+        video.currentTime = 4.5;
+        present(4.5); // Queued during waiting: no corrective seek or audio release.
+        expect(video.currentTime).toBeCloseTo(4.5);
+        expect(audioPlays()).toBe(0);
+        fireEvent.playing(video);
+      }
       video.currentTime = 4.6;
       present(4.6);
       expect(video.currentTime).toBeCloseTo(4);
+      if (initialBuffering) {
+        // jsdom does not dispatch native events when currentTime is assigned.
+        fireEvent.seeking(video);
+        fireEvent.seeked(video);
+      }
       // Do not loop seeks under sustained load at the same playhead.
       video.currentTime = 4.7;
       present(4.7);

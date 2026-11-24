@@ -586,7 +586,14 @@ export function PreviewPlayer({
               }
             }
           }
-          if (nextUs === null && !anchor && !recovery &&
+          // Initial buffering can park the transport at an unacknowledged
+          // start/seek. After native playback resumes, a late frame may be
+          // too far ahead even for the first recovery candidate. Allow the
+          // same bounded rewind as startup, never a timeline/audio catch-up.
+          const canRewindUnacknowledgedStart = !recovery ||
+            (recovery.key === key && recovery.resumed &&
+              recovery.playheadUs === clockPositionRef.current && pendingExternalFrameRef.current);
+          if (nextUs === null && !anchor && canRewindUnacknowledgedStart &&
               correctedPlayheadUs !== clockPositionRef.current) {
             const playheadUs = clockPositionRef.current;
             // Agreement between an advanced decoder and compositor is NOT
