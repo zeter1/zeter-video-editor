@@ -311,6 +311,37 @@ pub async fn request_short_preview_chunk(
     render_preview_snapshot(app, snapshot, request_id, playhead_us, true).await
 }
 
+/// A buffered WebView2 seek may not touch the HTTP stream. Recheck the lease
+/// without requesting a render or extending its expiration.
+#[tauri::command(async)]
+pub async fn validate_short_preview_chunk(
+    app: tauri::AppHandle,
+    project_id: ProjectId,
+    expected_revision: ProjectRevision,
+    token: String,
+) -> Result<bool, AppErrorDto> {
+    let state = app.state::<AppState>();
+    let project = state
+        .project
+        .lock()
+        .map_err(|_| AppErrorDto::from(AppError::StatePoisoned))?;
+    let snapshot = project.snapshot().map_err(AppErrorDto::from)?;
+    if snapshot.project.id != project_id || snapshot.revision != expected_revision {
+        return Ok(false);
+    }
+    Ok(state
+        .short_preview
+        .resolve(&token, project_id, expected_revision)
+        .is_some_and(|path| {
+            std::fs::symlink_metadata(path).is_ok_and(|m| {
+                m.is_file()
+                    && !m.file_type().is_symlink()
+                    && m.len() > 0
+                    && m.len() <= 64 * 1024 * 1024
+            })
+        }))
+}
+
 async fn render_preview_snapshot(
     app: tauri::AppHandle,
     snapshot: RenderSnapshot,

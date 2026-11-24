@@ -147,12 +147,32 @@ test("native Create Short builds an undoable 9:16 crop with save and real FFmpeg
   expect(await exactVideo.getAttribute("src")).toBe(exactUrl);
   expect(await invokeTauri<NativeProject>(page, "project_snapshot")).toEqual(before);
   console.log("[ZVE-035] native cancel-before-registration rejected; fresh draft and existing frame intact");
-  // A change immediately retires the old frame and its request.
-  await inspection.press("ArrowRight");
-  await expect(exact).toHaveCount(0);
+  // Each presented seek must keep the same native lease inside its interval.
+  const leaseArgs = { projectId: before.project.id, expectedRevision: before.revision,
+    token: exactUrl!.split("/").at(-1)! };
+  expect(await invokeTauri<boolean>(page, "validate_short_preview_chunk", leaseArgs)).toBe(true);
+  expect(await invokeTauri<boolean>(page, "validate_short_preview_chunk",
+    { ...leaseArgs, expectedRevision: before.revision + 1 })).toBe(false);
+  expect(await invokeTauri<boolean>(page, "validate_short_preview_chunk",
+    { ...leaseArgs, token: fresh.token })).toBe(false);
+  const seekMs: number[] = [];
+  for (let frame = 1; frame <= 6; frame++) {
+    const started = performance.now();
+    await inspection.press("ArrowRight");
+    await expect(exactVideo).toHaveCSS("visibility", "visible", { timeout: 15_000 });
+    await expect.poll(() => exactVideo.evaluate(v => (v as HTMLVideoElement).currentTime))
+      .toBeCloseTo(frame / 30, 2);
+    expect(await exactVideo.getAttribute("src")).toBe(exactUrl);
+    seekMs.push(performance.now() - started);
+  }
+  console.log("[ZVE-036] native cached seek ms", seekMs);
+  const reusedPath = path.join(path.dirname(projectPath), "zve036-reused-frame6.png");
+  await exact.screenshot({ path: reusedPath });
+  expect(await invokeTauri<NativeProject>(page, "project_snapshot")).toEqual(before);
   await inspection.press("Home");
-  await page.getByRole("button", { name: "Показать точный кадр Short" }).click();
-  await expect(exactVideo).toHaveCSS("visibility", "visible", { timeout: 60_000 });
+  await expect(exactVideo).toHaveCSS("visibility", "visible", { timeout: 15_000 });
+  await expect.poll(() => exactVideo.evaluate(v => (v as HTMLVideoElement).currentTime)).toBeCloseTo(0, 2);
+  expect(await exactVideo.getAttribute("src")).toBe(exactUrl);
   const exactPath = path.join(path.dirname(projectPath), "zve035-manual-composite.png");
   await exact.screenshot({ path: exactPath });
   await page.getByRole("button", { name: "Создать Short", exact: true }).click();
@@ -255,4 +275,5 @@ test("native Create Short builds an undoable 9:16 crop with save and real FFmpeg
   expect(p95).toBeLessThanOrEqual(45);
   expect(p99).toBeLessThanOrEqual(95);
   assertShortCompositeRgb(ffmpeg, exactPath, exportedPath);
+  assertShortCompositeRgb(ffmpeg, reusedPath, exportedPath, 6);
 });

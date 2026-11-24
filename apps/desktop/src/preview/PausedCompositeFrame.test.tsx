@@ -375,4 +375,44 @@ describe("opaque cached FFmpeg paused Preview", () => {
       .toBe("hidden");
   });
 
+  it("revalidates the exact Short lease after each presented seek and ignores superseded validation", async () => {
+    const validations: Array<(valid: boolean) => void> = [];
+    invoke.mockImplementation((command: string) => {
+      if (command === "request_short_preview_chunk") return Promise.resolve({
+        token: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", start_us: 0, end_us: 4_000_000,
+      });
+      if (command === "validate_short_preview_chunk") return new Promise<boolean>(resolve => validations.push(resolve));
+      return Promise.resolve(null);
+    });
+    const shortDraft = { kind: "candidate" as const,
+      candidate: { start: 0, end: 4_000_000, score: 0.8, reasons: [], source_revision: 8 },
+      crop: { left: 0.2, right: 0.4, top: 0, bottom: 0 } };
+    const failed = vi.fn();
+    const { rerender } = render(<PausedCompositeFrame {...props} shortDraft={shortDraft}
+      playheadTimeUs={1_000_000} onRenderError={failed} />);
+    const video = await screen.findByLabelText("Точный FFmpeg кадр") as HTMLVideoElement;
+    Object.defineProperty(video, "readyState", { configurable: true, value: 2 });
+    submitFrame(1);
+    await waitFor(() => expect(validations).toHaveLength(1));
+    expect(video.style.visibility).toBe("hidden");
+    rerender(<PausedCompositeFrame {...props} shortDraft={shortDraft}
+      playheadTimeUs={1_500_000} onRenderError={failed} />);
+    submitFrame(1.5);
+    await waitFor(() => expect(validations).toHaveLength(2));
+    validations[0](false);
+    await waitFor(() => expect(video.style.visibility).toBe("hidden"));
+    expect(failed).not.toHaveBeenCalled();
+    validations[1](true);
+    await waitFor(() => expect(video.style.visibility).toBe("visible"));
+    rerender(<PausedCompositeFrame {...props} shortDraft={shortDraft}
+      playheadTimeUs={1_800_000} onRenderError={failed} />);
+    expect(video.style.visibility).toBe("hidden");
+    submitFrame(1.8);
+    await waitFor(() => expect(validations).toHaveLength(3));
+    validations[2](false);
+    await waitFor(() => expect(failed).toHaveBeenCalledTimes(1));
+    expect(video.style.visibility).toBe("hidden");
+    expect(invoke.mock.calls.filter(([cmd]) => cmd === "request_short_preview_chunk")).toHaveLength(1);
+  });
+
 });

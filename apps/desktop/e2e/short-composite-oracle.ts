@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { expect } from "@playwright/test";
 
 /** Independent decoded export vs genuine WebView2 screenshot RGB oracle. */
-export function assertShortCompositeRgb(ffmpeg: string, png: string, mp4: string): void {
+export function assertShortCompositeRgb(ffmpeg: string, png: string, mp4: string, frameIndex = 0): void {
   const header = readFileSync(png);
   const width = header.readUInt32BE(16);
   const height = header.readUInt32BE(20);
@@ -14,7 +14,7 @@ export function assertShortCompositeRgb(ffmpeg: string, png: string, mp4: string
     "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1",
   ], { windowsHide: true, maxBuffer: width * height * 4 });
   const observed = decode(png, "format=rgb24");
-  const expected = decode(mp4, `scale=${width}:${height}:flags=bicubic,format=rgb24`);
+  const expected = decode(mp4, "select=eq(n\\," + frameIndex + "),scale=" + width + ":" + height + ":flags=bicubic,format=rgb24");
   expect(observed.length).toBe(width * height * 3);
   expect(expected.length).toBe(observed.length);
   const errors: number[] = [];
