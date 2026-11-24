@@ -79,3 +79,51 @@ test("native audio fade handles commit Rust history and survive .vcut reopen", a
   expect(audio(await invokeTauri<Snapshot>(page, "project_snapshot"), clip.id))
     .toEqual(audio(after, clip.id));
 });
+
+test("native lost audio fade capture discards the draft and preserves Rust history", async () => {
+  const { page, state } = await connectTauri();
+  const original = JSON.parse(readFileSync(state.workflowProjectPath, "utf8")) as Snapshot;
+  const clip = original.project.sequences[0].tracks.find(t => t.name === "Audio")
+    ?.clips.find(entry => entry.kind === "Audio");
+  if (!clip) throw new Error("No native WAV clip in task19 fixture");
+  clip.audio.fade_in = 0;
+  clip.audio.fade_out = 0;
+  original.revision = 0;
+  const fixture = path.join(state.mediaDir, "fade-capture-" + randomUUID() + ".vcut");
+  writeFileSync(fixture, JSON.stringify(original, null, 2));
+  await invokeTauri(page, "project_open", { path: fixture });
+  await page.reload();
+  await expect.poll(() => page.getByTestId(`waveform-${clip.id}`).locator("line").count(),
+    { timeout: 30_000 }).toBe(512);
+  const before = await invokeTauri<Snapshot>(page, "project_snapshot");
+  const handle = page.getByRole("slider", { name: `Fade in ${clip.id}` });
+  await handle.hover();
+  const box = await handle.boundingBox();
+  if (!box) throw new Error("Native fade handle missing bounds");
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await handle.evaluate(el => {
+    el.addEventListener("pointerdown", event => {
+      el.setAttribute("data-test-pointer-id", String((event as PointerEvent).pointerId));
+    }, { once: true });
+  });
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(x + 38, y, { steps: 5 });
+    await expect.poll(async () => Number(await handle.getAttribute("aria-valuenow"))).toBeGreaterThan(0);
+    await handle.evaluate(el => {
+      const id = Number(el.getAttribute("data-test-pointer-id"));
+      if (!el.hasPointerCapture(id)) throw new Error("Native pointer was not captured");
+      el.releasePointerCapture(id);
+    });
+    // A real subsequent pointer event delivers lostpointercapture in WebView2.
+    await page.mouse.move(x + 40, y);
+    await expect(handle).toHaveAttribute("aria-valuenow", "0");
+  } finally {
+    await page.mouse.up();
+  }
+  const after = await invokeTauri<Snapshot>(page, "project_snapshot");
+  expect(after.revision).toBe(before.revision);
+  expect(audio(after, clip.id)).toEqual(audio(before, clip.id));
+});
