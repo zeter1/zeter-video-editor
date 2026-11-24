@@ -1,5 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ProjectId, ProjectRevision, SequenceId } from "../generated/ipc";
 
@@ -34,6 +34,9 @@ interface WindowRequest {
 }
 
 const WINDOW_US = 4_000_000;
+export function compositeWindowStart(timeUs: number): number {
+  return Math.floor(timeUs / WINDOW_US) * WINDOW_US;
+}
 // Only anticipate an adjacent window when the playhead is near its boundary.
 // Starting two full FFmpeg renders for every seek is wasteful on CPU-only PCs.
 const PREFETCH_LEAD_US = 1_500_000;
@@ -58,12 +61,13 @@ export function PausedCompositeFrame({
   playbackRate = 1, onVisibilityChange, shortDraft, onRenderError,
 }: Props) {
   const scope = `${projectId}:${revision}:${sequenceId}`;
-  const windowStart = Math.floor(playheadTimeUs / WINDOW_US) * WINDOW_US;
+  const windowStart = compositeWindowStart(playheadTimeUs);
   const nextWindow = !shortDraft && playheadTimeUs >= windowStart + WINDOW_US - PREFETCH_LEAD_US
     ? windowStart + WINDOW_US : null;
   const requestsRef = useRef(new Map<number, WindowRequest>());
   const [loaded, setLoaded] = useState<Array<{ scope: string; chunk: Chunk }>>([]);
   const [presented, setPresented] = useState<{ token: string; timeUs: number } | null>(null);
+  const [validated, setValidated] = useState<typeof presented>(null);
   const [liveFrame, setLiveFrame] = useState<{ token: string; mediaTime: number } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
   const pendingFrameRef = useRef<{ node: HTMLVideoElement; id: number } | null>(null);
@@ -160,7 +164,8 @@ export function PausedCompositeFrame({
     if (!node.seeking && node.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
         Math.abs(node.currentTime - targetSeconds) <= tolerance &&
         Math.abs(frame.mediaTime - targetSeconds) <= tolerance) {
-      setPresented({ token: frame.token, timeUs: frame.timeUs });
+      setPresented(current => current?.token === frame.token && current.timeUs === frame.timeUs
+        ? current : { token: frame.token, timeUs: frame.timeUs });
     }
   };
 
@@ -204,6 +209,29 @@ export function PausedCompositeFrame({
     }
     return () => { clearPendingFrame(); };
   }, [chunk?.token, targetSeconds, playing]);
+
+  // Reusing a decoder can bypass HTTP range reads. Validate its opaque lease
+  // against native source fingerprints and revision before exposing each seek.
+  useLayoutEffect(() => {
+    if (shortDraft) {
+      setPresented(null);
+      setValidated(null);
+    }
+  }, [shortDraft, scope, chunk?.token, playheadTimeUs]);
+
+  useEffect(() => {
+    if (!shortDraft || !chunk || !presented ||
+        presented.token !== chunk.token || presented.timeUs !== playheadTimeUs) return;
+    let cancelled = false;
+    void invoke<boolean>("validate_short_preview_chunk", {
+      projectId, expectedRevision: revision, token: chunk.token,
+    }).then(valid => {
+      if (cancelled) return;
+      if (valid) setValidated(presented);
+      else onRenderError?.();
+    }).catch(() => { if (!cancelled) onRenderError?.(); });
+    return () => { cancelled = true; };
+  }, [shortDraft, projectId, revision, chunk?.token, playheadTimeUs, presented, onRenderError]);
 
   // FFmpeg supplies only the picture. The original foreground video remains
   // mounted underneath as the sole authoritative timeline and audio clock.
@@ -267,7 +295,7 @@ export function PausedCompositeFrame({
   const isPresented = chunk !== null && (playing
     ? liveFrame?.token === chunk.token &&
       Math.abs(liveFrame.mediaTime - targetSeconds) <= Math.max(0.12, 1 / fps)
-    : presented?.token === chunk.token && presented.timeUs === playheadTimeUs);
+    : presented?.token === chunk.token && presented.timeUs === playheadTimeUs && (!shortDraft || validated === presented));
   useEffect(() => {
     onVisibilityChange?.(isPresented);
   }, [isPresented, onVisibilityChange]);
@@ -312,6 +340,7 @@ export function PausedCompositeFrame({
             // Retire stale picture proof until the new native texture arrives.
             setLiveFrame(null);
             setPresented(null);
+            if (shortDraft) setValidated(null);
             watchPresentedFrame();
           }}
           onError={() => {

@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import type { Crop, Sequence } from "../generated/ipc";
 import type { HighlightCandidate } from "../ipc/client";
-import { PausedCompositeFrame } from "../preview/PausedCompositeFrame";
+import { PausedCompositeFrame, compositeWindowStart } from "../preview/PausedCompositeFrame";
 import type { ShortRangeView } from "./shortRangeSnap";
 
 export type ShortPreviewDraft =
@@ -32,12 +32,18 @@ interface Props {
   disabled?: boolean;
 }
 
-/** Explicit render avoids starting FFmpeg on every pointer/slider movement.
- * The parent keys this component by exact crop, range and inspected frame,
- * immediately revoking its lease when any of those parameters changes. */
-export function ShortCompositeInspection({ fps, range, sequenceTimeUs, buildDraft, disabled }: Props) {
+/** Reuse the immutable draft's current output interval. A different interval
+ * still requires explicit user action; scrubbing never queues FFmpeg jobs. */
+export function ShortCompositeInspection(props: Props) {
+  const outputTime = shortOutputFrameTime(props.sequenceTimeUs, props.range, props.fps);
+  return <ShortCompositeWindow key={compositeWindowStart(outputTime)} {...props} outputTime={outputTime} />;
+}
+
+function ShortCompositeWindow({ fps, outputTime, buildDraft, disabled }: Props & { outputTime: number }) {
   const [request, setRequest] = useState<ShortPreviewContext | null>(null);
-  const [ready, setReady] = useState(false);
+  const [readyAt, setReadyAt] = useState<number | null>(null);
+  const ready = readyAt === outputTime;
+  const setReady = useCallback((visible: boolean) => setReadyAt(visible ? outputTime : null), [outputTime]);
   const [error, setError] = useState(false);
   const failed = useCallback(() => { setError(true); setRequest(null); }, []);
   if (!isTauri()) return null;
@@ -48,10 +54,10 @@ export function ShortCompositeInspection({ fps, range, sequenceTimeUs, buildDraf
         onClick={() => {
           if (request && ready) {
             setRequest(null);
-            setReady(false);
+            setReadyAt(null);
             return;
           }
-          setReady(false);
+          setReadyAt(null);
           setError(false);
           try {
             const draft = buildDraft();
@@ -65,7 +71,7 @@ export function ShortCompositeInspection({ fps, range, sequenceTimeUs, buildDraf
         <div className="short-composite-preview-stage" role="region" aria-label="Точный предпросмотр Short 9:16">
           <PausedCompositeFrame key={JSON.stringify(request.draft)}
             projectId={request.projectId} revision={request.revision} sequenceId={request.sequenceId}
-            fps={fps} playheadTimeUs={shortOutputFrameTime(sequenceTimeUs, range, fps)}
+            fps={fps} playheadTimeUs={outputTime}
             shortDraft={request.draft} onVisibilityChange={setReady} onRenderError={failed} />
         </div>
       ) : null}

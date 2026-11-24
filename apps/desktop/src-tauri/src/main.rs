@@ -99,6 +99,7 @@ fn main() {
             short_face_ipc::detect_short_face,
             preview_composite::request_preview_chunk,
             preview_composite::request_short_preview_chunk,
+            preview_composite::validate_short_preview_chunk,
             preview_composite::cancel_preview_chunk,
             transcription_ipc::start_transcription,
             transcription_ipc::get_transcription_result,

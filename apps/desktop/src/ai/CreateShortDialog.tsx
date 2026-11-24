@@ -339,7 +339,7 @@ export function CreateShortDialog({
       {previewMedia && inspectionRange && inspectionFrame !== null && buildCompositeDraft &&
         !loopActive ? (
           <ShortCompositeInspection
-            key={JSON.stringify([compositeScope, crop, inspectionRange, inspectionFrame])}
+            key={JSON.stringify([compositeScope, crop, inspectionRange, previewFps])}
             fps={previewFps} range={inspectionRange}
             sequenceTimeUs={inspectedFrameTimeUs(inspectionFrame, previewFps)}
             buildDraft={() => buildCompositeDraft(crop, inspectionRange)}

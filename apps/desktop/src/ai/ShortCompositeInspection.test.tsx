@@ -1,3 +1,4 @@
+import { CreateShortDialog } from "./CreateShortDialog";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ShortCompositeInspection, shortOutputFrameTime } from "./ShortCompositeInspection";
@@ -70,4 +71,56 @@ describe("explicit Short export-picture inspection", () => {
     expect(screen.queryByRole("region", { name: "Точный предпросмотр Short 9:16" })).toBeNull();
     expect((screen.getByRole("button", { name: "Показать точный кадр Short" }) as HTMLButtonElement).disabled).toBe(false);
   });
+  it("keeps one opaque lease across in-window scrub and revokes it on crossing the window or editing the crop", async () => {
+    invoke.mockReset();
+    invoke.mockImplementation(async (command: string, args?: { playheadUs?: number }) => {
+      if (command === "request_short_preview_chunk") {
+        const start = args!.playheadUs!;
+        return { token: start === 0 ? "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+          : "dddddddd-dddd-4ddd-8ddd-dddddddddddd", start_us: start, end_us: start + 4_000_000 };
+      }
+      if (command === "validate_short_preview_chunk") return true;
+      return null;
+    });
+    const crop = { left: 0.341796875, right: 0.341796875, top: 0, bottom: 0 };
+    const buildDraft = vi.fn((nextCrop: typeof crop, nextRange: typeof range) => ({
+      ...context, draft: { ...context.draft, crop: nextCrop,
+        candidate: { ...context.draft.candidate, ...nextRange } },
+    }));
+    const view = render(<CreateShortDialog open initialCrop={crop}
+      previewMedia={{ id: "44444444-4444-4444-8444-444444444441",
+        absolute_path: "C:\\assets\\fixture.mp4", project_relative_path: null,
+        file_size: 100, duration: 8_000_000, width: 1920, height: 1080 }}
+      previewTimelineRange={{ start: 0, end: 8_000_000 }} previewFps={30}
+      compositeScope="project:9:sequence:clip" buildCompositeDraft={buildDraft}
+      onCreate={vi.fn()} onCancel={vi.fn()} />);
+    const requests = () => invoke.mock.calls.filter(([cmd]) => cmd === "request_short_preview_chunk");
+    const cancels = () => invoke.mock.calls.filter(([cmd]) => cmd === "cancel_preview_chunk");
+    const slider = screen.getByRole("slider", { name: "Кадр Short для проверки" });
+    expect(requests()).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Показать точный кадр Short" }));
+    const video = await screen.findByLabelText("Точный FFmpeg кадр");
+    const requestId = requests()[0][1].requestId;
+    fireEvent.change(slider, { target: { value: "1" } });
+    expect(screen.getByLabelText("Точный FFmpeg кадр")).toBe(video);
+    expect(requests()).toHaveLength(1);
+    expect(cancels()).toHaveLength(0);
+    fireEvent.change(slider, { target: { value: "119" } });
+    expect(screen.getByLabelText("Точный FFmpeg кадр")).toBe(video);
+    expect(requests()).toHaveLength(1);
+    expect(buildDraft).toHaveBeenCalledTimes(1);
+    fireEvent.change(slider, { target: { value: "120" } });
+    expect(screen.queryByLabelText("Точный FFmpeg кадр")).toBeNull();
+    expect(invoke).toHaveBeenCalledWith("cancel_preview_chunk", { requestId });
+    expect(requests()).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Показать точный кадр Short" }));
+    await screen.findByLabelText("Точный FFmpeg кадр");
+    expect(requests()[1][1].playheadUs).toBe(4_000_000);
+    const secondId = requests()[1][1].requestId;
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Crop left" }), { target: { value: "0.1" } });
+    expect(screen.queryByLabelText("Точный FFmpeg кадр")).toBeNull();
+    expect(invoke).toHaveBeenCalledWith("cancel_preview_chunk", { requestId: secondId });
+    view.unmount();
+  });
+
 });
