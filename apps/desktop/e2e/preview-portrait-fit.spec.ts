@@ -98,6 +98,48 @@ test("portrait Fit stays inside a shallow stage and 100% keeps transport clickab
   const before = await invokeTauri<unknown>(page, "project_snapshot");
   console.log("[portrait E2E] snapshot read");
 
+  // The text labels themselves must fit, not merely their hit targets.
+  // Check native layout both at the current pane width and the 420px minimum
+  // declared by .workspace-grid, without replacing production toolbar CSS.
+  const panel = page.getByTestId("preview-panel");
+  const toolbar = page.getByLabel("Управление предпросмотром");
+  for (const narrow of [false, true]) {
+    if (narrow) await panel.evaluate((node) => { node.style.width = "420px"; });
+    const measured = await toolbar.evaluate((node) => {
+      const bounds = node.getBoundingClientRect();
+      const panelBounds = node.closest(".preview-panel")!.getBoundingClientRect();
+      return {
+        width: bounds.width,
+        overflow: node.scrollWidth - node.clientWidth,
+        buttons: [...node.querySelectorAll("button")].map((button) => {
+          const rect = button.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(button);
+          const label = range.getBoundingClientRect();
+          const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+          return { name: button.getAttribute("aria-label"), left: label.left - rect.left,
+            right: rect.right - label.right, inside: rect.left >= bounds.left - 1 &&
+              rect.right <= bounds.right + 1 && rect.bottom <= panelBounds.bottom + 1,
+            hit: target === button || button.contains(target) };
+        }),
+      };
+    });
+    console.log("[preview toolbar layout]", JSON.stringify(measured));
+    expect(measured.overflow, "toolbar must not overflow horizontally").toBeLessThanOrEqual(1);
+    for (const button of measured.buttons) {
+      expect(button.left, button.name + " label starts inside button").toBeGreaterThanOrEqual(-1);
+      expect(button.right, button.name + " label ends inside button").toBeGreaterThanOrEqual(-1);
+      expect(button.inside, button.name + " stays inside panel").toBe(true);
+      expect(button.hit, button.name + " can be clicked").toBe(true);
+    }
+    await page.getByRole("button", { name: "Качество предпросмотра: 1/2" }).click();
+    await expect(page.getByTestId("preview-quality")).toHaveText("1/2");
+    await page.getByRole("button", { name: "Качество предпросмотра: Полное" }).click();
+    await expect(page.getByTestId("preview-quality")).toHaveText("Полное");
+  }
+  await panel.evaluate((node) => { node.style.removeProperty("width"); });
+  expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(before);
+
   // Real native WebView2 end-to-end coverage for transient navigation between
   // authored clip boundaries. This must not mutate or save the .vcut project.
   const playhead = page.getByRole("slider", { name: "Timeline playhead" });

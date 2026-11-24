@@ -970,7 +970,7 @@ export function PreviewPlayer({
             key={value}
             aria-label={`Качество предпросмотра: ${value === "Full" ? "Полное" : value}`}
             title={`Качество предпросмотра: ${value === "Full" ? "Полное" : value}`}
-            className={quality === value ? "is-active" : ""}
+            className={quality === value ? "preview-option is-active" : "preview-option"}
             onClick={() => setQuality(value)}
           >{value === "Full" ? "Полное" : value}</button>
         ))}
@@ -980,7 +980,7 @@ export function PreviewPlayer({
             key={value}
             aria-label={`Масштаб предпросмотра: ${value === "Fit" ? "Вписать" : value}`}
             title={`Масштаб предпросмотра: ${value === "Fit" ? "Вписать" : value}`}
-            className={scale === value ? "is-active" : ""}
+            className={scale === value ? "preview-option is-active" : "preview-option"}
             onClick={() => setScale(value)}
           >{value === "Fit" ? "Вписать" : "100%"}</button>
         ))}
