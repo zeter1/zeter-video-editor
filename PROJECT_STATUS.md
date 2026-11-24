@@ -1,4 +1,13 @@
-# CURRENT PRODUCT DEVELOPMENT — ZVE-037 stable Short preview cache identity / 0.1.0-alpha.56 (2026-11-24)
+# CURRENT PRODUCT DEVELOPMENT — ZVE-037 follow-up: exact composite on Pause / 0.1.0-alpha.57 (2026-11-24)
+- **BASE:** main 6bfaccdb4dadd02bea972d5ad26f4ab918b387f9, PR #123 MERGED; exact PR CI #45372600208 SUCCESS, post-merge main CI #45377609232 FAILURE at preview-live-composite.spec.ts:175 (hidden exact composite after Pause). Trace artifact 14913940787: playhead 1.133s within two overlapping clips, paused transport. Native event order not captured; exact original intermittent cause remains unconfirmed.
+- **FIX:** independently reproduced loss of already presented native frame proof on Play→Pause with no second rVFC. Pause before seeking; transfer only same node/token and strict paused-time proof, otherwise subscribe then explicitly seek. Invalidate on seek/error/new playback. Short lease validation, Rust history, project schema and FFmpeg export unchanged. Branch fix/zve-037-composite-pause-frame-20261124, candidate alpha.57.
+- **TDD:** Windows focused Vitest RED 1/15 then GREEN 15/15. Negative case rejects merely live-tolerant frame. Native test retains original timing and visibility checks, adds real paused state, FFmpeg RGB parity, decoder diagnostics and unchanged Rust snapshot. Full native verification, bundle and exact-head CI required before merge.
+- **REFERENCE REVIEW:** FilmCraft previews.rs d1a3770b114116f8010a6a8f7348ff15ff1142fa (frame time and generation); Concat preview.rs 2aab95b231b7ab96033dedba07e0fa13e5653cc3 (stale results and warm seeking, AGPL); OpenMotion preview-document-cache.ts a4f229da46f989b3f000f4548eeac83db2acf93d (revision-bound cache). Independent React implementation, no third-party code/assets copied.
+- **NEXT:** verify current candidate's native overlap, Short and full regression, ordinary unsigned Windows DEBUG EXE/NSIS hashes and exact PR CI; merge only with required gates and no unresolved regressions. Then verify main CI and resume ZVE-038. No install/sign/release.
+
+---
+# HISTORICAL PRODUCT DEVELOPMENT — ZVE-037 stable Short preview cache identity / 0.1.0-alpha.56 (2026-11-24)
+- **SUPERSEDING STATUS:** merged as PR #123, main 6bfaccdb4dadd02bea972d5ad26f4ab918b387f9; previous candidate-only statements below are historical. Main CI failed in unrelated overlap Pause scenario described above.
 - **BASE:** main 94fc80581659e5c87af1a2015bd75752dfb172bc, ZVE-036 PR #122 merged, exact post-merge main CI #45366090357 terminal SUCCESS. Branch feat/zve-037-short-preview-cache-identity-20261124; candidate alpha.56, not integrated.
 - **BASELINE:** alpha.55 ordinary Windows diagnostic at 5.5s/30fps: frame119 -> 120 -> 121 -> 119, explicit return 5086ms; duplicated identical 0-4s MP4s (same SHA256); TTL expired at 120142ms, explicit recovery and isolated source timestamp invalidation observed; project and media unchanged. Logs target/zve037-local-qa/baseline-return-ttl.log and baseline-duplicate-cache.json.
 - **IMPLEMENTATION:** valid temporary manual/candidate Short render snapshots use the real source sequence ID and stable snapshot-local track/clip ordinals, linked consistently in audio, text and transitions. Full RenderPlan content, source stamps, revision, runtime, window and bounded cache remain authoritative. Actual Create uses new IDs; no project schema, undo/history, source or normal export changes. Explicit request for unknown intervals/retry remains; no speculative FFmpeg work.
@@ -1431,7 +1440,7 @@ ZVE-008 QA UPDATE 15.10.2026: пользователь попросил посл
 
 Last updated: 2026-10-11 (versioning documentation PR; still requires CI/review)
 
-Desktop source version: `0.1.0-alpha.56` (not a signed release; verify GitHub Releases before claiming publication)
+Desktop source version: `0.1.0-alpha.57` (not a signed release; verify GitHub Releases before claiming publication)
 
 ## LATEST PRODUCT-CODE CHECKPOINT — 2026-10-11 (keyboard editing; stacked draft)
 

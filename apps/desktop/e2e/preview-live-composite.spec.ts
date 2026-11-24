@@ -172,6 +172,26 @@ test("two moving video tracks use muted FFmpeg picture with master-clock sync an
     ).toBeLessThanOrEqual(25);
   }
   await page.getByRole("button", { name: "Пауза" }).click();
-  await expect(composite).toBeVisible({ timeout: 10_000 });
+  try {
+    await expect(composite).toBeVisible({ timeout: 10_000 });
+    await expect(composite).toHaveJSProperty("paused", true);
+    const pausedScreenshot = await page.locator(".preview-frame").screenshot({
+      animations: "disabled", scale: "css",
+    });
+    const pausedRgb = nativeCenterRgb(binary, pausedScreenshot);
+    for (let channel = 0; channel < 3; channel++) {
+      expect(Math.abs(pausedRgb[channel] - exportRgb[channel]),
+        "real paused FFmpeg-composite WebView2 RGB channel " + channel,
+      ).toBeLessThanOrEqual(25);
+    }
+  } finally {
+    console.log("Composite pause decoder:", await composite.evaluate((element) => {
+      const video = element as HTMLVideoElement;
+      return { currentTime: video.currentTime, paused: video.paused,
+        seeking: video.seeking, readyState: video.readyState,
+        visibility: video.style.visibility,
+        totalVideoFrames: video.getVideoPlaybackQuality().totalVideoFrames };
+    }));
+  }
   expect(await invokeTauri<unknown>(page, "project_snapshot")).toEqual(snapshot);
 });
